@@ -78,3 +78,20 @@ export const ClarifySchema = z.object({
   assumptions_if_skipped: z.array(z.string()),
 });
 export type ClarifyOutput = z.infer<typeof ClarifySchema>;
+
+/** Action Crew — Dispatcher: the verdict's action plan as owned, dated, ordered tasks. */
+export const DispatchSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        owner_type: z.enum(['human', 'agent']),
+        owner_role: z.string(),
+        due_in_working_days: z.number().int().min(1).max(260),
+        depends_on: z.array(z.number().int().min(1)),
+      }),
+    )
+    .min(1),
+});
+export type DispatchOutput = z.infer<typeof DispatchSchema>;

@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
@@ -8,6 +9,7 @@ import { redis } from './redis.js';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
+import crewRoutes from './routes/crew.js';
 import healthRoutes from './routes/health.js';
 import knowledgeRoutes from './routes/knowledge.js';
 
@@ -21,6 +23,7 @@ export async function buildApp() {
   // Per-route limits only (messages, login); counters live in Redis so they hold across restarts.
   await app.register(rateLimit, { global: false, redis });
   await app.register(multipart);
+  await app.register(formbody); // public task-link pages post plain HTML forms
   await app.register(authPlugin);
 
   app.setErrorHandler((err: any, req, reply) => {
@@ -39,5 +42,6 @@ export async function buildApp() {
   await app.register(chatRoutes);
   await app.register(adminRoutes);
   await app.register(knowledgeRoutes);
+  await app.register(crewRoutes);
   return app;
 }

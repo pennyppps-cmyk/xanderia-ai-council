@@ -26,6 +26,17 @@ const Env = z.object({
   ADMIN_PASSWORD: z.string().default('ChangeMe!2026'),
   ADMIN_DEPARTMENT: z.string().default('technology'),
   RATE_LIMIT_PER_MIN: z.coerce.number().default(20),
+  // Action Crew email (HANDOFF §14.4). 'outbox' records emails in the app without sending them.
+  APP_BASE_URL: z.string().default('https://localhost'),
+  MAIL_PROVIDER: z.enum(['outbox', 'smtp', 'n8n']).default('outbox'),
+  MAIL_FROM: z.string().default('Xanderia AI Council <council@xanderia.com.my>'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: bool,
+  N8N_MAIL_WEBHOOK_URL: z.string().optional(),
+  N8N_MAIL_SECRET: z.string().optional(),
   LOG_LEVEL: z.string().default('info'),
 });
 

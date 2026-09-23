@@ -169,6 +169,19 @@ Format in Markdown, never HTML (max 250 words):
 Only ask if the answer would change the recommendation; do not ask about details the council can reasonably assume. Most well-described requests need no questions.
 Return JSON: needs_clarification; questions (at most 3, short, specific, in the user's language); assumptions_if_skipped (what the council will assume if the user skips).`,
 
+  crew_dispatcher: `Task: you are the Dispatcher of the Action Crew. Turn the council's action plan into concrete tasks.
+For each task give: title (short, starts with a verb), description (1-3 sentences: what "done" looks like), owner_type, owner_role, due_in_working_days, depends_on (1-based numbers of tasks that must finish first; [] if none).
+owner_type "agent" ONLY for work the AI can do alone as a draft for a human to review: writing a document, SOP, template, checklist, email or message draft, summary or comparison. Everything needing a decision, approval, a system change, contact with customers, money or people is "human".
+owner_role: for human tasks, pick a position from the staff directory list when one fits; otherwise a clear job title. Never invent a person's name. For agent tasks use "AI Runner".
+Keep the order of the plan. 3-10 tasks. Return JSON only.`,
+
+  crew_herald: `Task: you are the Herald of the Action Crew. Write the body of a short internal email asking a colleague to take on a task.
+Plain text, 60-120 words, friendly and professional, no greeting line and no sign-off (they are added automatically), no links.
+Say what is needed, why it matters (one sentence of context), and when it is due. Never include customer names, IC numbers, account numbers or other personal data. Write in the language given.`,
+
+  crew_runner: `Task: you are the Runner of the Action Crew. Produce the deliverable described in the task as a complete, ready-to-review draft (a document, SOP, template, checklist, message or summary).
+Format in Markdown. Be specific to Xanderia and Malaysian practice; mark anything you had to assume as [ASSUMPTION: ...] and anything a human must fill in as [TO FILL: ...]. Never include real customer personal data.`,
+
   peer_review: `Task: review the other council members' answers below. They are anonymised as Advisor A, B, C...
 For EACH answer, name its single biggest flaw (be specific and critical, not polite) and score it 1-5 (5 = excellent).
 Then name the strongest answer. Return JSON only.`,
@@ -177,8 +190,8 @@ Then name the strongest answer. Return JSON only.`,
 - verdict: the decision/recommendation in 1-3 sentences.
 - why: the reasoning in 2-5 sentences.
 - conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": the specific argument, fact or risk that decides it (never "the majority agreed"). Include at least one conflict if the advisors disagreed on anything.
-- action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks.
-- risks: key risks, each rated for likelihood and impact (low / medium / high) with a mitigation.
+- action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks. Sequence realistically: a step that depends on an earlier one starts after it finishes; only independent steps share a start week.
+- risks: 3 to 5 distinct key risks (operational, regulatory, customer, financial), each rated for likelihood and impact (low / medium / high) with a specific mitigation.
 - open_questions: what must be answered before acting.
 - confidence.level: low / medium / high; confidence.what_would_change: what new information would change this recommendation.`,
 };
@@ -197,6 +210,10 @@ export const MODEL_ROLES = [
   { role: 'peer_review', temperature: 0.3, num_predict: 700 },
   { role: 'chairman', temperature: 0.2, num_predict: 1600 },
   { role: 'clarifier', temperature: 0.0, num_predict: 300 },
+  // Action Crew (HANDOFF §14)
+  { role: 'crew:dispatcher', temperature: 0.2, num_predict: 1400 },
+  { role: 'crew:herald', temperature: 0.4, num_predict: 300 },
+  { role: 'crew:runner', temperature: 0.4, num_predict: 1400 },
 ] as const;
 
 export const SETTINGS: Record<string, unknown> = {
@@ -207,4 +224,10 @@ export const SETTINGS: Record<string, unknown> = {
   rag_top_k: 5,
   history_turns: 6,
   clarify_enabled: true,
+  // Action Crew
+  crew_names: { dispatcher: 'Dispatcher', herald: 'Herald', tracker: 'Tracker', runner: 'Runner' },
+  crew_email_domains: ['xanderia.com.my'],
+  crew_business_hours: { start: 9, end: 18 },
+  crew_weekend: [0, 6],
+  crew_timings: { ackReminderDays: 1, dueReminderDaysBefore: 1, escalateAfterDays: 3, escalationEnabled: true },
 };

@@ -1,9 +1,11 @@
 import { Queue, Worker } from 'bullmq';
 import { config } from './config.js';
 import { processMessage } from './council/pipeline.js';
+import { dispatchPlan, runAgentTask, sendQueuedEmails, trackerTick } from './crew/service.js';
 import { migrate } from './db/migrate.js';
 import { pool, query } from './db/pool.js';
 import { seed } from './db/seed.js';
+import { CREW_QUEUE, type CrewJob } from './queue/crewQueue.js';
 import { createPublisher } from './queue/events.js';
 import { QUEUE_NAME, type MessageJob } from './queue/queue.js';
 import { createRedis, redis } from './redis.js';
@@ -28,14 +30,35 @@ const worker = new Worker<MessageJob>(
 worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err.message));
 worker.on('ready', () => console.log(`[worker] ready, concurrency ${config.WORKER_CONCURRENCY}`));
 
-// Daily retention sweep.
+// Action Crew: Dispatcher and Runner jobs. Their model calls run at background priority,
+// so they never slow down chat (HANDOFF §14.7).
+const crewWorker = new Worker<CrewJob>(
+  CREW_QUEUE,
+  async (job) => {
+    if (job.data.type === 'dispatch') await dispatchPlan(job.data.planId);
+    else await runAgentTask(job.data.taskId);
+  },
+  { connection: createRedis(), concurrency: 2, lockDuration: 300_000 },
+);
+crewWorker.on('failed', (job, err) => console.error(`[crew] job ${job?.id} failed:`, err.message));
+
+// Maintenance: nightly retention, the Tracker every 15 minutes, the email sender every minute.
 const maintenance = new Queue('maintenance', { connection: createRedis() });
 await maintenance.upsertJobScheduler('retention', { pattern: '0 3 * * *' }, { name: 'retention' });
+await maintenance.upsertJobScheduler('tracker', { pattern: '*/15 * * * *' }, { name: 'tracker' });
+await maintenance.upsertJobScheduler('mailer', { pattern: '* * * * *' }, { name: 'mailer' });
 const maintenanceWorker = new Worker(
   'maintenance',
-  async () => {
-    const r = await runRetention();
-    console.log('[worker] retention', r);
+  async (job) => {
+    if (job.name === 'tracker') {
+      const n = await trackerTick();
+      if (n) console.log(`[tracker] ${n} action(s)`);
+    } else if (job.name === 'mailer') {
+      const n = await sendQueuedEmails();
+      if (n) console.log(`[mailer] processed ${n} email(s)`);
+    } else {
+      console.log('[worker] retention', await runRetention());
+    }
   },
   { connection: createRedis() },
 );
@@ -50,6 +73,7 @@ await query(
 async function shutdown() {
   console.log('[worker] shutting down');
   await worker.close();
+  await crewWorker.close();
   await maintenanceWorker.close();
   await maintenance.close();
   await pool.end();

@@ -302,6 +302,18 @@ export default async function adminRoutes(app: FastifyInstance) {
         rag_top_k: z.number().int().min(1).max(20).optional(),
         history_turns: z.number().int().min(0).max(20).optional(),
         clarify_enabled: z.boolean().optional(),
+        crew_names: z.object({ dispatcher: z.string(), herald: z.string(), tracker: z.string(), runner: z.string() }).optional(),
+        crew_email_domains: z.array(z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i)).min(1).optional(),
+        crew_business_hours: z.object({ start: z.number().int().min(0).max(23), end: z.number().int().min(1).max(24) }).optional(),
+        crew_weekend: z.array(z.number().int().min(0).max(6)).max(3).optional(),
+        crew_timings: z
+          .object({
+            ackReminderDays: z.number().int().min(1).max(20),
+            dueReminderDaysBefore: z.number().int().min(0).max(10),
+            escalateAfterDays: z.number().int().min(1).max(30),
+            escalationEnabled: z.boolean(),
+          })
+          .optional(),
       })
       .parse(req.body);
     for (const [k, v] of Object.entries(body)) if (v !== undefined) await setSetting(k, v);

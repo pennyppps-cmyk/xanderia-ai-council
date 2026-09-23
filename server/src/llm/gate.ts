@@ -3,7 +3,7 @@
  * OLLAMA_NUM_PARALLEL requests at once; anything beyond that waits here, and
  * Quick-mode calls (priority 1) jump ahead of council calls (priority 10).
  */
-export const PRIORITY = { quick: 1, council: 10 } as const;
+export const PRIORITY = { quick: 1, council: 10, background: 20 } as const;
 
 interface Waiter {
   priority: number;
