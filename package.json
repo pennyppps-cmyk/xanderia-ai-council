@@ -1,0 +1,14 @@
+{
+  "name": "xanderia-council",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev:api": "npm run dev -w server",
+    "dev:worker": "npm run dev:worker -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w server && npm run build -w web",
+    "test": "npm test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+  }
+}
