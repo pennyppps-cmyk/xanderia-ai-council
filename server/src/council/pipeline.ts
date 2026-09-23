@@ -59,7 +59,7 @@ async function loadHistory(conversationId: string, beforeMessageId: string, turn
     `SELECT role, content FROM messages
       WHERE conversation_id = $1 AND status = 'done' AND content <> ''
         AND created_at < (SELECT created_at FROM messages WHERE id = $2)
-      ORDER BY created_at DESC LIMIT $3`,
+      ORDER BY created_at DESC, (role = 'assistant') DESC LIMIT $3`,
     [conversationId, beforeMessageId, turns * 2],
   );
   // Older turns are context only; trim them to protect the context window.

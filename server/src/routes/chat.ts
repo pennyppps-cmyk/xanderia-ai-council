@@ -107,7 +107,7 @@ export default async function chatRoutes(app: FastifyInstance) {
     const { rows: messages } = await query(
       `SELECT ${MESSAGE_COLUMNS}, f.rating AS my_rating
          FROM messages m LEFT JOIN feedback f ON f.message_id = m.id AND f.user_id = $2
-        WHERE m.conversation_id = $1 ORDER BY m.created_at`,
+        WHERE m.conversation_id = $1 ORDER BY m.created_at, (m.role = 'assistant')`, // question and answer share a transaction timestamp
       [id, req.user.id],
     );
     const parts = await loadParts(messages.filter((m) => m.role === 'assistant').map((m) => m.id));
