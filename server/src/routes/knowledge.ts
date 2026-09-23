@@ -3,9 +3,8 @@ import { z } from 'zod';
 import { writeAudit } from '../audit.js';
 import { query } from '../db/pool.js';
 import { embed } from '../llm/registry.js';
+import { extractDocumentText, SUPPORTED } from '../rag/extract.js';
 import { ingestDocument } from '../rag/ingest.js';
-
-const TEXT_TYPES = /\.(txt|md|markdown|csv)$/i;
 
 /** dept_leads manage their own department's library; admins manage all, including company-wide. */
 function canManage(req: FastifyRequest, departmentId: string | null, companyWide: boolean) {
@@ -47,15 +46,13 @@ export default async function knowledgeRoutes(app: FastifyInstance) {
     const departmentId = meta.departmentId || (companyWide ? null : req.user.department_id);
     if (!canManage(req, departmentId, companyWide)) return reply.code(403).send({ error: 'Forbidden' });
 
-    if (!TEXT_TYPES.test(file.filename)) {
+    if (!SUPPORTED.test(file.filename)) {
       await file.toBuffer(); // drain
-      return reply
-        .code(415)
-        .send({ error: 'Phase 1 accepts .txt, .md and .csv. PDF/DOCX/XLSX parsing arrives in Phase 2.' });
+      return reply.code(415).send({ error: 'Supported files: PDF, Word (.docx), Excel (.xlsx), .txt, .md and .csv.' });
     }
-    const text = (await file.toBuffer()).toString('utf8');
     const title = meta.title ?? file.filename.replace(/\.[^.]+$/, '');
     try {
+      const text = await extractDocumentText(file.filename, await file.toBuffer());
       const result = await ingestDocument(
         { title, text, departmentId, companyWide, sourceFilename: file.filename, uploadedBy: req.user.id },
         (texts) => embed(texts, { userId: req.user.id, purpose: 'ingest' }),

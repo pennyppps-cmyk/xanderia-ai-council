@@ -12,6 +12,7 @@ import chatRoutes from './routes/chat.js';
 import crewRoutes from './routes/crew.js';
 import healthRoutes from './routes/health.js';
 import knowledgeRoutes from './routes/knowledge.js';
+import shareRoutes from './routes/share.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -45,5 +46,6 @@ export async function buildApp() {
   await app.register(adminRoutes);
   await app.register(knowledgeRoutes);
   await app.register(crewRoutes);
+  await app.register(shareRoutes);
   return app;
 }

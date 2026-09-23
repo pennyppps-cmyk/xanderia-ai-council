@@ -11,7 +11,7 @@ ships with. Each one is a setting or a config change, so none needs a code chang
 | 1 | Fully local or hybrid cloud Chairman? | **Fully local.** The `cloud` provider row exists but is disabled, and every role uses `ollama`/`hermes3:8b`. | Admin → Model routing: enable `cloud`, set its URL and key env var, and point `chairman` at it. |
 | 2 | Council for all employees or leads only? | **All employees.** | Admin → Settings → "Who can use Council mode". |
 | 3 | SSO: Google or Microsoft? | Not built. `users.auth_provider` and `users.external_id` are ready, and login is isolated in `routes/auth.ts`. | Phase 3. |
-| 4 | Which departments have documents ready? | The knowledge base works for `.txt/.md/.csv` today. PDF/DOCX/XLSX parsing is Phase 2. | Admin → Knowledge. |
+| 4 | Which departments have documents ready? | The knowledge base accepts PDF, DOCX, XLSX, TXT, MD and CSV. | Admin → Knowledge. |
 | 5 | Same Proxmox host as VoxPro or a separate VM? | Nothing is host-specific. Compose uses its own named volumes, and host ports are configurable (`HTTP_PORT`, `HTTPS_PORT`, `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`). | `.env`. |
 
 ## Architecture
@@ -50,7 +50,7 @@ ships with. Each one is a setting or a config change, so none needs a code chang
 - **Access is enforced in the SQL `WHERE` clause**, never by filtering results afterwards.
 - **Distance cut-off 0.6 (cosine)**, and only sources the answer actually cites (`[S1]`…) are shown as citations.
 - **`vector(768)` is fixed** to `nomic-embed-text`. Changing the embedding model means a new migration and re-embedding.
-- Phase 1 upload accepts `.txt/.md/.csv`. `dept_lead`s manage their own department's library, and admins manage everything, including company-wide.
+- Uploads: PDF, DOCX, XLSX, TXT, MD and CSV (see *Phase 2 gaps closed* below). `dept_lead`s manage their own department's library, and admins manage everything, including company-wide.
 
 ## Privacy & retention
 
@@ -66,10 +66,45 @@ ships with. Each one is a setting or a config change, so none needs a code chang
 ## UI
 
 - The mode toggle is **Auto / Quick / Council**. Auto is the default, and the router's suggestion is shown as a badge.
-- Export to PDF uses the browser's print-to-PDF on the verdict element: no server-side PDF dependency.
-- Share links and the "test this prompt" sandbox are Phase 2 and not built. Bilingual UI labels are not built (a v1 nice-to-have). Staff can already write in BM, and answers come back in BM.
+- ~~Export to PDF uses the browser's print-to-PDF.~~ Replaced by the server-generated analytics report (see below).
+- Share links and the "test this prompt" sandbox are built (see below). Bilingual UI labels are not built (a v1 nice-to-have). Staff can already write in BM, and answers come back in BM.
 
 ## Connecting to a remote GPU box (RDP / Otto AI pattern)
 
 - Otto AI reaches a self-hosted Ollama through `hermes-proxy.js`, which checks an `X-Hermes-Key` header, behind a tunnel. This build supports the same pattern: set `OLLAMA_BASE_URL` to the proxy/tunnel URL and `OLLAMA_API_KEY` to the shared secret. The header name is configurable via `OLLAMA_API_KEY_HEADER`.
 - During the build, the Hermes tunnel hostname in `~/.cloudflared/config.yml` (`hermes.late-glade-1d66.workers.dev`) returned 404, and `aixan` (192.168.88.100) didn't respond from the dev laptop. Development and testing therefore used the laptop's local `hermes3:8b` via `host.docker.internal`.
+
+## Analytics report, clarifying questions (2026-09-23)
+
+- **Report PDF is generated on the server with pdfkit**, with charts drawn as vectors. There's no headless browser in the image. The Inter font comes from `@fontsource/inter`. Characters the font can't draw, such as emoji, are dropped rather than shown as boxes.
+- **Advisors declare their own stance** on a `**Stance:** For / Conditional / Against, n/5` line, which is parsed into data. If the line is missing, the stance is inferred from the Position line.
+- **The verdict schema requires risk likelihood/impact and `start_week`/`duration_weeks`.** Older verdicts without them still render: timeline weeks are parsed from the text, and the heat map says the ratings aren't available.
+- **Clarifying questions run only before a council.** Quick mode is told to ask briefly or state its assumption instead. If the check itself fails it never blocks the council. After the user replies, the original question plus the Q&A is what the council considers (`options.effectiveQuestion`).
+- **Shipped prompts upgrade themselves on deploy** if no admin has edited them (`created_by IS NULL`). An admin's edits are never overwritten.
+
+## Action Crew (HANDOFF §14), 2026-09-24
+
+Defaults chosen for the open decisions in §12:
+
+| # | Decision | Default shipped |
+|---|---|---|
+| 6 | Email route | **`MAIL_PROVIDER=outbox`**: emails are recorded (Admin → Action Crew & email) but not sent. SMTP (works with a Workspace or M365 relay) and an n8n webhook are built in. Gmail API / Microsoft Graph OAuth are not built; with n8n they aren't needed. |
+| 7 | Staff directory | **CSV import** in Admin → Staff directory (`name, position, department, email, manager_email`; re-import upserts by email). |
+| 8 | Manager escalation | **On, after 3 working days overdue, and only after the requester approves each escalation.** It can be switched off, or the timing changed, in admin. |
+
+- **All email goes through an outbox table.** A sender job runs every minute, but only in business hours (09:00–18:00 KL, Mon–Fri, not on listed holidays), and uses the configured provider. Emails queued outside hours wait. This gives one audit point, a visible history, and "no emails outside business hours" for free.
+- **Approval is enforced in `queueTaskEmail`**, the only code path that creates task emails: it throws unless the task is approved and has a directory owner. Reminders only exist for tasks already sent, and escalation emails need an explicit requester decision.
+- **Owners come only from the directory.** The Dispatcher is shown the list of real positions. Resolution is exact match, then "same department" as a tie-breaker, then a single close fuzzy match. Otherwise the requester chooses, or the task is left unassigned. The model never supplies a name or an email address.
+- **One-click links open a confirm page** (GET), and the status only changes on the POST from that page. Otherwise corporate link scanners such as Outlook Safe Links, which fetch every URL in an email, would accept or complete tasks on the owner's behalf. That's one extra click, knowingly traded for safety.
+- **Link tokens** are HMAC-signed (keyed from `JWT_SECRET`), expire after 45 days, and only authorise status changes on their own task.
+- **Working days:** Sat–Sun weekend by default; Kedah, Kelantan and Terengganu can be set to Fri–Sat. Public holidays are entered by an admin, because movable Islamic, Chinese and Hindu holidays and state holidays can't be computed reliably.
+- **The Herald gets no base prompt layer**, because the model echoed its `<document>` wording into emails. Greetings and sign-offs are stripped, since the template adds them. Every body and title is PII-scrubbed when drafted and again when the email is built.
+- **The Runner runs at background priority** in the GPU gate, below Quick and Council. Its output is always a draft for the requester to approve, never sent anywhere.
+- **Reassigning a launched task** sends it back to "draft" so the new owner's email is approved again.
+
+## Phase 2 gaps closed (2026-09-24)
+
+- **Knowledge uploads:** PDF (`unpdf`: text PDFs only; scans are rejected with a clear message, because OCR isn't included), Word .docx (`mammoth`, headings kept), and Excel .xlsx (`exceljs`, one section per sheet, max 2,000 rows per sheet). PDF pages become sections, so citations read "Document › Page 3".
+- **Share links** are read-only, open only to signed-in colleagues, revocable, and every view is audited. Sharing is the owner's explicit choice, so this is consistent with PDPA handling of their own history.
+- **Prompt sandbox** runs an unsaved draft through the same layers, model role and JSON schema as the real step, and reports schema validity. It runs in the API process, which has its own GPU gate separate from the worker's. That's acceptable for an admin-only tool.
+- **Not built:** SSO (waiting on decision #3), bilingual UI labels (a v2 requirement), and the WhatsApp/email entry point via n8n (optional).

@@ -148,7 +148,29 @@ OLLAMA_API_KEY=<same value as HERMES_PROXY_KEY on the GPU box>
 
 Restart `api` and `worker` (`docker compose up -d`). Admin → Overview confirms that the host is reachable and the models are present.
 
-## 7. Development
+## 7. Action Crew: turning verdicts into action
+
+After a council verdict, **Put into action** hands the action plan to the crew:
+
+| Agent | What it does |
+|---|---|
+| **Dispatcher** | Splits the plan into tasks with owners, due dates (working days) and dependencies. Owners come only from the staff directory. |
+| **Herald** | Drafts a short email per task. You review and approve on the **Launch plan** screen; nothing is sent before that. |
+| **Tracker** | Reminds owners who haven't acknowledged, reminds before the due date, nudges you when a task is overdue, and proposes a manager escalation that you approve. |
+| **Runner** | Drafts the tasks the AI can do itself (SOPs, templates, summaries) for you to review. |
+
+Setup:
+1. **Admin → Staff directory → Import CSV** with the HR export (`name, position, department, email, manager_email`).
+2. **Admin → Action Crew & email**: allowed email domains, business hours, weekend days, public holidays, reminder and escalation timings, and agent names.
+3. Choose how email is sent in `.env`:
+   - `MAIL_PROVIDER=outbox` (default): emails are only recorded, so you can review everything in the outbox first.
+   - `MAIL_PROVIDER=smtp` with `SMTP_HOST`, `SMTP_USER` and `SMTP_PASS`.
+   - `MAIL_PROVIDER=n8n` with `N8N_MAIL_WEBHOOK_URL`: n8n receives `{from, to, subject, text, html}` and sends it.
+4. Set `APP_BASE_URL` to the address staff use. The Accept / Need help / Mark done / Can't do links in emails point there, and work without logging in.
+
+Staff see their tasks under **Tasks**. Everyone gets live notifications through the bell.
+
+## 8. Development
 
 ```bash
 npm install
@@ -186,7 +208,7 @@ server/
 web/                   React + Vite + Tailwind SPA, Caddyfile
 ```
 
-## 8. Operations notes
+## 9. Operations notes
 
 - **Latency** (measured on an RTX 4060 laptop, `hermes3:8b`, 2 slots): Quick mode shows its first token in about 4.5 s. Council takes about 75–90 s, or about 3 min with peer review. The UI shows live progress, and users can leave and come back. A browser notification and an in-app toast announce finished verdicts.
 - **Queue:** Quick questions jump ahead of council work at the GPU. Users see "Queued · position N" when the model is busy.

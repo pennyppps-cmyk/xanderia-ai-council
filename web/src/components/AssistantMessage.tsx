@@ -14,9 +14,11 @@ interface Props {
   onRetry(): void;
   /** Answer the council's clarifying questions with "skip": it proceeds on its stated assumptions. */
   onSkipClarify(): void;
+  /** Shared view: no actions, no follow-ups. */
+  readOnly?: boolean;
 }
 
-export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onSkipClarify }: Props) {
+export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onSkipClarify, readOnly = false }: Props) {
   const live = useMessageStream(message, onFinished);
   const { departments } = useAuth();
   const dept = departments.find((d) => d.id === message.department_id);
@@ -56,8 +58,8 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onS
 
         {live.citations.length > 0 && <Citations citations={live.citations} />}
 
-        {finished && mode === 'council' && live.verdict && <PutIntoAction messageId={message.id} />}
-        {finished && mode !== 'clarify' && (
+        {!readOnly && finished && mode === 'council' && live.verdict && <PutIntoAction messageId={message.id} />}
+        {!readOnly && finished && mode !== 'clarify' && (
           <Actions message={message} text={text} verdict={live.verdict} onFollowUp={onFollowUp} />
         )}
       </div>
@@ -484,6 +486,7 @@ function Actions({
         >
           <Icon name="print" className="h-3.5 w-3.5" /> {verdict ? 'Download report (PDF)' : 'Export PDF'}
         </a>
+        <ShareButton messageId={message.id} />
         <Button
           size="sm"
           variant="ghost"
@@ -695,5 +698,30 @@ function PutIntoAction({ messageId }: { messageId: string }) {
         {busy ? <Spinner className="h-3.5 w-3.5" /> : <Icon name="send" className="h-3.5 w-3.5" />} Put into action
       </Button>
     </div>
+  );
+}
+
+
+/** Copy a read-only link a signed-in colleague can open. */
+function ShareButton({ messageId }: { messageId: string }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      title="Copy a read-only link for a colleague (they must be signed in)"
+      onClick={async () => {
+        try {
+          const r = await api<{ path: string }>(`/api/messages/${messageId}/share`, { method: 'POST' });
+          await navigator.clipboard.writeText(`${window.location.origin}${r.path}`);
+          setState('copied');
+        } catch {
+          setState('error');
+        }
+        setTimeout(() => setState('idle'), 2000);
+      }}
+    >
+      <Icon name="reply" className="h-3.5 w-3.5 -scale-x-100" /> {state === 'copied' ? 'Link copied' : state === 'error' ? 'Could not share' : 'Share'}
+    </Button>
   );
 }

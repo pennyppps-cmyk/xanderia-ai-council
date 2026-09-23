@@ -579,6 +579,7 @@ function PromptEditor({ layer, promptKey, versions, persona, onSaved }: { layer:
         </div>
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
       </Card>
+      <PromptSandbox layer={layer} promptKey={promptKey} content={text} />
       <Card title="Version history">
         <ul className="divide-y divide-ink-100 text-sm">
           {versions.map((v) => (
@@ -840,11 +841,11 @@ function Knowledge() {
       <Card title="Add a document">
         <p className="mb-3 text-xs text-ink-400">
           Staff only retrieve documents from their own department and company-wide documents (plus any extra access an admin
-          grants). Phase 1 accepts .txt, .md and .csv. Requires the embedding model (<code>nomic-embed-text</code>) on Ollama.
+          grants). Accepts PDF (text PDFs, not scans), Word (.docx), Excel (.xlsx), .txt, .md and .csv. Answers cite the document and page / section / sheet. Requires the embedding model (<code>nomic-embed-text</code>) on Ollama.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="File">
-            <input type="file" accept=".txt,.md,.markdown,.csv" className="block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <input type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.markdown,.csv" className="block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </Field>
           <Field label="Title (optional)">
             <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Defaults to file name" />
@@ -1041,6 +1042,81 @@ function Settings() {
           Save settings
         </Button>
       </div>
+    </Card>
+  );
+}
+
+
+// ── "Test this prompt" sandbox ───────────────────────────────────────────────
+
+function PromptSandbox({ layer, promptKey, content }: { layer: string; promptKey: string; content: string }) {
+  const { departments } = useAuth();
+  const [question, setQuestion] = useState('');
+  const [dept, setDept] = useState(layer === 'department' ? promptKey : 'credit-collections');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<any | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showSystem, setShowSystem] = useState(false);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      setResult(await api('/api/admin/prompts/test', { body: { layer, key: promptKey, content, question, department: dept } }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Test this prompt">
+      <p className="mb-2 text-xs text-ink-400">
+        Runs the text above (saved or not) the way the real step uses it: same layers, same model and settings, same JSON schema. Nothing is saved or shown to staff.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <textarea
+          className={cx(inputCls, 'min-w-0 flex-1')}
+          rows={2}
+          placeholder="A sample question, e.g. Should we move reminder SMS from day 5 to day 2?"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+        />
+        <div className="flex flex-col gap-2">
+          <select className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm" value={dept} onChange={(e) => setDept(e.target.value)} disabled={layer === 'department'}>
+            {departments.map((d) => (
+              <option key={d.slug} value={d.slug}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" variant="primary" disabled={!question.trim() || !content.trim() || busy} onClick={run}>
+            {busy && <Spinner className="h-3.5 w-3.5" />} Run test
+          </Button>
+        </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+      {result && (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
+            <Badge>{result.role}</Badge>
+            {result.model && <Badge>{result.model}</Badge>}
+            {result.latencyMs != null && <Badge>{(result.latencyMs / 1000).toFixed(1)} s</Badge>}
+            {result.structured && (
+              <Badge tone={result.structured.valid ? 'green' : 'red'}>
+                {result.structured.valid ? `valid JSON (attempt ${result.structured.attempts})` : `failed schema: ${result.structured.error}`}
+              </Badge>
+            )}
+            <button className="ml-auto text-accent-700 hover:underline" onClick={() => setShowSystem((s) => !s)}>
+              {showSystem ? 'Hide' : 'Show'} full system prompt
+            </button>
+          </div>
+          {showSystem && <pre className="max-h-60 overflow-y-auto rounded-lg bg-ink-50 p-3 text-xs whitespace-pre-wrap">{result.system}</pre>}
+          <pre className="max-h-96 overflow-y-auto rounded-lg border border-ink-100 bg-white p-3 text-sm whitespace-pre-wrap">{result.output}</pre>
+        </div>
+      )}
     </Card>
   );
 }

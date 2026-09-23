@@ -8,6 +8,7 @@ import Admin from './pages/Admin';
 import Chat from './pages/Chat';
 import Login from './pages/Login';
 import PlanPage from './pages/Plan';
+import SharedPage from './pages/Shared';
 import TasksPage from './pages/Tasks';
 import { Toaster } from './toast';
 
@@ -28,6 +29,7 @@ function Root() {
         <Route path="/c/:id" element={<Chat />} />
         <Route path="/plans/:id" element={<PlanPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/shared/:token" element={<SharedPage />} />
         <Route path="/admin/*" element={me.user.role === 'employee' ? <Navigate to="/" /> : <Admin />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

@@ -5,6 +5,7 @@ import { writeAudit } from '../audit.js';
 import { query, tx } from '../db/pool.js';
 import { clearRegistryCache } from '../llm/registry.js';
 import { invalidatePrompts } from '../prompts/assembler.js';
+import { runPromptSandbox } from '../prompts/sandbox.js';
 import { allSettings, setSetting } from '../settings.js';
 
 const Uuid = z.object({ id: z.string().uuid() });
@@ -190,6 +191,29 @@ export default async function adminRoutes(app: FastifyInstance) {
     const version = await savePrompt(body.layer, body.key, body.content, req.user.id);
     await adminAudit(req, 'prompt_saved', { layer: body.layer, key: body.key, version });
     return { version };
+  });
+
+  // Run an unsaved draft of a prompt layer the way the real step uses it (nothing is saved).
+  app.post('/api/admin/prompts/test', admin, async (req) => {
+    const body = z
+      .object({
+        layer: z.enum(['base', 'persona', 'department', 'task']),
+        key: z.string().min(1),
+        content: z.string().trim().min(1).max(6000),
+        question: z.string().trim().min(1).max(4000),
+        department: z.string().default('management'),
+      })
+      .parse(req.body);
+    const result = await runPromptSandbox({
+      layer: body.layer,
+      key: body.key,
+      content: body.content,
+      question: body.question,
+      departmentSlug: body.department,
+      userId: req.user.id,
+    });
+    await adminAudit(req, 'prompt_tested', { layer: body.layer, key: body.key, role: result.role });
+    return result;
   });
 
   // Roll back / forward to any stored version.
