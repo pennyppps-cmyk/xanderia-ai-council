@@ -3,13 +3,15 @@ import { z } from 'zod';
 import { writeAudit } from '../audit.js';
 import { userKey } from '../auth/plugin.js';
 import { config } from '../config.js';
-import { query, tx } from '../db/pool.js';
+import { pool, query, tx } from '../db/pool.js';
 import { createPublisher, jobChannel, userChannel, type JobEvent } from '../queue/events.js';
 import { enqueueMessage, getQueue, queuePosition } from '../queue/queue.js';
 import { redis } from '../redis.js';
 import { canUseCouncil } from '../settings.js';
 import { hub, openSse } from '../sse.js';
 import { createHash } from 'node:crypto';
+import { renderReport } from '../report/councilReport.js';
+import { loadReportData } from '../report/loadReport.js';
 
 const publisher = createPublisher(redis);
 
@@ -19,6 +21,8 @@ const SendMessage = z.object({
   mode: z.enum(['auto', 'quick', 'council']).default('auto'),
   departmentId: z.string().uuid().optional(),
   peerReview: z.boolean().optional(),
+  /** Answering the council's clarifying questions with "skip": proceed on its assumptions. */
+  skipClarify: z.boolean().optional(),
 });
 
 const MESSAGE_COLUMNS = `m.id, m.conversation_id, m.role, m.content, m.reply_to, m.requested_mode, m.mode,
@@ -189,7 +193,7 @@ export default async function chatRoutes(app: FastifyInstance) {
           await c.query(
             `INSERT INTO messages (conversation_id, role, reply_to, requested_mode, department_id, status, options)
              VALUES ($1, 'assistant', $2, $3, $4, 'queued', $5) RETURNING *`,
-            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview })],
+            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, skipClarify: body.skipClarify })],
           )
         ).rows[0];
         await c.query('UPDATE conversations SET updated_at = now() WHERE id = $1', [conversation.id]);
@@ -277,6 +281,21 @@ export default async function chatRoutes(app: FastifyInstance) {
       [id, req.user.id, body.rating, body.comment ?? null],
     );
     return { ok: true };
+  });
+
+  /** Council report / answer as a PDF with analytics (generated on the server). */
+  app.get('/api/messages/:id/report.pdf', auth, async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const data = await loadReportData(pool, id, req.user.id);
+    if (!data) return reply.code(404).send({ error: 'No finished answer to export' });
+    const pdf = await renderReport(data);
+    await writeAudit({ actorUserId: req.user.id, action: 'report_exported', targetType: 'message', targetId: id, detail: { mode: data.mode, bytes: pdf.length } });
+    const slug = data.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'report';
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', `attachment; filename="Xanderia-AI-Council-${slug}.pdf"`)
+      .header('cache-control', 'private, no-store')
+      .send(pdf);
   });
 
   /** Retry a failed answer. */

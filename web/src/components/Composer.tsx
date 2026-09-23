@@ -4,12 +4,15 @@ import type { Mode } from '../types';
 import { cx, Icon, Spinner } from './ui';
 
 export interface ComposerHandle {
-  setText(text: string): void;
+  /** Prefill the box (and optionally switch mode), e.g. for follow-ups or answering the council. */
+  setText(text: string, mode?: Mode): void;
 }
 
 interface Props {
   busy: boolean;
   defaultDepartmentId?: string;
+  /** Shown instead of the default placeholder, e.g. while the council waits for answers. */
+  placeholder?: string;
   onSend(input: { content: string; mode: Mode; departmentId: string; peerReview: boolean }): Promise<void>;
 }
 
@@ -19,7 +22,7 @@ const MODES: Array<{ key: Mode; label: string; hint: string }> = [
   { key: 'council', label: 'Council', hint: 'Six advisors debate, the Chairman decides (≈1–2 min)' },
 ];
 
-export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ busy, defaultDepartmentId, onSend }, ref) {
+export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ busy, defaultDepartmentId, placeholder, onSend }, ref) {
   const { me, departments } = useAuth();
   const [text, setText] = useState('');
   const [mode, setMode] = useState<Mode>(() => (localStorage.getItem('xc:mode') as Mode) || 'auto');
@@ -28,8 +31,9 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
   const area = useRef<HTMLTextAreaElement>(null);
 
   useImperativeHandle(ref, () => ({
-    setText(t: string) {
+    setText(t: string, m?: Mode) {
       setText(t);
+      if (m) setMode(m);
       requestAnimationFrame(() => {
         area.current?.focus();
         area.current?.setSelectionRange(t.length, t.length);
@@ -76,7 +80,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
             void submit();
           }
         }}
-        placeholder="Ask a question, or bring a plan or decision for the council… (English or Bahasa Malaysia)"
+        placeholder={placeholder ?? 'Ask a question, or bring a plan or decision for the council… (English or Bahasa Malaysia)'}
         className="block w-full resize-none rounded-t-2xl bg-transparent px-4 pt-3 pb-1 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
       />
       <div className="flex flex-wrap items-center gap-2 px-3 pb-2">

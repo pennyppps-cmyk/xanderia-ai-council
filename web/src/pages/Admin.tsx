@@ -1017,6 +1017,10 @@ function Settings() {
           <input type="checkbox" className="accent-accent-600" checked={f.peer_review_default} onChange={(e) => set('peer_review_default', e.target.checked)} />
           Peer review on by default (Auto mode)
         </label>
+        <label className="inline-flex items-center gap-2 text-sm" title="Before a council run, ask the user up to 3 questions when essential details are missing">
+          <input type="checkbox" className="accent-accent-600" checked={f.clarify_enabled ?? true} onChange={(e) => set('clarify_enabled', e.target.checked)} />
+          Council asks clarifying questions when details are missing
+        </label>
       </div>
       <div className="mt-4">
         <Button

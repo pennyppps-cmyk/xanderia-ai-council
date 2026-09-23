@@ -44,12 +44,25 @@ export interface ConversationSummary {
   last_status: Status | null;
 }
 
+export type Level = 'low' | 'medium' | 'high';
+
+export interface Stance {
+  value: 'for' | 'conditional' | 'against' | 'unclear';
+  strength: number | null;
+  position: string | null;
+}
+
+export interface ClarifyRequest {
+  questions: string[];
+  assumptions: string[];
+}
+
 export interface Verdict {
   verdict: string;
   why: string;
   conflicts: Array<{ between: string; position_a: string; position_b: string; decision: string; because: string }>;
-  action_plan: Array<{ step: string; owner_role: string; timeline: string }>;
-  risks: Array<{ risk: string; mitigation: string }>;
+  action_plan: Array<{ step: string; owner_role: string; timeline: string; start_week?: number; duration_weeks?: number }>;
+  risks: Array<{ risk: string; mitigation: string; likelihood?: Level; impact?: Level }>;
   open_questions: string[];
   confidence: { level: 'low' | 'medium' | 'high'; what_would_change: string };
 }
@@ -79,7 +92,7 @@ export interface Part {
   persona_name?: string;
   anon_label: string | null;
   content: string;
-  data: { scores?: Record<string, { score: number; flaw: string }>; error?: string | null } | null;
+  data: { scores?: Record<string, { score: number; flaw: string }>; stance?: Stance; error?: string | null } | null;
   model: string | null;
   latency_ms: number | null;
 }
@@ -91,11 +104,11 @@ export interface Message {
   content: string;
   reply_to: string | null;
   requested_mode: Mode | null;
-  mode: 'quick' | 'council' | null;
+  mode: 'quick' | 'council' | 'clarify' | null;
   department_id: string | null;
   status: Status;
   stage: string | null;
-  options: { peerReview?: boolean };
+  options: { peerReview?: boolean; skipClarify?: boolean; clarify?: ClarifyRequest; effectiveQuestion?: string };
   router: RouterInfo | null;
   verdict: Verdict | null;
   citations: Citation[] | null;

@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react';
-import type { Citation, Message, RouterInfo, Status, Verdict } from './types';
+import type { Citation, ClarifyRequest, Message, RouterInfo, Status, Verdict } from './types';
 
 export interface LivePart {
   part: string;
@@ -16,8 +16,9 @@ export interface LiveState {
   status: Status;
   stage: string | null;
   position: number | null;
-  mode: 'quick' | 'council' | null;
+  mode: 'quick' | 'council' | 'clarify' | null;
   router: RouterInfo | null;
+  clarify: ClarifyRequest | null;
   parts: Record<string, LivePart>;
   verdict: Verdict | null;
   raw: string | null;
@@ -51,6 +52,7 @@ export function initialLive(m: Message): LiveState {
     position: null,
     mode: m.mode,
     router: m.router,
+    clarify: m.options?.clarify ?? null,
     parts,
     verdict: m.verdict,
     raw: m.mode === 'council' && !m.verdict && m.status === 'done' ? m.content : null,
@@ -117,6 +119,8 @@ function reducer(state: LiveState, e: Action): LiveState {
         parts: { ...state.parts, [e.part]: { ...p, text: e.content ?? p.text, done: true, error: e.error, data: e.data } },
       };
     }
+    case 'clarify':
+      return { ...state, mode: 'clarify', clarify: e.clarify };
     case 'verdict':
       return { ...state, verdict: e.verdict ?? null, raw: e.raw ?? null };
     case 'error':
@@ -128,7 +132,7 @@ function reducer(state: LiveState, e: Action): LiveState {
   }
 }
 
-const EVENTS = ['snapshot', 'status', 'router', 'citations', 'part_start', 'token', 'part_done', 'verdict', 'done', 'error'];
+const EVENTS = ['snapshot', 'status', 'router', 'citations', 'part_start', 'token', 'part_done', 'verdict', 'clarify', 'done', 'error'];
 
 /** Live state for one assistant message; opens an SSE stream only while it is unfinished. */
 export function useMessageStream(message: Message, onFinished?: () => void) {

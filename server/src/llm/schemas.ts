@@ -48,10 +48,20 @@ export const VerdictSchema = z.object({
         step: z.string(),
         owner_role: z.string(),
         timeline: z.string(),
+        // Numeric schedule for the report's timeline chart (week 1 = the week the plan starts).
+        start_week: z.number().int().min(1).max(104),
+        duration_weeks: z.number().int().min(1).max(104),
       }),
     )
     .min(1),
-  risks: z.array(z.object({ risk: z.string(), mitigation: z.string() })),
+  risks: z.array(
+    z.object({
+      risk: z.string(),
+      likelihood: z.enum(['low', 'medium', 'high']),
+      impact: z.enum(['low', 'medium', 'high']),
+      mitigation: z.string(),
+    }),
+  ),
   open_questions: z.array(z.string()),
   confidence: z.object({
     level: z.enum(['low', 'medium', 'high']),
@@ -59,3 +69,12 @@ export const VerdictSchema = z.object({
   }),
 });
 export type Verdict = z.infer<typeof VerdictSchema>;
+
+/** Intake check before convening the council: is anything essential missing? */
+export const ClarifySchema = z.object({
+  needs_clarification: z.boolean(),
+  // No max here: a model that returns 4 questions should not lose all of them; the code keeps the first 3.
+  questions: z.array(z.string()),
+  assumptions_if_skipped: z.array(z.string()),
+});
+export type ClarifyOutput = z.infer<typeof ClarifySchema>;

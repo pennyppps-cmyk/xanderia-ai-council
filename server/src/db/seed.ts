@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { config } from '../config.js';
+import { invalidatePrompts } from '../prompts/assembler.js';
 import { pool, tx } from './pool.js';
 import { BASE_PROMPT, DEPARTMENTS, MODEL_ROLES, PERSONAS, SETTINGS, TASKS } from './seedData.js';
 
@@ -32,14 +33,35 @@ export async function seed(log = console.log) {
       ...DEPARTMENTS.map((d) => ['department', d.slug, d.prompt] as [string, string, string]),
       ...Object.entries(TASKS).map(([k, v]) => ['task', k, v] as [string, string, string]),
     ];
+    let promptsChanged = false;
     for (const [layer, key, content] of prompts) {
-      await c.query(
-        `INSERT INTO prompt_components (layer, key, version, content, is_active)
-         SELECT $1, $2, 1, $3, true
-         WHERE NOT EXISTS (SELECT 1 FROM prompt_components WHERE layer = $1 AND key = $2)`,
-        [layer, key, content],
+      const { rows: active } = await c.query(
+        `SELECT id, version, content, created_by FROM prompt_components
+          WHERE layer = $1 AND key = $2 ORDER BY is_active DESC, version DESC LIMIT 1`,
+        [layer, key],
       );
+      if (!active[0]) {
+        await c.query(
+          `INSERT INTO prompt_components (layer, key, version, content, is_active) VALUES ($1, $2, 1, $3, true)`,
+          [layer, key, content],
+        );
+      } else if (active[0].created_by === null && active[0].content !== content) {
+        // Still the shipped version (no admin has edited it): upgrade to the new shipped text.
+        // Anything an admin saved has created_by set and is never overwritten.
+        const { rows: max } = await c.query(
+          'SELECT max(version) AS v FROM prompt_components WHERE layer = $1 AND key = $2',
+          [layer, key],
+        );
+        await c.query('UPDATE prompt_components SET is_active = false WHERE layer = $1 AND key = $2', [layer, key]);
+        await c.query(
+          `INSERT INTO prompt_components (layer, key, version, content, is_active) VALUES ($1, $2, $3, $4, true)`,
+          [layer, key, max[0].v + 1, content],
+        );
+        promptsChanged = true;
+        log(`[seed] upgraded shipped prompt ${layer}:${key} to v${max[0].v + 1}`);
+      }
     }
+    if (promptsChanged) await invalidatePrompts();
 
     // Base URL is resolved from the environment at runtime, so .env stays the source of truth.
     await c.query(

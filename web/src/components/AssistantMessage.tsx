@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import type { Citation, Message, Verdict } from '../types';
+import type { Citation, ClarifyRequest, Level, Message, Mode, Stance, Verdict } from '../types';
 import { useMessageStream, type LivePart, type LiveState } from '../useMessageStream';
 import { Markdown } from './Markdown';
 import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
@@ -9,15 +9,16 @@ import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
 interface Props {
   message: Message;
   onFinished(): void;
-  onFollowUp(text: string): void;
+  onFollowUp(text: string, mode?: Mode): void;
   onRetry(): void;
+  /** Answer the council's clarifying questions with "skip": it proceeds on its stated assumptions. */
+  onSkipClarify(): void;
 }
 
-export function AssistantMessage({ message, onFinished, onFollowUp, onRetry }: Props) {
+export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onSkipClarify }: Props) {
   const live = useMessageStream(message, onFinished);
   const { departments } = useAuth();
   const dept = departments.find((d) => d.id === message.department_id);
-  const printRef = useRef<HTMLDivElement>(null);
   const mode = live.mode ?? (message.requested_mode === 'council' ? 'council' : message.requested_mode === 'quick' ? 'quick' : null);
   const finished = live.status === 'done';
 
@@ -33,7 +34,7 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry }: P
       <div className="mt-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-900 sm:flex">
         <img src="/favicon.svg" alt="" className="h-8 w-8" />
       </div>
-      <div ref={printRef} className="min-w-0 flex-1 space-y-3">
+      <div className="min-w-0 flex-1 space-y-3">
         <Header live={live} mode={mode} message={message} reviewFlag={Boolean(dept?.review_before_acting)} />
 
         {live.status === 'error' ? (
@@ -44,30 +45,18 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry }: P
               <Icon name="retry" /> Try again
             </Button>
           </div>
+        ) : mode === 'clarify' && live.clarify ? (
+          <ClarifyView clarify={live.clarify} onAnswer={onFollowUp} onSkip={onSkipClarify} />
         ) : mode === 'council' ? (
-          <CouncilView live={live} message={message} />
+          <CouncilView live={live} message={message} onFollowUp={onFollowUp} />
         ) : (
           <QuickView live={live} text={text} />
         )}
 
         {live.citations.length > 0 && <Citations citations={live.citations} />}
 
-        {finished && (
-          <Actions
-            message={message}
-            text={text}
-            verdict={live.verdict}
-            onFollowUp={onFollowUp}
-            onPrint={() => {
-              const el = printRef.current;
-              if (!el) return;
-              el.setAttribute('data-printing', '');
-              document.body.classList.add('printing');
-              window.print();
-              document.body.classList.remove('printing');
-              el.removeAttribute('data-printing');
-            }}
-          />
+        {finished && mode !== 'clarify' && (
+          <Actions message={message} text={text} verdict={live.verdict} onFollowUp={onFollowUp} />
         )}
       </div>
     </div>
@@ -77,7 +66,9 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry }: P
 function Header({ live, mode, message, reviewFlag }: { live: LiveState; mode: string | null; message: Message; reviewFlag: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
-      <span className="font-semibold text-ink-800">{mode === 'council' ? 'Council' : mode === 'quick' ? 'Quick answer' : 'Assistant'}</span>
+      <span className="font-semibold text-ink-800">
+        {mode === 'council' ? 'Council' : mode === 'quick' ? 'Quick answer' : mode === 'clarify' ? 'Council · before it meets' : 'Assistant'}
+      </span>
       {live.router && (
         <span title={live.router.reason}>
           · {live.router.intent}
@@ -165,7 +156,7 @@ function ProgressStrip({ live, peerReview }: { live: LiveState; peerReview: bool
   );
 }
 
-function CouncilView({ live, message }: { live: LiveState; message: Message }) {
+function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: Message; onFollowUp(text: string, mode?: Mode): void }) {
   const { personas } = useAuth();
   const opinions = Object.values(live.parts).filter((p) => p.stage === 1);
   const reviews = Object.values(live.parts).filter((p) => p.stage === 2);
@@ -179,7 +170,7 @@ function CouncilView({ live, message }: { live: LiveState; message: Message }) {
       {running && <ProgressStrip live={live} peerReview={peerReview} />}
 
       {live.verdict ? (
-        <VerdictCard verdict={live.verdict} />
+        <VerdictCard verdict={live.verdict} onFollowUp={onFollowUp} />
       ) : live.raw ? (
         <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
           <p className="mb-2 text-xs font-medium text-amber-700">
@@ -207,12 +198,14 @@ function CouncilView({ live, message }: { live: LiveState; message: Message }) {
 
       {opinions.length > 0 && (
         <Section title={`Advisor opinions (${opinions.length})`} defaultOpen={running}>
+          <StanceSummary opinions={opinions} />
           <div className="grid items-start gap-2 lg:grid-cols-2">
             {opinions.map((p) => (
               <Collapsible
                 key={p.part}
                 title={name(p.persona)}
                 subtitle={personas[p.persona]?.description ?? undefined}
+                badge={p.done && p.data?.stance ? <StanceBadge stance={p.data.stance} /> : undefined}
                 status={p.error ? 'error' : p.done ? 'done' : p.text ? 'streaming' : 'waiting'}
                 defaultOpen={running && !p.done && Boolean(p.text)}
               >
@@ -262,7 +255,7 @@ function ReviewBody({ part, name }: { part: LivePart; name: (k: string) => strin
 
 const CONFIDENCE_TONE = { low: 'red', medium: 'amber', high: 'green' } as const;
 
-function VerdictCard({ verdict: v }: { verdict: Verdict }) {
+function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(text: string, mode?: Mode): void }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm">
       <div className="border-b border-ink-100 bg-ink-900 px-5 py-4 text-white">
@@ -334,7 +327,9 @@ function VerdictCard({ verdict: v }: { verdict: Verdict }) {
                 <li key={i} className="flex gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
                   <span>
-                    <span className="font-medium">{r.risk}</span> <span className="text-ink-600">→ {r.mitigation}</span>
+                    <span className="font-medium">{r.risk}</span>{' '}
+                    {r.likelihood && r.impact && <RiskBadge likelihood={r.likelihood} impact={r.impact} />}{' '}
+                    <span className="text-ink-600">→ {r.mitigation}</span>
                   </span>
                 </li>
               ))}
@@ -344,11 +339,22 @@ function VerdictCard({ verdict: v }: { verdict: Verdict }) {
 
         {v.open_questions.length > 0 && (
           <Block title="Open questions">
-            <ul className="list-disc space-y-1 pl-5 text-ink-700">
+            <ul className="space-y-1.5">
               {v.open_questions.map((q, i) => (
-                <li key={i}>{q}</li>
+                <li key={i}>
+                  <button
+                    className="no-print group flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left text-ink-700 hover:bg-accent-50"
+                    title="Answer this and the council will reconsider"
+                    onClick={() => onFollowUp(`Answer to the council's open question "${q}":\n`, 'council')}
+                  >
+                    <Icon name="reply" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-600" />
+                    <span className="flex-1">{q}</span>
+                    <span className="hidden text-xs font-medium text-accent-700 group-hover:inline">Answer</span>
+                  </button>
+                </li>
               ))}
             </ul>
+            <p className="mt-1 px-2 text-xs text-ink-400">Click a question to answer it; the council will reconsider with your answer.</p>
           </Block>
         )}
 
@@ -385,12 +391,14 @@ function Section({ title, children, defaultOpen = false }: { title: string; chil
 function Collapsible({
   title,
   subtitle,
+  badge,
   status,
   defaultOpen,
   children,
 }: {
   title: string;
   subtitle?: string;
+  badge?: React.ReactNode;
   status: 'waiting' | 'streaming' | 'done' | 'error';
   defaultOpen?: boolean;
   children: React.ReactNode;
@@ -404,9 +412,10 @@ function Collapsible({
           <span className="block truncate text-sm font-medium text-ink-900">{title}</span>
           {subtitle && <span className="block truncate text-xs text-ink-400">{subtitle}</span>}
         </span>
+        {badge}
         {status === 'waiting' && <span className="text-xs text-ink-400">waiting</span>}
         {status === 'streaming' && <Spinner className="h-3.5 w-3.5 text-accent-600" />}
-        {status === 'done' && <span className="h-2 w-2 rounded-full bg-accent-500" />}
+        {status === 'done' && !badge && <span className="h-2 w-2 rounded-full bg-accent-500" />}
         {status === 'error' && <span className="h-2 w-2 rounded-full bg-red-500" />}
       </button>
       {(open || status === 'streaming') && <div className="border-t border-ink-100 px-3 py-2">{children}</div>}
@@ -435,13 +444,11 @@ function Actions({
   text,
   verdict,
   onFollowUp,
-  onPrint,
 }: {
   message: Message;
   text: string;
   verdict: Verdict | null;
-  onFollowUp(text: string): void;
-  onPrint(): void;
+  onFollowUp(text: string, mode?: Mode): void;
 }) {
   const [rating, setRating] = useState<1 | -1 | null>(message.my_rating ?? null);
   const [commenting, setCommenting] = useState(false);
@@ -467,9 +474,14 @@ function Actions({
         >
           <Icon name="copy" className="h-3.5 w-3.5" /> {copied ? 'Copied' : 'Copy'}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onPrint}>
-          <Icon name="print" className="h-3.5 w-3.5" /> Export PDF
-        </Button>
+        <a
+          href={`/api/messages/${message.id}/report.pdf`}
+          download
+          title={verdict ? 'Council report with analytics: stances, risk heat map, timeline' : 'Download this answer as a PDF'}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900"
+        >
+          <Icon name="print" className="h-3.5 w-3.5" /> {verdict ? 'Download report (PDF)' : 'Export PDF'}
+        </a>
         <Button
           size="sm"
           variant="ghost"
@@ -521,6 +533,100 @@ function Actions({
           <Button size="sm" variant="primary">Send</Button>
         </form>
       )}
+    </div>
+  );
+}
+
+// ── Stances, risk ratings, clarifying questions ─────────────────────────────
+
+const STANCE_STYLE: Record<Stance['value'], { label: string; cls: string }> = {
+  for: { label: 'For', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  conditional: { label: 'Conditional', cls: 'bg-amber-50 text-amber-800 ring-amber-200' },
+  against: { label: 'Against', cls: 'bg-red-50 text-red-700 ring-red-200' },
+  unclear: { label: 'Unclear', cls: 'bg-ink-100 text-ink-600 ring-ink-200' },
+};
+
+function StanceBadge({ stance }: { stance: Stance }) {
+  const s = STANCE_STYLE[stance.value];
+  return (
+    <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1', s.cls)} title="The advisor's own declared stance and conviction">
+      {s.label}
+      {stance.strength ? ` ${stance.strength}/5` : ''}
+    </span>
+  );
+}
+
+function StanceSummary({ opinions }: { opinions: LivePart[] }) {
+  const stances = opinions.map((o) => o.data?.stance as Stance | undefined).filter((s): s is Stance => Boolean(s));
+  if (stances.length < 2) return null;
+  const order: Stance['value'][] = ['for', 'conditional', 'against', 'unclear'];
+  const bar: Record<Stance['value'], string> = { for: 'bg-emerald-500', conditional: 'bg-amber-500', against: 'bg-red-500', unclear: 'bg-ink-200' };
+  return (
+    <div className="mb-2">
+      <div className="flex h-2 overflow-hidden rounded-full">
+        {order.map((v) => {
+          const n = stances.filter((s) => s.value === v).length;
+          return n ? <div key={v} className={bar[v]} style={{ width: `${(n / stances.length) * 100}%` }} /> : null;
+        })}
+      </div>
+      <p className="mt-1 text-xs text-ink-400">
+        {order
+          .map((v) => [v, stances.filter((s) => s.value === v).length] as const)
+          .filter(([, n]) => n)
+          .map(([v, n]) => `${n} ${STANCE_STYLE[v].label.toLowerCase()}`)
+          .join(' · ')}
+      </p>
+    </div>
+  );
+}
+
+const LEVEL_RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
+
+function RiskBadge({ likelihood, impact }: { likelihood: Level; impact: Level }) {
+  const sev = LEVEL_RANK[likelihood] + LEVEL_RANK[impact];
+  return (
+    <Badge tone={sev >= 3 ? 'red' : sev === 2 ? 'amber' : 'green'} title="Likelihood · Impact, as rated by the Chairman">
+      L {likelihood} · I {impact}
+    </Badge>
+  );
+}
+
+function ClarifyView({
+  clarify,
+  onAnswer,
+  onSkip,
+}: {
+  clarify: ClarifyRequest;
+  onAnswer(text: string, mode?: Mode): void;
+  onSkip(): void;
+}) {
+  const template = clarify.questions.map((q, i) => `${i + 1}. ${q}\n→ `).join('\n');
+  return (
+    <div className="rounded-2xl border border-accent-100 bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-ink-900">Before the council meets, a few questions so the advice fits your situation:</p>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink-800">
+        {clarify.questions.map((q, i) => (
+          <li key={i}>{q}</li>
+        ))}
+      </ol>
+      {clarify.assumptions.length > 0 && (
+        <div className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-600">
+          <span className="font-semibold text-ink-800">If you skip, the council will assume:</span>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {clarify.assumptions.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" variant="primary" onClick={() => onAnswer(template, 'council')}>
+          <Icon name="reply" className="h-3.5 w-3.5" /> Answer the questions
+        </Button>
+        <Button size="sm" onClick={onSkip}>
+          Skip: go ahead with these assumptions
+        </Button>
+      </div>
     </div>
   );
 }

@@ -301,6 +301,7 @@ export default async function adminRoutes(app: FastifyInstance) {
         rag_enabled: z.boolean().optional(),
         rag_top_k: z.number().int().min(1).max(20).optional(),
         history_turns: z.number().int().min(0).max(20).optional(),
+        clarify_enabled: z.boolean().optional(),
       })
       .parse(req.body);
     for (const [k, v] of Object.entries(body)) if (v !== undefined) await setSetting(k, v);

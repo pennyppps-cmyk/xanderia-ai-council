@@ -14,6 +14,7 @@ export type JobEvent =
   | { type: 'part_done'; part: string; content: string; data?: unknown; error?: string }
   | { type: 'citations'; citations: unknown[] }
   | { type: 'verdict'; verdict: unknown; raw?: string }
+  | { type: 'clarify'; clarify: { questions: string[]; assumptions: string[] }; content: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
 

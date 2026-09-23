@@ -5,7 +5,7 @@ import { callStructured } from '../llm/structured.js';
 import type { ChatMessage, RoleConfig } from '../llm/types.js';
 import type { PromptSpec } from '../prompts/assembler.js';
 import type { RetrievedChunk } from '../rag/retrieve.js';
-import { advisorBlock, userTurn } from './format.js';
+import { advisorBlock, parseStance, userTurn } from './format.js';
 
 export interface Advisor {
   key: string;
@@ -150,7 +150,13 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
         });
         cloudUsed ||= out.isCloud;
         const content = out.content.trim();
-        await hooks.onPartDone(part, 1, advisor, { content, label, model: out.model, latencyMs: out.latencyMs });
+        await hooks.onPartDone(part, 1, advisor, {
+          content,
+          label,
+          data: { stance: parseStance(content) },
+          model: out.model,
+          latencyMs: out.latencyMs,
+        });
         return { advisor, label, content, model: out.model, latencyMs: out.latencyMs };
       } catch (err) {
         const error = (err as Error).message;

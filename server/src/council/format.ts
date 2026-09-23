@@ -57,7 +57,10 @@ export function verdictToMarkdown(v: Verdict): string {
   v.action_plan.forEach((s, i) => lines.push(`${i + 1}. ${s.step} — *${s.owner_role}*, ${s.timeline}`));
   if (v.risks.length) {
     lines.push('\n## Key risks');
-    for (const r of v.risks) lines.push(`- **${r.risk}** → ${r.mitigation}`);
+    for (const r of v.risks) {
+      const rating = r.likelihood ? ` _(likelihood ${r.likelihood}, impact ${r.impact})_` : '';
+      lines.push(`- **${r.risk}**${rating} → ${r.mitigation}`);
+    }
   }
   if (v.open_questions.length) {
     lines.push('\n## Open questions');
@@ -82,4 +85,38 @@ export function guessLanguage(text: string): 'en' | 'ms' {
 /** True if the text contains no common Malay function words at all. */
 export function clearlyEnglish(text: string) {
   return !/\b(saya|yang|dan|untuk|tidak|ini|itu|adalah|dengan|bagaimana|apa|kita|boleh|kami|akan|dalam|perlu|kenapa|sila|tolong)\b/i.test(text);
+}
+
+export type StanceValue = 'for' | 'conditional' | 'against' | 'unclear';
+
+export interface Stance {
+  value: StanceValue;
+  /** Conviction 1-5, when the advisor gave one. */
+  strength: number | null;
+  /** The advisor's one-line position, for the stance map. */
+  position: string | null;
+}
+
+/**
+ * Read an advisor's self-declared stance ("**Stance:** Conditional, 4/5") and position line.
+ * Falls back to the wording of the Position line; never throws.
+ */
+export function parseStance(text: string): Stance {
+  const plain = text.replace(/\*\*/g, '');
+  const position = /Position:\s*(.+)/i.exec(plain)?.[1]?.trim().slice(0, 240) ?? null;
+  const stanceLine = /(?:Stance|Pendirian):\s*(.+)/i.exec(plain)?.[1] ?? '';
+  const classify = (s: string): StanceValue | null => {
+    if (/\b(conditional|conditionally|bersyarat|partly|with conditions)\b/i.test(s)) return 'conditional';
+    if (/\b(against|oppose|opposed|menentang|reject|do not|don't)\b/i.test(s)) return 'against';
+    if (/\b(for|support|supports|in favour|in favor|menyokong|agree|proceed)\b/i.test(s)) return 'for';
+    return null;
+  };
+  let value = classify(stanceLine);
+  if (!value && position) {
+    if (/\b(advise against|oppose|against|should not|do not recommend)\b/i.test(position)) value = 'against';
+    else if (/\b(only if|provided that|with (?:strict )?conditions|pilot|phased|cautious)\b/i.test(position)) value = 'conditional';
+    else if (/\b(recommend|support|should|proceed|in favou?r)\b/i.test(position)) value = 'for';
+  }
+  const m = /\b([1-5])\s*\/\s*5\b/.exec(stanceLine) ?? /\b([1-5])\s*\/\s*5\b/.exec(plain);
+  return { value: value ?? 'unclear', strength: m ? Number(m[1]) : null, position };
 }

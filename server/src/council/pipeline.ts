@@ -10,6 +10,7 @@ import { canUseCouncil, getSetting, type UserRole } from '../settings.js';
 import { runCouncil, type Advisor } from './council.js';
 import { toCitations, userTurn, verdictToMarkdown } from './format.js';
 import { routeMessage, type RouterResult } from './router.js';
+import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 
 interface LoadedJob {
   message: {
@@ -18,7 +19,7 @@ interface LoadedJob {
     reply_to: string;
     requested_mode: 'auto' | 'quick' | 'council';
     department_id: string;
-    options: { peerReview?: boolean };
+    options: { peerReview?: boolean; skipClarify?: boolean };
     status: string;
   };
   question: string;
@@ -67,6 +68,19 @@ async function loadHistory(conversationId: string, beforeMessageId: string, turn
     .map((r) => ({ role: r.role, content: r.content.length > 1500 ? `${r.content.slice(0, 1500)} …` : r.content }));
 }
 
+/** The assistant message immediately before a given user message (the previous turn's answer). */
+async function previousAssistant(conversationId: string, userMessageId: string) {
+  const { rows } = await query(
+    `SELECT a.id, a.mode, a.options, a.reply_to, q.content AS original_question
+       FROM messages a JOIN messages q ON q.id = a.reply_to
+      WHERE a.conversation_id = $1 AND a.role = 'assistant'
+        AND a.created_at < (SELECT created_at FROM messages WHERE id = $2)
+      ORDER BY a.created_at DESC LIMIT 1`,
+    [conversationId, userMessageId],
+  );
+  return rows[0] ?? null;
+}
+
 async function isCloudRole(role: string) {
   const cfg = await getRoleConfig(role);
   return (await getProvider(cfg.provider_id)).isCloud;
@@ -79,7 +93,8 @@ async function setStatus(messageId: string, status: string, stage?: string | nul
 export async function processMessage(messageId: string, events: Publisher) {
   const job = await load(messageId);
   if (!job || job.message.status === 'done') return;
-  const { message, user, department, question } = job;
+  const { message, user, department } = job;
+  let question = job.question;
 
   // A retried job (worker crash) starts clean.
   await query('DELETE FROM message_parts WHERE message_id = $1', [messageId]);
@@ -102,6 +117,21 @@ export async function processMessage(messageId: string, events: Publisher) {
   };
 
   try {
+    // Is this the asker's reply to the council's clarifying questions? Then the council considers
+    // the original question plus the answers, and the clarifying exchange is not repeated as history.
+    let historyAnchor = message.reply_to;
+    let answeringClarify = false;
+    const prev = await previousAssistant(message.conversation_id, message.reply_to);
+    if (prev?.mode === 'clarify' && prev.options?.clarify) {
+      question = composeClarifiedQuestion(prev.original_question, prev.options.clarify, job.question, Boolean(message.options.skipClarify));
+      historyAnchor = prev.reply_to;
+      answeringClarify = true;
+      await query(`UPDATE messages SET options = options || $2 WHERE id = $1`, [
+        messageId,
+        JSON.stringify({ effectiveQuestion: question, clarifiedFrom: prev.id }),
+      ]);
+    }
+
     const departments = (await query('SELECT slug, name FROM departments WHERE is_active ORDER BY name')).rows;
     const route = () =>
       routeMessage(
@@ -112,7 +142,7 @@ export async function processMessage(messageId: string, events: Publisher) {
     // Router first when its answer decides something (mode, or whether a cloud role may run);
     // for an explicit Quick question on a local model it runs alongside the answer instead.
     const routerBlocks =
-      message.requested_mode !== 'quick' || (await isCloudRole('quick'));
+      answeringClarify || message.requested_mode !== 'quick' || (await isCloudRole('quick'));
     let router: RouterResult | null = null;
     let routerPromise: Promise<RouterResult> | null = null;
     if (routerBlocks) {
@@ -122,8 +152,11 @@ export async function processMessage(messageId: string, events: Publisher) {
       routerPromise = route();
     }
 
-    let mode: 'quick' | 'council' =
-      message.requested_mode === 'auto' ? router!.suggested_mode : message.requested_mode;
+    let mode: 'quick' | 'council' = answeringClarify
+      ? 'council'
+      : message.requested_mode === 'auto'
+        ? router!.suggested_mode
+        : message.requested_mode;
     if (mode === 'council' && !(await canUseCouncil(user.role))) mode = 'quick';
 
     const saveRouter = async (r: RouterResult) => {
@@ -132,6 +165,35 @@ export async function processMessage(messageId: string, events: Publisher) {
     };
     if (router) await saveRouter(router);
     else await query('UPDATE messages SET mode = $2 WHERE id = $1', [messageId, mode]);
+
+    // Before convening the council, ask the asker for anything essential that is missing.
+    if (mode === 'council' && !answeringClarify && !message.options.skipClarify && (await getSetting('clarify_enabled', true))) {
+      await stage('clarify');
+      const clarify = await checkClarity(
+        { gateway, assemble: assemblePrompt },
+        { question, departmentName: department.name, sensitivity: router?.sensitivity ?? 'high', userId: user.id, messageId },
+      );
+      if (clarify) {
+        const content = clarifyMarkdown(clarify);
+        await query(
+          `UPDATE messages SET mode = 'clarify', content = $2, options = options || $3,
+                  status = 'done', stage = NULL, completed_at = now() WHERE id = $1`,
+          [messageId, content, JSON.stringify({ clarify })],
+        );
+        await query('UPDATE conversations SET updated_at = now() WHERE id = $1', [message.conversation_id]);
+        await events.emit(messageId, { type: 'clarify', clarify, content });
+        await events.emit(messageId, { type: 'status', status: 'done' });
+        await events.emit(messageId, { type: 'done' });
+        await events.notifyUser(user.id, {
+          type: 'job_done',
+          conversationId: message.conversation_id,
+          messageId,
+          mode: 'clarify',
+          title: job.conversation.title,
+        });
+        return;
+      }
+    }
 
     // Knowledge: the user's own department + grants + company-wide, whatever department they asked.
     let knowledge: RetrievedChunk[] = [];
@@ -165,7 +227,7 @@ export async function processMessage(messageId: string, events: Publisher) {
       await events.emit(messageId, { type: 'citations', citations: used });
     };
 
-    const history = await loadHistory(message.conversation_id, message.reply_to, await getSetting('history_turns', 6));
+    const history = await loadHistory(message.conversation_id, historyAnchor, await getSetting('history_turns', 6));
     const sensitivity = router?.sensitivity ?? 'high'; // unknown yet → treat as sensitive
 
     if (mode === 'quick') {

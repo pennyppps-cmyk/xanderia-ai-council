@@ -22,8 +22,8 @@ const VERDICT = {
       because: 'Complaint risk is unquantified',
     },
   ],
-  action_plan: [{ step: 'Draft scripts', owner_role: 'Collections Manager', timeline: 'Week 1' }],
-  risks: [{ risk: 'Complaints', mitigation: 'Cap contact frequency' }],
+  action_plan: [{ step: 'Draft scripts', owner_role: 'Collections Manager', timeline: 'Week 1', start_week: 1, duration_weeks: 1 }],
+  risks: [{ risk: 'Complaints', likelihood: 'medium', impact: 'high', mitigation: 'Cap contact frequency' }],
   open_questions: ['What is the current roll rate?'],
   confidence: { level: 'medium', what_would_change: 'Pilot complaint data' },
 };
@@ -256,5 +256,39 @@ describe('routeMessage', () => {
       { question: 'Bagaimana kita patut rancang pengambilan staf untuk tahun depan?', departments, defaultDepartment: 'hr' },
     );
     expect(r).toMatchObject({ source: 'fallback', department: 'hr', language: 'ms', suggested_mode: 'council' });
+  });
+});
+
+describe('clarifying questions', () => {
+  it('asks only when the clarifier says information is missing', async () => {
+    const { checkClarity } = await import('../src/council/clarify.js');
+    const asks = new FakeProvider('local', false, () =>
+      JSON.stringify({ needs_clarification: true, questions: ['What is the budget?', ' ', 'Which branches?', 'x', 'y'], assumptions_if_skipped: ['Budget under RM 50k'] }),
+    );
+    const g1 = makeGateway({ providers: [asks], roles: { '*': 'local' } });
+    const r = await checkClarity({ gateway: g1.gateway, assemble }, { question: 'Plan a rollout', departmentName: 'Ops', sensitivity: 'low' });
+    expect(r).toEqual({ questions: ['What is the budget?', 'Which branches?', 'x'], assumptions: ['Budget under RM 50k'] });
+    expect(asks.requests[0].jsonSchema).toBeDefined();
+
+    const clear = new FakeProvider('local', false, () => JSON.stringify({ needs_clarification: false, questions: [], assumptions_if_skipped: [] }));
+    const g2 = makeGateway({ providers: [clear], roles: { '*': 'local' } });
+    expect(await checkClarity({ gateway: g2.gateway, assemble }, { question: 'x', departmentName: 'Ops', sensitivity: 'low' })).toBeNull();
+
+    // A failing check never blocks the council.
+    const broken = new FakeProvider('local', false, () => { throw new Error('down'); });
+    const g3 = makeGateway({ providers: [broken], roles: { '*': 'local' } });
+    expect(await checkClarity({ gateway: g3.gateway, assemble }, { question: 'x', departmentName: 'Ops', sensitivity: 'low' })).toBeNull();
+  });
+
+  it('merges the answers (or the skip + assumptions) into the question the council considers', async () => {
+    const { composeClarifiedQuestion } = await import('../src/council/clarify.js');
+    const c = { questions: ['Budget?', 'Which branches?'], assumptions: ['Under RM 50k'] };
+    const answered = composeClarifiedQuestion('Plan a rollout', c, 'RM 30k, Klang and Shah Alam', false);
+    expect(answered).toContain('Plan a rollout');
+    expect(answered).toContain('1. Budget?');
+    expect(answered).toContain('RM 30k, Klang and Shah Alam');
+    const skipped = composeClarifiedQuestion('Plan a rollout', c, 'skip', true);
+    expect(skipped).toContain('Under RM 50k');
+    expect(skipped).not.toContain('The asker answered');
   });
 });

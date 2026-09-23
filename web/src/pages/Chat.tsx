@@ -66,7 +66,7 @@ export default function Chat() {
 
   useUserEvents(id, loadList);
 
-  async function send(input: { content: string; mode: Mode; departmentId: string; peerReview: boolean }) {
+  async function send(input: { content: string; mode: Mode; departmentId?: string; peerReview?: boolean; skipClarify?: boolean }) {
     setSending(true);
     setError(null);
     try {
@@ -88,6 +88,8 @@ export default function Chat() {
   }
 
   const empty = !id && messages.length === 0;
+  const last = messages[messages.length - 1];
+  const awaitingAnswers = last?.role === 'assistant' && last.mode === 'clarify' && last.status === 'done';
 
   return (
     <div className="flex h-full">
@@ -156,7 +158,15 @@ export default function Chat() {
                         if (id) void loadConversation(id);
                         void loadList();
                       }}
-                      onFollowUp={(t) => composer.current?.setText(t)}
+                      onFollowUp={(t, mode) => composer.current?.setText(t, mode)}
+                      onSkipClarify={() =>
+                        send({
+                          content: 'Skip: please go ahead with your stated assumptions.',
+                          mode: 'council',
+                          departmentId: m.department_id ?? undefined,
+                          skipClarify: true,
+                        }).catch(() => {})
+                      }
                       onRetry={async () => {
                         await api(`/api/messages/${m.id}/retry`, { method: 'POST' });
                         setMessages((all) =>
@@ -175,7 +185,13 @@ export default function Chat() {
         <div className="border-t border-ink-100 bg-ink-50/80 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
           <div className="mx-auto w-full max-w-3xl">
             {error && <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            <Composer ref={composer} busy={sending} defaultDepartmentId={convDept} onSend={send} />
+            <Composer
+              ref={composer}
+              busy={sending}
+              defaultDepartmentId={convDept}
+              placeholder={awaitingAnswers ? "Answer the council's questions here (all in one message), or press Skip above…" : undefined}
+              onSend={send}
+            />
             <p className="mt-2 text-center text-[11px] text-ink-400">
               Advisory output only. Final decisions sit with the responsible staff and management. Legal and finance
               answers must be reviewed before acting.

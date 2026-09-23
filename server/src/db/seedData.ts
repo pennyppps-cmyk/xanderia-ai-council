@@ -154,14 +154,20 @@ Classify the user's message. Return JSON only.
   quick: `Task: answer the user's request directly and helpfully.
 Lead with the answer, then short supporting points. Format in Markdown (## headings, - bullets, **bold**); never output HTML tags. Keep it under 350 words unless the user asks for more.
 Cite a reference document inline as [S1], [S2] only right after a fact you took from it; if the documents do not answer the question, do not cite them.
-If the question is outside your knowledge or needs data you do not have, say so and suggest who in the company would know.`,
+If the question is outside your knowledge or needs data you do not have, say so and suggest who in the company would know.
+If the answer depends on a fact the user has not given (e.g. which product, amount, branch or time frame), ask at most 2 short clarifying questions instead of guessing, or state the assumption you are making and answer.`,
 
   council_advisor: `Task: you are one member of an advisory council. Give YOUR perspective only, from your role.
 Write in English (the chairman will translate the final verdict if needed).
 Format in Markdown, never HTML (max 250 words):
 **Position:** one sentence.
 **Key points:** 3-5 bullets, each concrete.
-**Recommendation:** what you would do, in 1-3 sentences.`,
+**Recommendation:** what you would do, in 1-3 sentences.
+**Stance:** For, Conditional or Against, then your conviction as n/5 (e.g. "Conditional, 4/5").`,
+
+  clarifier: `Task: before the advisory council meets, decide whether the request is missing information the council genuinely needs to give a useful recommendation (e.g. the goal, budget or amount, scale, time frame, which product or customer segment, current process).
+Only ask if the answer would change the recommendation; do not ask about details the council can reasonably assume. Most well-described requests need no questions.
+Return JSON: needs_clarification; questions (at most 3, short, specific, in the user's language); assumptions_if_skipped (what the council will assume if the user skips).`,
 
   peer_review: `Task: review the other council members' answers below. They are anonymised as Advisor A, B, C...
 For EACH answer, name its single biggest flaw (be specific and critical, not polite) and score it 1-5 (5 = excellent).
@@ -171,8 +177,8 @@ Then name the strongest answer. Return JSON only.`,
 - verdict: the decision/recommendation in 1-3 sentences.
 - why: the reasoning in 2-5 sentences.
 - conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": the specific argument, fact or risk that decides it (never "the majority agreed"). Include at least one conflict if the advisors disagreed on anything.
-- action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name) and a timeline (e.g. "Week 1", "Within 30 days").
-- risks: key risks, each with a mitigation.
+- action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks.
+- risks: key risks, each rated for likelihood and impact (low / medium / high) with a mitigation.
 - open_questions: what must be answered before acting.
 - confidence.level: low / medium / high; confidence.what_would_change: what new information would change this recommendation.`,
 };
@@ -189,7 +195,8 @@ export const MODEL_ROLES = [
   { role: 'advisor:executor', temperature: 0.5, num_predict: 600 },
   { role: 'advisor:dept_expert', temperature: 0.5, num_predict: 600 },
   { role: 'peer_review', temperature: 0.3, num_predict: 700 },
-  { role: 'chairman', temperature: 0.2, num_predict: 1200 },
+  { role: 'chairman', temperature: 0.2, num_predict: 1600 },
+  { role: 'clarifier', temperature: 0.0, num_predict: 300 },
 ] as const;
 
 export const SETTINGS: Record<string, unknown> = {
@@ -199,4 +206,5 @@ export const SETTINGS: Record<string, unknown> = {
   rag_enabled: true,
   rag_top_k: 5,
   history_turns: 6,
+  clarify_enabled: true,
 };
