@@ -68,6 +68,13 @@ export default async function chatRoutes(app: FastifyInstance) {
     return rows;
   });
 
+  app.get('/api/personas', auth, async () => {
+    const { rows } = await query(
+      `SELECT key, name, name_ms, description, in_council FROM personas WHERE is_active ORDER BY sort_order`,
+    );
+    return rows;
+  });
+
   // ── Conversations ──
   app.get('/api/conversations', auth, async (req) => {
     const { q } = z.object({ q: z.string().trim().max(200).optional() }).parse(req.query);

@@ -78,3 +78,8 @@ export function guessLanguage(text: string): 'en' | 'ms' {
   const hits = words.filter((w) => ms.has(w)).length;
   return words.length && hits / words.length >= 0.12 ? 'ms' : 'en';
 }
+
+/** True if the text contains no common Malay function words at all. */
+export function clearlyEnglish(text: string) {
+  return !/\b(saya|yang|dan|untuk|tidak|ini|itu|adalah|dengan|bagaimana|apa|kita|boleh|kami|akan|dalam|perlu|kenapa|sila|tolong)\b/i.test(text);
+}

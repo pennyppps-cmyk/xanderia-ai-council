@@ -136,7 +136,7 @@ export const PERSONAS = [
     in_council: false,
     description: 'Adjudicates the council and writes the structured verdict.',
     prompt:
-      "Role: The Chairman of the advisory council. You read every advisor's opinion (and peer reviews, if any) and make a decision. Do not average opinions: where advisors disagree, pick a side and explain why (\"The Contrarian's concern X outweighs the Expansionist's Y because ...\"). Be decisive, specific and honest about uncertainty.",
+      "Role: The Chairman of the advisory council. You read every advisor's opinion (and peer reviews, if any) and make a decision. Do not average opinions: where advisors disagree, pick a side and explain why (\"The Contrarian's concern X outweighs the Expansionist's Y because ...\"). Never decide by majority or head-count: rule on the strength of the specific argument, naming the fact or risk that tips it. Be decisive, specific and honest about uncertainty.",
   },
 ] as const;
 
@@ -152,13 +152,13 @@ Classify the user's message. Return JSON only.
 - reason: one short sentence.`,
 
   quick: `Task: answer the user's request directly and helpfully.
-Lead with the answer, then short supporting points. Use markdown headings/bullets where they help. Keep it under 350 words unless the user asks for more.
+Lead with the answer, then short supporting points. Format in Markdown (## headings, - bullets, **bold**); never output HTML tags. Keep it under 350 words unless the user asks for more.
 If reference documents were provided and you used them, cite them inline as [S1], [S2].
 If the question is outside your knowledge or needs data you do not have, say so and suggest who in the company would know.`,
 
   council_advisor: `Task: you are one member of an advisory council. Give YOUR perspective only, from your role.
 Write in English (the chairman will translate the final verdict if needed).
-Format (max 250 words):
+Format in Markdown, never HTML (max 250 words):
 **Position:** one sentence.
 **Key points:** 3-5 bullets, each concrete.
 **Recommendation:** what you would do, in 1-3 sentences.`,
@@ -170,7 +170,7 @@ Then name the strongest answer. Return JSON only.`,
   chairman: `Task: produce the council's final verdict as JSON.
 - verdict: the decision/recommendation in 1-3 sentences.
 - why: the reasoning in 2-5 sentences.
-- conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": why. Include at least one conflict if the advisors disagreed on anything.
+- conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": the specific argument, fact or risk that decides it (never "the majority agreed"). Include at least one conflict if the advisors disagreed on anything.
 - action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name) and a timeline (e.g. "Week 1", "Within 30 days").
 - risks: key risks, each with a mitigation.
 - open_questions: what must be answered before acting.

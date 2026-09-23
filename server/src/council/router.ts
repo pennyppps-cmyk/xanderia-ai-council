@@ -4,7 +4,7 @@ import { routerSchema, type RouterOutput } from '../llm/schemas.js';
 import { callStructured } from '../llm/structured.js';
 import type { PromptSpec } from '../prompts/assembler.js';
 import { containsHighSensitivityPII, containsPII } from '../privacy/pii.js';
-import { guessLanguage, userTurn } from './format.js';
+import { clearlyEnglish, guessLanguage, userTurn } from './format.js';
 
 export interface RouterResult extends RouterOutput {
   source: 'model' | 'fallback';
@@ -71,6 +71,10 @@ export async function routeMessage(
     return {
       ...out,
       contains_pii: containsPii,
+      // An 8B router sometimes calls English "ms" because of Malay names; overrule it when
+      // the text has no Malay function words, and trust a strong Malay signal the other way.
+      language:
+        guessLanguage(input.question) === 'ms' ? 'ms' : out.language === 'ms' && clearlyEnglish(input.question) ? 'en' : out.language,
       sensitivity: regexHigh || containsPii ? 'high' : out.sensitivity,
       source: 'model',
     };

@@ -33,3 +33,11 @@ describe('guessLanguage', () => {
     expect(guessLanguage('How do we reduce arrears for new customers?')).toBe('en');
   });
 });
+
+describe('clearlyEnglish', () => {
+  it('ignores Malay names in English text', async () => {
+    const { clearlyEnglish } = await import('../src/council/format.js');
+    expect(clearlyEnglish('Customer Ahmad bin Ismail is 60 days late. What should the collector do next?')).toBe(true);
+    expect(clearlyEnglish('Apa yang perlu dibuat?')).toBe(false);
+  });
+});

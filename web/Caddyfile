@@ -1,0 +1,28 @@
+# Internal-network HTTPS. `tls internal` issues a certificate from Caddy's own CA;
+# install that root (docker compose cp web:/data/caddy/pki/authorities/local/root.crt .)
+# on staff devices, or replace with `tls /path/cert.pem /path/key.pem` for a company cert.
+{$SITE_ADDRESS:localhost} {
+	tls internal
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:4000 {
+			# Stream SSE immediately.
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

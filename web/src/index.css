@@ -1,0 +1,62 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-ink-50: #f3f6f8;
+  --color-ink-100: #e3eaef;
+  --color-ink-200: #c7d4de;
+  --color-ink-400: #7890a3;
+  --color-ink-600: #3b556a;
+  --color-ink-800: #17354a;
+  --color-ink-900: #0f2a3d;
+  --color-ink-950: #0a1c29;
+  --color-accent-50: #effcf9;
+  --color-accent-100: #cdf6ee;
+  --color-accent-500: #14b8a6;
+  --color-accent-600: #0d9488;
+  --color-accent-700: #0f766e;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-50 text-ink-900 antialiased;
+}
+
+.prose :where(h1, h2, h3):not(:where([class~="not-prose"] *)) {
+  @apply text-ink-900;
+}
+
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+.typing span {
+  animation: pulse-dot 1.2s infinite;
+}
+.typing span:nth-child(2) { animation-delay: 0.15s; }
+.typing span:nth-child(3) { animation-delay: 0.3s; }
+
+/* Export to PDF: print only the element marked data-printing. */
+@media print {
+  body.printing * {
+    visibility: hidden;
+  }
+  body.printing [data-printing],
+  body.printing [data-printing] * {
+    visibility: visible;
+  }
+  body.printing [data-printing] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+  body.printing .no-print {
+    display: none !important;
+  }
+}
