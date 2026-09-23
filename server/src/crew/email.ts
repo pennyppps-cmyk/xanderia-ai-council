@@ -23,6 +23,18 @@ export interface BuiltEmail {
   html: string;
 }
 
+/**
+ * Tidy a model-written email body: drop echoed prompt tags, the model's own greeting and
+ * sign-off (the template adds both), and surrounding whitespace.
+ */
+export function cleanEmailBody(text: string): string {
+  let t = text.replace(/<\/?[a-z_]+(?:\s[^>]*)?>/gi, '').replace(/<<<[^>]*>>>/g, '').trim();
+  t = t.replace(/^(subject:[^\n]*\n+)/i, '');
+  t = t.replace(/^(dear|hi|hello|good (?:morning|afternoon)|salam|assalamualaikum|kepada)\b[^\n]{0,60}\n+/i, '');
+  t = t.replace(/\n+\s*(best regards|kind regards|regards|thank you|thanks|sincerely|yours|terima kasih|sekian)\b[\s\S]{0,120}$/i, '');
+  return t.trim();
+}
+
 /** Remove IC/account numbers (and other detectable PII) from model-written text. */
 export function scrubEmailText(text: string): string {
   return redact(text).text;
@@ -38,7 +50,7 @@ function esc(s: string) {
 }
 
 export function buildTaskEmail(e: TaskEmailInput): BuiltEmail {
-  const body = scrubEmailText(e.body).trim();
+  const body = scrubEmailText(cleanEmailBody(e.body)).trim();
   const title = scrubEmailText(e.title);
   const subject =
     e.kind === 'task'

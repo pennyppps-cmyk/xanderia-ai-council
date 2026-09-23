@@ -5,7 +5,7 @@ import { dispatchPlan, runAgentTask, sendQueuedEmails, trackerTick } from './cre
 import { migrate } from './db/migrate.js';
 import { pool, query } from './db/pool.js';
 import { seed } from './db/seed.js';
-import { CREW_QUEUE, type CrewJob } from './queue/crewQueue.js';
+import { CREW_QUEUE, enqueueRunner, type CrewJob } from './queue/crewQueue.js';
 import { createPublisher } from './queue/events.js';
 import { QUEUE_NAME, type MessageJob } from './queue/queue.js';
 import { createRedis, redis } from './redis.js';
@@ -69,6 +69,10 @@ await query(
   `UPDATE messages SET status = 'error', error = 'Interrupted by a restart. Please ask again.'
     WHERE status IN ('queued', 'running') AND created_at < now() - interval '30 minutes'`,
 );
+
+// Runner tasks approved while the worker was down (or whose job was lost) are queued again;
+// the job id is per task, so this never runs one twice.
+for (const r of (await query(`SELECT id FROM action_tasks WHERE status = 'running'`)).rows) await enqueueRunner(r.id);
 
 async function shutdown() {
   console.log('[worker] shutting down');

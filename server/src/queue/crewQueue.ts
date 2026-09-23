@@ -16,9 +16,9 @@ export function getCrewQueue() {
 }
 
 export async function enqueueDispatch(planId: string) {
-  await getCrewQueue().add('dispatch', { type: 'dispatch', planId }, { jobId: `dispatch:${planId}:${Date.now()}` });
+  await getCrewQueue().add('dispatch', { type: 'dispatch', planId }, { jobId: `dispatch-${planId}-${Date.now()}` });
 }
 
 export async function enqueueRunner(taskId: string) {
-  await getCrewQueue().add('runner', { type: 'runner', taskId }, { jobId: `runner:${taskId}` });
+  await getCrewQueue().add('runner', { type: 'runner', taskId }, { jobId: `runner-${taskId}` });
 }

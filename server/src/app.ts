@@ -18,6 +18,8 @@ export async function buildApp() {
     logger: { level: config.LOG_LEVEL },
     trustProxy: true,
     bodyLimit: 1024 * 1024,
+    // Signed task-link tokens in /api/t/:token are longer than Fastify's 100-character default.
+    routerOptions: { maxParamLength: 400 },
   });
 
   // Per-route limits only (messages, login); counters live in Redis so they hold across restarts.

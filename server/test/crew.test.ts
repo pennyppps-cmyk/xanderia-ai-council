@@ -181,3 +181,12 @@ describe('CSV import parser', () => {
     ]);
   });
 });
+
+describe('cleanEmailBody', () => {
+  it("strips echoed tags, the model's own greeting and sign-off", async () => {
+    const { cleanEmailBody } = await import('../src/crew/email.js');
+    const raw = '<document>\nDear Head of Credit,\n\nPlease design the product.\n\nIt matters because X.\n\nBest regards,\nThe Council\n</document>';
+    expect(cleanEmailBody(raw)).toBe('Please design the product.\n\nIt matters because X.');
+    expect(cleanEmailBody('Hi Ain,\nPlease call.\nTerima kasih')).toBe('Please call.');
+  });
+});

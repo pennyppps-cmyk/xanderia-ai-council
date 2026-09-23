@@ -10,7 +10,7 @@ import { createPublisher } from '../queue/events.js';
 import { redis } from '../redis.js';
 import { getSetting } from '../settings.js';
 import { addWorkingDays, DEFAULT_CALENDAR, isBusinessHours, klParts, nextBusinessMoment, type WorkCalendar } from './calendar.js';
-import { allowedRecipient, buildTaskEmail, scrubEmailText } from './email.js';
+import { allowedRecipient, buildTaskEmail, cleanEmailBody, scrubEmailText } from './email.js';
 import { getMailProvider } from './mailer.js';
 import { resolveOwner, type DirectoryEntry } from './resolve.js';
 import { signTaskToken } from './tokens.js';
@@ -236,7 +236,8 @@ async function draftEmailBody(i: {
 }) {
   const fallback = `You have been asked to take on this task: ${i.title}.\n\n${i.description}\n\nIt is part of a plan agreed through the Xanderia AI Council. Please confirm with the buttons below whether you can take it on.`;
   try {
-    const system = await assemblePrompt({ task: 'crew_herald' });
+    // No base layer: its delimiter wording made the model wrap emails in <document> tags.
+    const system = await assemblePrompt({ base: false, task: 'crew_herald' });
     const out = await gateway.call(
       'crew:herald',
       [
@@ -248,7 +249,7 @@ async function draftEmailBody(i: {
       ],
       { userId: i.userId, sensitivity: 'high', priority: PRIORITY.background, purpose: 'crew:herald' },
     );
-    const body = scrubEmailText(out.content.replace(/^(subject|hi|dear|hello)[^\n]*\n+/i, '').trim());
+    const body = scrubEmailText(cleanEmailBody(out.content));
     return body.length >= 20 ? body.slice(0, 1500) : fallback;
   } catch {
     return fallback;
