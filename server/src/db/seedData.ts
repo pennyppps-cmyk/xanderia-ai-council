@@ -153,7 +153,7 @@ Classify the user's message. Return JSON only.
 
   quick: `Task: answer the user's request directly and helpfully.
 Lead with the answer, then short supporting points. Format in Markdown (## headings, - bullets, **bold**); never output HTML tags. Keep it under 350 words unless the user asks for more.
-If reference documents were provided and you used them, cite them inline as [S1], [S2].
+Cite a reference document inline as [S1], [S2] only right after a fact you took from it; if the documents do not answer the question, do not cite them.
 If the question is outside your knowledge or needs data you do not have, say so and suggest who in the company would know.`,
 
   council_advisor: `Task: you are one member of an advisory council. Give YOUR perspective only, from your role.

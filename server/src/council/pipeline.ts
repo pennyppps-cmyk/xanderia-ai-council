@@ -157,10 +157,13 @@ export async function processMessage(messageId: string, events: Publisher) {
       }
     }
     const citations = toCitations(knowledge);
-    if (citations.length) {
-      await query('UPDATE messages SET citations = $2 WHERE id = $1', [messageId, JSON.stringify(citations)]);
-      await events.emit(messageId, { type: 'citations', citations });
-    }
+    // Only list sources the answer actually cites ([S1] …), not everything retrieved.
+    const saveCitations = async (answerText: string) => {
+      const used = citations.filter((c) => answerText.includes(`[${c.id}]`));
+      if (!used.length) return;
+      await query('UPDATE messages SET citations = $2 WHERE id = $1', [messageId, JSON.stringify(used)]);
+      await events.emit(messageId, { type: 'citations', citations: used });
+    };
 
     const history = await loadHistory(message.conversation_id, message.reply_to, await getSetting('history_turns', 6));
     const sensitivity = router?.sensitivity ?? 'high'; // unknown yet → treat as sensitive
@@ -198,6 +201,7 @@ export async function processMessage(messageId: string, events: Publisher) {
         [messageId, out.content.trim(), out.isCloud],
       );
       await events.emit(messageId, { type: 'part_done', part: 'answer', content: out.content.trim() });
+      await saveCitations(out.content);
     } else {
       const { rows: personas } = await query(
         'SELECT key, name FROM personas WHERE in_council AND is_active ORDER BY sort_order',
@@ -252,6 +256,7 @@ export async function processMessage(messageId: string, events: Publisher) {
         [messageId, content, result.verdict ? JSON.stringify(result.verdict) : null, result.cloudUsed],
       );
       await events.emit(messageId, { type: 'verdict', verdict: result.verdict, raw: result.verdict ? undefined : content });
+      await saveCitations([content, ...result.opinions.map((o) => o.content)].join('\n'));
     }
 
     if (routerPromise) await saveRouter(await routerPromise);

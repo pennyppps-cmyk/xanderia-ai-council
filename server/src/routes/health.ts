@@ -13,7 +13,7 @@ async function check<T>(fn: () => Promise<T>): Promise<{ ok: boolean; detail?: T
 
 export default async function healthRoutes(app: FastifyInstance) {
   // Liveness only — no dependencies, for Docker healthchecks.
-  app.get('/api/health', async () => ({ ok: true }));
+  app.get('/api/health', { logLevel: 'silent' }, async () => ({ ok: true }));
 
   // Dependency status for admins, including whether the configured models are pulled.
   app.get('/api/admin/health', { preHandler: app.requireRole('admin') }, async () => {
