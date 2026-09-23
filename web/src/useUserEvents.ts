@@ -47,6 +47,12 @@ export function useUserEvents(activeConversationId: string | undefined, onAnyCha
     };
     es.addEventListener('job_done', onDone as EventListener);
     es.addEventListener('job_failed', () => changeRef.current());
+    // Action Crew: plan ready, task accepted/done/can't do, overdue nudges, escalation approvals.
+    es.addEventListener('notification', ((ev: MessageEvent) => {
+      const e = JSON.parse(ev.data);
+      changeRef.current();
+      toast({ title: e.title, href: e.link ?? undefined });
+    }) as EventListener);
     return () => es.close();
   }, []);
 }

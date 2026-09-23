@@ -28,6 +28,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
+  const [pulse, setPulse] = useState(0);
   const composer = useRef<ComposerHandle>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -64,7 +65,10 @@ export default function Chat() {
     bottom.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length]);
 
-  useUserEvents(id, loadList);
+  useUserEvents(id, () => {
+    void loadList();
+    setPulse((n) => n + 1);
+  });
 
   async function send(input: { content: string; mode: Mode; departmentId?: string; peerReview?: boolean; skipClarify?: boolean }) {
     setSending(true);
@@ -94,11 +98,11 @@ export default function Chat() {
   return (
     <div className="flex h-full">
       <div className="hidden md:block">
-        <Sidebar conversations={conversations} query={query} onQuery={setQuery} onChanged={loadList} onNavigate={() => {}} />
+        <Sidebar conversations={conversations} query={query} onQuery={setQuery} onChanged={loadList} onNavigate={() => {}} pulse={pulse} />
       </div>
       {drawer && (
         <div className="fixed inset-0 z-40 flex md:hidden">
-          <Sidebar conversations={conversations} query={query} onQuery={setQuery} onChanged={loadList} onNavigate={() => setDrawer(false)} />
+          <Sidebar conversations={conversations} query={query} onQuery={setQuery} onChanged={loadList} onNavigate={() => setDrawer(false)} pulse={pulse} />
           <button className="flex-1 bg-black/40" aria-label="Close menu" onClick={() => setDrawer(false)} />
         </div>
       )}

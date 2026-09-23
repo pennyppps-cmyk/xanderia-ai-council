@@ -7,6 +7,8 @@ import './index.css';
 import Admin from './pages/Admin';
 import Chat from './pages/Chat';
 import Login from './pages/Login';
+import PlanPage from './pages/Plan';
+import TasksPage from './pages/Tasks';
 import { Toaster } from './toast';
 
 function Root() {
@@ -24,6 +26,8 @@ function Root() {
       <Routes>
         <Route path="/" element={<Chat />} />
         <Route path="/c/:id" element={<Chat />} />
+        <Route path="/plans/:id" element={<PlanPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="/admin/*" element={me.user.role === 'employee' ? <Navigate to="/" /> : <Admin />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

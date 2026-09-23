@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import type { ConversationSummary } from '../types';
+import { NotificationBell } from './Notifications';
 import { cx, Icon, Spinner } from './ui';
 
 interface Props {
@@ -11,9 +12,11 @@ interface Props {
   onQuery(q: string): void;
   onChanged(): void;
   onNavigate(): void;
+  /** Changes when a live notification arrives, so the bell reloads. */
+  pulse?: unknown;
 }
 
-export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate }: Props) {
+export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, pulse }: Props) {
   const { me, logout } = useAuth();
   const { id: activeId } = useParams();
   const navigate = useNavigate();
@@ -62,7 +65,15 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate }
             {me?.department.name} · {me?.user.role.replace('_', ' ')}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <NotificationBell pulse={pulse} />
+          <Link
+            to="/tasks"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="reply" className="h-3.5 w-3.5 -scale-x-100" /> Tasks
+          </Link>
           {me && me.user.role !== 'employee' && (
             <Link
               to="/admin"

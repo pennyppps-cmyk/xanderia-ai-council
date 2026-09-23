@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import type { Citation, ClarifyRequest, Level, Message, Mode, Stance, Verdict } from '../types';
+import type { Citation, ClarifyRequest, Level, Message, Mode, PlanSummary, Stance, Verdict } from '../types';
 import { useMessageStream, type LivePart, type LiveState } from '../useMessageStream';
 import { Markdown } from './Markdown';
 import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
@@ -55,6 +56,7 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onS
 
         {live.citations.length > 0 && <Citations citations={live.citations} />}
 
+        {finished && mode === 'council' && live.verdict && <PutIntoAction messageId={message.id} />}
         {finished && mode !== 'clarify' && (
           <Actions message={message} text={text} verdict={live.verdict} onFollowUp={onFollowUp} />
         )}
@@ -627,6 +629,71 @@ function ClarifyView({
           Skip: go ahead with these assumptions
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ── Action Crew entry point ──────────────────────────────────────────────────
+
+/** "Put into action" on a verdict; once a plan exists, shows its progress instead. */
+function PutIntoAction({ messageId }: { messageId: string }) {
+  const [plan, setPlan] = useState<PlanSummary | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    api<PlanSummary>(`/api/messages/${messageId}/plan`).then(setPlan).catch(() => setPlan(null));
+  }, [messageId]);
+
+  if (plan === undefined) return null;
+  if (plan && plan.status !== 'error') {
+    const pct = plan.total ? Math.round((plan.done / plan.total) * 100) : 0;
+    return (
+      <button
+        onClick={() => navigate(`/plans/${plan.id}`)}
+        className="no-print block w-full rounded-xl border border-ink-100 bg-white p-3 text-left hover:border-accent-500"
+      >
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-ink-800">Action plan</span>
+          <span className="text-ink-400">
+            {plan.status === 'planning' ? 'planning…' : plan.status === 'ready' ? 'awaiting your approval' : `${plan.done}/${plan.total} done`}
+            {plan.overdue ? ` · ${plan.overdue} overdue` : ''}
+          </span>
+        </div>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100">
+          <div className="h-full rounded-full bg-accent-500" style={{ width: `${pct}%` }} />
+        </div>
+      </button>
+    );
+  }
+  return (
+    <div className="no-print flex flex-wrap items-center gap-3 rounded-xl border border-accent-100 bg-accent-50/60 p-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-ink-900">Put this verdict into action</p>
+        <p className="text-xs text-ink-600">
+          The Action Crew turns the plan into tasks, finds owners in the staff directory and drafts the emails. You approve before anything is sent.
+        </p>
+        {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
+      </div>
+      <Button
+        size="sm"
+        variant="primary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setErr(null);
+          try {
+            const r = await api<{ id: string }>(`/api/messages/${messageId}/plan`, { method: 'POST' });
+            navigate(`/plans/${r.id}`);
+          } catch (e) {
+            setErr((e as Error).message);
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? <Spinner className="h-3.5 w-3.5" /> : <Icon name="send" className="h-3.5 w-3.5" />} Put into action
+      </Button>
     </div>
   );
 }

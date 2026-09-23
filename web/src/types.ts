@@ -119,3 +119,80 @@ export interface Message {
   my_rating?: 1 | -1 | null;
   parts: Part[];
 }
+
+// ── Action Crew ──────────────────────────────────────────────────────────────
+
+export type TaskStatus = 'draft' | 'sent' | 'accepted' | 'in_progress' | 'running' | 'review' | 'done' | 'blocked' | 'cant_do' | 'cancelled';
+
+export interface PlanSummary {
+  id: string;
+  message_id: string;
+  conversation_id: string;
+  title: string;
+  status: 'planning' | 'ready' | 'launched' | 'done' | 'cancelled' | 'error';
+  error: string | null;
+  created_at: string;
+  launched_at: string | null;
+  total: number;
+  done: number;
+  overdue: number;
+}
+
+export interface Person {
+  id: string;
+  name: string;
+  position: string;
+  email: string;
+  department?: string | null;
+}
+
+export interface CrewTask {
+  id: string;
+  plan_id: string;
+  seq: number;
+  title: string;
+  description: string;
+  owner_type: 'human' | 'agent';
+  owner_role: string | null;
+  directory_id: string | null;
+  resolution: 'resolved' | 'choose' | 'unassigned' | 'agent';
+  candidates: Person[];
+  depends_on: number[];
+  due_date: string | null;
+  status: TaskStatus;
+  email_subject: string | null;
+  email_body: string | null;
+  approved: boolean;
+  response_note: string | null;
+  agent_output: string | null;
+  sent_at: string | null;
+  acknowledged_at: string | null;
+  completed_at: string | null;
+  escalation_state: 'none' | 'pending' | 'sent' | 'declined';
+  snoozed_until: string | null;
+  owner_name: string | null;
+  owner_position: string | null;
+  owner_email: string | null;
+  manager_email: string | null;
+  emails?: Array<{ kind: string; status: string; to: string; send_after: string; sent_at: string | null }> | null;
+  events?: Array<{ kind: string; at: string; actor: string; detail: Record<string, unknown> }> | null;
+  plan_title?: string;
+  requester_name?: string;
+}
+
+export interface CrewAgent {
+  key: 'dispatcher' | 'herald' | 'tracker' | 'runner';
+  name: string;
+  busy: boolean;
+  status: string;
+}
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}

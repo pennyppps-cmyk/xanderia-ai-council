@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { Badge, Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
 import type { Department } from '../types';
+import { CrewAdmin, DirectoryAdmin } from './AdminCrew';
 
 const TABS = [
   { path: 'overview', label: 'Overview', admin: true },
@@ -12,6 +13,8 @@ const TABS = [
   { path: 'prompts', label: 'Personas & prompts', admin: true },
   { path: 'models', label: 'Model routing', admin: true },
   { path: 'knowledge', label: 'Knowledge', admin: false },
+  { path: 'directory', label: 'Staff directory', admin: true },
+  { path: 'crew', label: 'Action Crew & email', admin: true },
   { path: 'audit', label: 'Audit log', admin: true },
   { path: 'settings', label: 'Settings', admin: true },
 ];
@@ -58,6 +61,8 @@ export default function Admin() {
                   <Route path="models" element={<Models />} />
                   <Route path="audit" element={<Audit />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="directory" element={<DirectoryAdmin />} />
+                  <Route path="crew" element={<CrewAdmin />} />
                 </>
               )}
               <Route path="knowledge" element={<Knowledge />} />
