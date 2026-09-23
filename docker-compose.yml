@@ -1,4 +1,4 @@
-# Xanderia Council — full stack.
+# Xanderia AI Council — full stack.
 #   cp .env.example .env   (then edit secrets)
 #   docker compose up -d --build
 # Ollama runs on the GPU server (aixan) by default; see OLLAMA_BASE_URL in .env.

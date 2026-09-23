@@ -24,7 +24,7 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate }
     <aside className="flex h-full w-72 flex-col bg-ink-950 text-ink-100">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <img src="/favicon.svg" alt="" className="h-7 w-7" />
-        <span className="font-semibold text-white">Xanderia Council</span>
+        <span className="font-semibold text-white">Xanderia AI Council</span>
       </div>
       <div className="space-y-2 px-3">
         <button

@@ -29,7 +29,7 @@ export default function Login() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <img src="/favicon.svg" alt="" className="mx-auto mb-4 h-12 w-12" />
-          <h1 className="text-2xl font-semibold text-white">Xanderia Council</h1>
+          <h1 className="text-2xl font-semibold text-white">Xanderia AI Council</h1>
           <p className="mt-1 text-sm text-ink-200">Internal AI advisory · processed on-premises</p>
         </div>
         <form onSubmit={submit} className="space-y-4 rounded-2xl bg-white p-6 shadow-xl">

@@ -1,4 +1,4 @@
-# Xanderia Council
+# Xanderia AI Council
 
 Internal AI advisory chat for Xanderia Services Sdn Bhd. Any employee can:
 

@@ -107,7 +107,7 @@ export default function Chat() {
             <Icon name="menu" className="h-5 w-5" />
           </button>
           <span className="truncate text-sm font-semibold">
-            {conversations.find((c) => c.id === id)?.title ?? 'Xanderia Council'}
+            {conversations.find((c) => c.id === id)?.title ?? 'Xanderia AI Council'}
           </span>
         </header>
 
