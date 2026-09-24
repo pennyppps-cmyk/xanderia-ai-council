@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '../audit.js';
 import { query } from '../db/pool.js';
+import { STALE_SQL } from '../jobs.js';
 import { embed } from '../llm/registry.js';
 import { extractDocumentText, SUPPORTED } from '../rag/extract.js';
 import { ingestDocument } from '../rag/ingest.js';
@@ -18,10 +19,13 @@ export default async function knowledgeRoutes(app: FastifyInstance) {
   app.get('/api/knowledge/documents', lead, async (req) => {
     const { rows } = await query(
       `SELECT d.id, d.title, d.source_filename, d.company_wide, d.department_id, dep.name AS department_name,
-              d.chunk_count, d.created_at, u.display_name AS uploaded_by
+              d.chunk_count, d.created_at, u.display_name AS uploaded_by,
+              d.review_after_days, d.reviewed_at, r.display_name AS reviewed_by, ${STALE_SQL} AS stale,
+              (COALESCE(d.reviewed_at, d.created_at) + make_interval(days => d.review_after_days))::date AS review_due
          FROM documents d
          LEFT JOIN departments dep ON dep.id = d.department_id
          LEFT JOIN users u ON u.id = d.uploaded_by
+         LEFT JOIN users r ON r.id = d.reviewed_by
         WHERE $1 OR d.department_id = $2
         ORDER BY d.created_at DESC`,
       [req.user.role === 'admin', req.user.department_id],
@@ -68,6 +72,22 @@ export default async function knowledgeRoutes(app: FastifyInstance) {
     } catch (err) {
       return reply.code(502).send({ error: `Could not index document: ${(err as Error).message}` });
     }
+  });
+
+  /** Knowledge freshness: confirm a document is still current, and/or change its review interval. */
+  app.post('/api/knowledge/documents/:id/review', lead, async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const body = z.object({ reviewAfterDays: z.number().int().min(7).max(1095).optional() }).parse(req.body ?? {});
+    const { rows } = await query('SELECT department_id, company_wide, title FROM documents WHERE id = $1', [id]);
+    if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
+    if (!canManage(req, rows[0].department_id, rows[0].company_wide)) return reply.code(403).send({ error: 'Forbidden' });
+    await query(
+      `UPDATE documents SET reviewed_at = now(), reviewed_by = $2, stale_notified_at = NULL,
+              review_after_days = COALESCE($3, review_after_days) WHERE id = $1`,
+      [id, req.user.id, body.reviewAfterDays ?? null],
+    );
+    await writeAudit({ actorUserId: req.user.id, action: 'document_reviewed', targetType: 'document', targetId: id, detail: { title: rows[0].title, ...body } });
+    return { ok: true };
   });
 
   app.delete('/api/knowledge/documents/:id', lead, async (req, reply) => {

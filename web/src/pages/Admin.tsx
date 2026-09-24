@@ -192,7 +192,139 @@ function Overview() {
           </div>
         )}
       </Card>
+      <OrgHeatmap />
+      <DigestPreview />
     </>
+  );
+}
+
+/** Ask-the-org heatmap: rows = the asker's department, columns = the area the question was about. */
+function OrgHeatmap() {
+  const [days, setDays] = useState(90);
+  const data = useLoad<{ cells: Array<{ asker: string; area: string; n: number; council: number; flags: number }>; weekly: Array<{ week: string; asker: string; n: number }> }>(
+    `/api/admin/analytics/heatmap?days=${days}`,
+  );
+  const cells = data.data?.cells ?? [];
+  const askers = [...new Set(cells.map((c) => c.asker))].sort();
+  const areas = [...new Set(cells.map((c) => c.area))].sort();
+  const max = Math.max(1, ...cells.map((c) => c.n));
+  const at = (a: string, b: string) => cells.find((c) => c.asker === a && c.area === b);
+  const weeks = [...new Set((data.data?.weekly ?? []).map((w) => w.week))];
+  const wmax = Math.max(1, ...(data.data?.weekly ?? []).map((w) => w.n));
+  return (
+    <Card
+      title={tl('Ask-the-org heatmap')}
+      actions={
+        <select className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs" value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label={tl('Period')}>
+          {[30, 90, 180, 365].map((d) => (
+            <option key={d} value={d}>{tl('Last {n} days', { n: d })}</option>
+          ))}
+        </select>
+      }
+    >
+      <p className="mb-3 text-xs text-ink-500">
+        {tl('Which departments ask about which areas. Heavy cells outside a department\'s own area can point to a training or policy gap. Counts only; no question content.')}
+      </p>
+      {!data.data ? (
+        <Loading error={data.error} />
+      ) : !cells.length ? (
+        <p className="text-sm text-ink-400">{tl('No questions yet')}</p>
+      ) : (
+        <div className="space-y-6">
+          <div className="overflow-x-auto">
+            <table className="text-xs">
+              <thead>
+                <tr>
+                  <th className="p-1 text-left font-medium text-ink-400">{tl('Asked by ↓ / about →')}</th>
+                  {areas.map((a) => (
+                    <th key={a} className="relative h-28 w-11 min-w-11 p-0 font-medium text-ink-600">
+                      <span className="absolute bottom-2 left-5 origin-bottom-left -rotate-45 whitespace-nowrap">{a}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {askers.map((r) => (
+                  <tr key={r}>
+                    <td className="p-1 pr-3 font-medium whitespace-nowrap text-ink-700">{r}</td>
+                    {areas.map((a) => {
+                      const c = at(r, a);
+                      const v = c ? c.n / max : 0;
+                      return (
+                        <td key={a} className="p-0.5">
+                          <div
+                            className={cx('flex h-8 w-10 items-center justify-center rounded tabular-nums', v > 0.55 ? 'text-white' : 'text-ink-700', Boolean(c?.flags) && 'ring-2 ring-red-500')}
+                            style={{ background: c ? `rgba(13, 148, 136, ${0.08 + v * 0.85})` : '#f3f6f8' }}
+                            title={c ? `${r} → ${a}: ${c.n} (${c.council} council${c.flags ? `, ${c.flags} red flag(s)` : ''})` : ''}
+                          >
+                            {c?.n ?? ''}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-ink-400">{tl('Questions per week')}</p>
+            <div className="space-y-1">
+              {askers.map((r) => (
+                <div key={r} className="flex items-center gap-2 text-xs">
+                  <span className="w-40 shrink-0 truncate text-ink-600">{r}</span>
+                  <div className="flex h-6 items-end gap-0.5">
+                    {weeks.map((w) => {
+                      const n = data.data!.weekly.find((x) => x.week === w && x.asker === r)?.n ?? 0;
+                      return <div key={w} className="w-2.5 rounded-sm bg-accent-600" style={{ height: `${Math.max(n ? 8 : 2, (n / wmax) * 100)}%`, opacity: n ? 1 : 0.2 }} title={`${w}: ${n}`} />;
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** What a department head receives on Monday morning, and a manual send. */
+function DigestPreview() {
+  const { departments } = useAuth();
+  const [dept, setDept] = useState('');
+  const [preview, setPreview] = useState<string | null>(null);
+  const [sent, setSent] = useState<string | null>(null);
+  return (
+    <Card title={tl('Weekly digest')}>
+      <p className="mb-3 text-xs text-ink-500">
+        {tl('Every Monday at 08:00 each department head gets an email: questions asked, decisions and outcomes, overdue action tasks and knowledge due for review. Counts only, never what staff asked.')}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm" value={dept} onChange={(e) => setDept(e.target.value)} aria-label={tl('Department')}>
+          <option value="">{tl('Choose a department…')}</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
+        <Button size="sm" disabled={!dept} onClick={async () => setPreview((await api<{ text: string }>(`/api/admin/digest/${dept}`)).text)}>
+          {tl('Preview')}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={async () => {
+            if (!confirm(tl('Send this week\'s digest to every department head now?'))) return;
+            const r = await api<{ queued: number }>('/api/admin/digest/send-now', { method: 'POST' });
+            setSent(tl('{n} digest email(s) queued.', { n: r.queued }));
+          }}
+        >
+          {tl('Send now')}
+        </Button>
+        {sent && <span className="text-xs text-accent-700">{sent}</span>}
+      </div>
+      {preview && <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-ink-50 p-3 text-xs whitespace-pre-wrap">{preview}</pre>}
+    </Card>
   );
 }
 
@@ -920,12 +1052,43 @@ function Knowledge() {
             {docs.data.map((d) => (
               <li key={d.id} className="flex items-center gap-3 py-2 text-sm">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{d.title}</p>
+                  <p className="truncate font-medium">
+                    {d.title} {d.stale && <Badge tone="amber">{tl('Review due')}</Badge>}
+                  </p>
                   <p className="text-xs text-ink-400">
                     {d.company_wide ? tl('Company-wide') : d.department_name} · {d.chunk_count} {tl("chunks ·")} {d.uploaded_by ?? '—'} ·{' '}
-                    {new Date(d.created_at).toLocaleDateString()}
+                    {new Date(d.created_at).toLocaleDateString()} ·{' '}
+                    {d.reviewed_at
+                      ? tl('reviewed {date} by {who}', { date: new Date(d.reviewed_at).toLocaleDateString(), who: d.reviewed_by ?? '—' })
+                      : tl('not reviewed yet')}{' '}
+                    · {tl('next review {date}', { date: new Date(d.review_due).toLocaleDateString() })}
                   </p>
                 </div>
+                <select
+                  className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs"
+                  value={d.review_after_days}
+                  aria-label={tl('Review every')}
+                  title={tl('Review every')}
+                  onChange={async (e) => {
+                    await api(`/api/knowledge/documents/${d.id}/review`, { body: { reviewAfterDays: Number(e.target.value) } });
+                    docs.reload();
+                  }}
+                >
+                  {[...new Set([30, 90, 180, 365, d.review_after_days])].sort((a, b) => a - b).map((n) => (
+                    <option key={n} value={n}>{tl('every {n} days', { n })}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant={d.stale ? 'primary' : 'ghost'}
+                  title={tl('Confirm this document is still current')}
+                  onClick={async () => {
+                    await api(`/api/knowledge/documents/${d.id}/review`, { body: {} });
+                    docs.reload();
+                  }}
+                >
+                  {tl('Mark reviewed')}
+                </Button>
                 <Button
                   size="sm"
                   variant="danger"
@@ -1071,6 +1234,10 @@ function Settings() {
         <label className="inline-flex items-center gap-2 text-sm" title={tl("Before a council run, ask the user up to 3 questions when essential details are missing")}>
           <input type="checkbox" className="accent-accent-600" checked={f.clarify_enabled ?? true} onChange={(e) => set('clarify_enabled', e.target.checked)} />
           {tl("Council asks clarifying questions when details are missing")}
+        </label>
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-accent-600" checked={f.weekly_digest_enabled ?? true} onChange={(e) => set('weekly_digest_enabled', e.target.checked)} />
+          {tl("Send department heads a weekly digest email")}
         </label>
       </div>
       <div className="mt-4">

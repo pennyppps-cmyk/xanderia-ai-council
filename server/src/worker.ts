@@ -10,7 +10,8 @@ import { createPublisher } from './queue/events.js';
 import { QUEUE_NAME, type MessageJob } from './queue/queue.js';
 import { createRedis, redis } from './redis.js';
 import { runRetention } from './retention.js';
-import { decisionCheckIns } from './jobs.js';
+import { decisionCheckIns, knowledgeFreshness, weeklyDigests } from './jobs.js';
+import { getSetting } from './settings.js';
 
 await migrate();
 await seed();
@@ -50,6 +51,9 @@ await maintenance.upsertJobScheduler('tracker', { pattern: '*/15 * * * *' }, { n
 await maintenance.upsertJobScheduler('mailer', { pattern: '* * * * *' }, { name: 'mailer' });
 // Decision outcome check-ins, daily at 09:05 KL time (01:05 UTC).
 await maintenance.upsertJobScheduler('checkins', { pattern: '5 1 * * *' }, { name: 'checkins' });
+// Knowledge freshness daily at 09:15 KL; the department heads' digest on Mondays at 08:00 KL.
+await maintenance.upsertJobScheduler('freshness', { pattern: '15 1 * * *' }, { name: 'freshness' });
+await maintenance.upsertJobScheduler('digest', { pattern: '0 0 * * 1' }, { name: 'digest' });
 const maintenanceWorker = new Worker(
   'maintenance',
   async (job) => {
@@ -59,6 +63,11 @@ const maintenanceWorker = new Worker(
     } else if (job.name === 'checkins') {
       const n = await decisionCheckIns();
       if (n) console.log(`[checkins] ${n} decision check-in(s) sent`);
+    } else if (job.name === 'freshness') {
+      const n = await knowledgeFreshness();
+      if (n) console.log(`[freshness] ${n} stale document(s) flagged`);
+    } else if (job.name === 'digest') {
+      if (await getSetting('weekly_digest_enabled', true)) console.log(`[digest] ${await weeklyDigests()} digest(s) queued`);
     } else if (job.name === 'mailer') {
       const n = await sendQueuedEmails();
       if (n) console.log(`[mailer] processed ${n} email(s)`);

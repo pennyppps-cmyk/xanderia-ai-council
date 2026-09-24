@@ -8,6 +8,7 @@ import { invalidatePrompts } from '../prompts/assembler.js';
 import { runPromptSandbox } from '../prompts/sandbox.js';
 import { sendAccountLink } from '../account.js';
 import { allSettings, setSetting } from '../settings.js';
+import { digestFor, digestParagraphs, weeklyDigests } from '../jobs.js';
 
 const Uuid = z.object({ id: z.string().uuid() });
 const Role = z.enum(['employee', 'dept_lead', 'admin']);
@@ -22,7 +23,7 @@ export default async function adminRoutes(app: FastifyInstance) {
   // ── Users ──
   app.get('/api/admin/users', admin, async () => {
     const { rows } = await query(
-      `SELECT u.id, u.email, u.display_name, u.role, u.department_id, u.is_active, u.last_login_at, u.created_at,
+      `SELECT u.id, u.email, u.display_name, u.role, u.department_id, u.is_active, u.last_login_at, u.created_at, u.weekly_digest,
               (u.password_hash IS NOT NULL) AS has_password,
               COALESCE(array_agg(a.department_id) FILTER (WHERE a.department_id IS NOT NULL), '{}') AS extra_departments
          FROM users u LEFT JOIN user_department_access a ON a.user_id = u.id
@@ -81,6 +82,7 @@ export default async function adminRoutes(app: FastifyInstance) {
         is_active: z.boolean().optional(),
         password: z.string().min(10).optional(),
         extra_departments: z.array(z.string().uuid()).optional(),
+        weekly_digest: z.boolean().optional(),
       })
       .parse(req.body);
     if (id === req.user.id && (body.is_active === false || (body.role && body.role !== 'admin'))) {
@@ -90,7 +92,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       await c.query(
         `UPDATE users SET display_name = COALESCE($2, display_name), role = COALESCE($3, role),
                 department_id = COALESCE($4, department_id), is_active = COALESCE($5, is_active),
-                password_hash = COALESCE($6, password_hash)
+                password_hash = COALESCE($6, password_hash), weekly_digest = COALESCE($7, weekly_digest)
           WHERE id = $1`,
         [
           id,
@@ -99,6 +101,7 @@ export default async function adminRoutes(app: FastifyInstance) {
           body.department_id ?? null,
           body.is_active ?? null,
           body.password ? await bcrypt.hash(body.password, 12) : null,
+          body.weekly_digest ?? null,
         ],
       );
       if (body.extra_departments) {
@@ -409,5 +412,49 @@ export default async function adminRoutes(app: FastifyInstance) {
       ),
     ]);
     return { byDepartment: byDept.rows, modes: modes.rows, feedback: feedback.rows[0], latency: latency.rows };
+  });
+
+  /**
+   * Ask-the-org heatmap: which departments ask about which areas (the router's department), and
+   * weekly volume per department. Counts only, no question content.
+   */
+  app.get('/api/admin/analytics/heatmap', admin, async (req) => {
+    const { days } = z.object({ days: z.coerce.number().int().min(7).max(365).default(90) }).parse(req.query);
+    const [cells, weekly] = await Promise.all([
+      query(
+        `SELECT COALESCE(ud.name, '(no department)') AS asker, COALESCE(ad.name, m.router->>'department') AS area,
+                count(*)::int AS n, count(*) FILTER (WHERE m.mode = 'council')::int AS council,
+                count(*) FILTER (WHERE (m.router->>'red_flag') IS NOT NULL AND m.router->>'red_flag' <> 'none')::int AS flags
+           FROM messages m JOIN conversations c ON c.id = m.conversation_id JOIN users u ON u.id = c.user_id
+           LEFT JOIN departments ud ON ud.id = u.department_id
+           LEFT JOIN departments ad ON ad.slug = m.router->>'department'
+          WHERE m.role = 'assistant' AND m.router IS NOT NULL AND m.created_at > now() - make_interval(days => $1)
+          GROUP BY 1, 2`,
+        [days],
+      ),
+      query(
+        `SELECT to_char(date_trunc('week', m.created_at AT TIME ZONE 'Asia/Kuala_Lumpur'), 'YYYY-MM-DD') AS week,
+                COALESCE(ud.name, '(no department)') AS asker, count(*)::int AS n
+           FROM messages m JOIN conversations c ON c.id = m.conversation_id JOIN users u ON u.id = c.user_id
+           LEFT JOIN departments ud ON ud.id = u.department_id
+          WHERE m.role = 'assistant' AND m.created_at > now() - make_interval(days => $1)
+          GROUP BY 1, 2 ORDER BY 1`,
+        [days],
+      ),
+    ]);
+    return { days, cells: cells.rows, weekly: weekly.rows };
+  });
+
+  /** Preview this week's digest for a department (what its head will receive on Monday). */
+  app.get('/api/admin/digest/:departmentId', admin, async (req) => {
+    const { departmentId } = z.object({ departmentId: z.string().uuid() }).parse(req.params);
+    const data = await digestFor(departmentId);
+    return { data, text: digestParagraphs('(department head)', data).join('\n\n') };
+  });
+
+  app.post('/api/admin/digest/send-now', admin, async (req) => {
+    const n = await weeklyDigests();
+    await writeAudit({ actorUserId: req.user.id, action: 'weekly_digest_manual', detail: { recipients: n } });
+    return { queued: n };
   });
 }

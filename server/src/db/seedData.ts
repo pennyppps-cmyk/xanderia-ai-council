@@ -239,6 +239,7 @@ export const SETTINGS: Record<string, unknown> = {
   rag_top_k: 5,
   history_turns: 6,
   clarify_enabled: true,
+  weekly_digest_enabled: true,
   compliance_seat_departments: ['credit-collections', 'legal-compliance', 'finance', 'hr'],
   // Action Crew
   crew_names: { dispatcher: 'Dispatcher', herald: 'Herald', tracker: 'Tracker', runner: 'Runner' },
