@@ -44,7 +44,7 @@ See [HANDOFF.md](HANDOFF.md) for the spec, and [DECISIONS.md](DECISIONS.md) for 
 cp .env.example .env        # set JWT_SECRET, ADMIN_*, POSTGRES_PASSWORD, OLLAMA_BASE_URL, SITE_ADDRESS
 docker compose up -d --build
 ```
-Open `https://<SITE_ADDRESS>` and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Then change the password and create users under **Admin → Users**.
+Open `https://<SITE_ADDRESS>` and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Then create users under **Admin → Users**. Each new user is emailed an invite link to set their own password; until email is connected, the admin screen shows the link to pass on. Staff can use **Forgot password?** on the login page. The **EN | BM** switch changes the whole interface to Bahasa Malaysia and is remembered per user.
 
 Migrations and the seed (departments, personas, prompts, model routing, first admin) run automatically on start. Both are idempotent.
 

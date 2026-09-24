@@ -9,6 +9,7 @@ import Admin from './pages/Admin';
 import Chat from './pages/Chat';
 import Login from './pages/Login';
 import PlanPage from './pages/Plan';
+import SetPassword from './pages/SetPassword';
 import SharedPage from './pages/Shared';
 import TasksPage from './pages/Tasks';
 import { Toaster } from './toast';
@@ -23,6 +24,8 @@ function Root() {
       </div>
     );
   }
+  // Invite / reset links work whether or not someone is signed in on this browser.
+  if (window.location.pathname === '/set-password') return <SetPassword key={lang} />;
   if (!me) return <Login key={lang} />;
   return (
     <Fragment key={lang}>

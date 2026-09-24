@@ -6,6 +6,7 @@ import { SESSION_COOKIE } from '../auth/plugin.js';
 import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { canUseCouncil } from '../settings.js';
+import { hashToken, lookupPasswordToken, sendAccountLink } from '../account.js';
 
 const Login = z.object({ email: z.string().email(), password: z.string().min(1) });
 const ChangePassword = z.object({ current: z.string().min(1), next: z.string().min(10) });
@@ -59,6 +60,50 @@ export default async function authRoutes(app: FastifyInstance) {
       canUseCouncil: await canUseCouncil(req.user.role),
     };
   });
+
+  /** "Forgot password?": always answers the same, so it never reveals which emails have accounts. */
+  app.post(
+    '/api/auth/forgot',
+    { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } },
+    async (req) => {
+      const { email } = z.object({ email: z.string().trim().email() }).parse(req.body);
+      const { rows } = await query(`SELECT id FROM users WHERE lower(email) = lower($1) AND is_active`, [email]);
+      if (rows[0]) await sendAccountLink(rows[0].id, 'reset').catch((err) => req.log.error(err));
+      return { ok: true };
+    },
+  );
+
+  /** Check an invite / reset link before showing the set-password form. */
+  app.get('/api/auth/token/:token', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const { token } = z.object({ token: z.string().min(20).max(100) }).parse(req.params);
+    const t = await lookupPasswordToken(token);
+    if (!t) return reply.code(400).send({ error: 'This link is invalid or has expired. Ask for a new one.' });
+    return { purpose: t.purpose, email: t.email, name: t.display_name, locale: t.locale };
+  });
+
+  /** Set a password from an invite / reset link, then sign the user in. */
+  app.post(
+    '/api/auth/set-password',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const body = z.object({ token: z.string().min(20).max(100), password: z.string().min(10).max(200) }).parse(req.body);
+      const t = await lookupPasswordToken(body.token);
+      if (!t) return reply.code(400).send({ error: 'This link is invalid or has expired. Ask for a new one.' });
+      await query(`UPDATE users SET password_hash = $2 WHERE id = $1`, [t.user_id, await bcrypt.hash(body.password, 12)]);
+      // Single use: this link and any other open links for the user stop working.
+      await query(`UPDATE password_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [t.user_id]);
+      await writeAudit({
+        actorUserId: t.user_id,
+        action: t.purpose === 'invite' ? 'account_activated' : 'password_reset',
+        ip: req.ip,
+        detail: { token: hashToken(body.token).slice(0, 12) },
+      });
+      const jwtToken = await reply.jwtSign({ sub: t.user_id });
+      reply.setCookie(SESSION_COOKIE, jwtToken, { httpOnly: true, sameSite: 'strict', secure: config.COOKIE_SECURE, path: '/', maxAge: 12 * 3600 });
+      await query('UPDATE users SET last_login_at = now() WHERE id = $1', [t.user_id]);
+      return { ok: true };
+    },
+  );
 
   app.patch('/api/auth/locale', { preHandler: app.authenticate }, async (req) => {
     const { locale } = z.object({ locale: z.enum(['en', 'ms']) }).parse(req.body);

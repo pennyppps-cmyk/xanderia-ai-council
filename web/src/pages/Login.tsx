@@ -12,9 +12,18 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [sent, setSent] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (forgot) {
+      setBusy(true);
+      await api('/api/auth/forgot', { body: { email } }).catch(() => {});
+      setBusy(false);
+      setSent(true);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -50,21 +59,42 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </Field>
-          <Field label={tl("Password")}>
-            <input
-              className={inputCls}
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </Field>
+          {!forgot && (
+            <Field label={tl("Password")}>
+              <input
+                className={inputCls}
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+          )}
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-          <Button variant="primary" className="w-full" disabled={busy}>
-            {busy && <Spinner />} {tl("Sign in")}
-          </Button>
-          <p className="text-center text-xs text-ink-400">{tl("Accounts are created by your administrator.")}</p>
+          {sent ? (
+            <p className="rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
+              {tl('If that email has an account, a link to set a new password is on its way. It expires in 1 hour.')}
+            </p>
+          ) : (
+            <Button variant="primary" className="w-full" disabled={busy}>
+              {busy && <Spinner />} {forgot ? tl('Email me a reset link') : tl('Sign in')}
+            </Button>
+          )}
+          <p className="text-center text-xs text-ink-400">
+            <button
+              type="button"
+              className="font-medium text-accent-700 hover:underline"
+              onClick={() => {
+                setForgot((f) => !f);
+                setSent(false);
+                setError(null);
+              }}
+            >
+              {forgot ? tl('Back to sign in') : tl('Forgot password?')}
+            </button>
+            <span className="block pt-1">{tl('Accounts are created by your administrator.')}</span>
+          </p>
         </form>
       </div>
     </div>

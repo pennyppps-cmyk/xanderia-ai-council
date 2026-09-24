@@ -6,6 +6,7 @@ import { query, tx } from '../db/pool.js';
 import { clearRegistryCache } from '../llm/registry.js';
 import { invalidatePrompts } from '../prompts/assembler.js';
 import { runPromptSandbox } from '../prompts/sandbox.js';
+import { sendAccountLink } from '../account.js';
 import { allSettings, setSetting } from '../settings.js';
 
 const Uuid = z.object({ id: z.string().uuid() });
@@ -22,6 +23,7 @@ export default async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/users', admin, async () => {
     const { rows } = await query(
       `SELECT u.id, u.email, u.display_name, u.role, u.department_id, u.is_active, u.last_login_at, u.created_at,
+              (u.password_hash IS NOT NULL) AS has_password,
               COALESCE(array_agg(a.department_id) FILTER (WHERE a.department_id IS NOT NULL), '{}') AS extra_departments
          FROM users u LEFT JOIN user_department_access a ON a.user_id = u.id
         GROUP BY u.id ORDER BY u.display_name`,
@@ -34,23 +36,39 @@ export default async function adminRoutes(app: FastifyInstance) {
       .object({
         email: z.string().email(),
         display_name: z.string().trim().min(1),
-        password: z.string().min(10),
+        // Optional: without one, the new user sets their own password from the invite email.
+        password: z.string().min(10).optional().or(z.literal('')),
+        send_invite: z.boolean().default(true),
         role: Role.default('employee'),
         department_id: z.string().uuid(),
       })
       .parse(req.body);
+    if (!body.password && !body.send_invite) {
+      return reply.code(400).send({ error: 'Set an initial password or send an invite email' });
+    }
     try {
       const { rows } = await query(
         `INSERT INTO users (email, password_hash, display_name, role, department_id)
          VALUES (lower($1), $2, $3, $4, $5) RETURNING id`,
-        [body.email, await bcrypt.hash(body.password, 12), body.display_name, body.role, body.department_id],
+        [body.email, body.password ? await bcrypt.hash(body.password, 12) : null, body.display_name, body.role, body.department_id],
       );
-      await adminAudit(req, 'user_created', { email: body.email, role: body.role }, rows[0].id);
-      return rows[0];
+      await adminAudit(req, 'user_created', { email: body.email, role: body.role, invited: body.send_invite }, rows[0].id);
+      const invite = body.send_invite
+        ? await sendAccountLink(rows[0].id, body.password ? 'reset' : 'invite', { id: req.user.id, name: req.user.display_name })
+        : null;
+      return { id: rows[0].id, invite };
     } catch (err: any) {
       if (err.code === '23505') return reply.code(409).send({ error: 'Email already exists' });
       throw err;
     }
+  });
+
+  /** (Re)send an invite, or a reset link for someone who already has a password. */
+  app.post('/api/admin/users/:id/invite', admin, async (req, reply) => {
+    const { id } = Uuid.parse(req.params);
+    const { rows } = await query(`SELECT password_hash IS NOT NULL AS has_password FROM users WHERE id = $1 AND is_active`, [id]);
+    if (!rows[0]) return reply.code(404).send({ error: 'User not found or inactive' });
+    return sendAccountLink(id, rows[0].has_password ? 'reset' : 'invite', { id: req.user.id, name: req.user.display_name });
   });
 
   app.patch('/api/admin/users/:id', admin, async (req, reply) => {

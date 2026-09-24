@@ -516,12 +516,15 @@ export async function followUp(taskId: string, userId: string, kind: 'remind' | 
 
 export async function sendQueuedEmails(now = new Date()) {
   const cal = await loadCalendar();
-  if (!isBusinessHours(now, cal)) return 0; // no emails outside business hours
+  // No task emails outside business hours; account emails (invites, resets) go straight away.
+  const inHours = isBusinessHours(now, cal);
   const provider = getMailProvider();
   const domains = await emailDomains();
   const { rows } = await query(
-    `SELECT * FROM outbound_emails WHERE status = 'queued' AND send_after <= $1 ORDER BY created_at LIMIT 25`,
-    [now],
+    `SELECT * FROM outbound_emails
+      WHERE status = 'queued' AND send_after <= $1 AND ($2 OR kind = 'account')
+      ORDER BY created_at LIMIT 25`,
+    [now, inHours],
   );
   for (const e of rows) {
     if (!allowedRecipient(e.to_email, domains)) {

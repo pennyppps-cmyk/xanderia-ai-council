@@ -215,10 +215,12 @@ function Users() {
   const users = useLoad<any[]>('/api/admin/users');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [invite, setInvite] = useState<InviteResult | null>(null);
   const deptName = (id: string) => departments.find((d) => d.id === id)?.name ?? '—';
   return (
     <Card title={tl("Users")} actions={<Button size="sm" variant="primary" onClick={() => setAdding(true)}><Icon name="plus" className="h-3.5 w-3.5" /> {tl("Add user")}</Button>}>
-      {adding && <UserForm onDone={() => { setAdding(false); users.reload(); }} />}
+      {invite && <InviteNotice result={invite} onClose={() => setInvite(null)} />}
+      {adding && <UserForm onDone={(r) => { setAdding(false); users.reload(); if (r) setInvite(r); }} />}
       {editing && <UserForm user={editing} onDone={() => { setEditing(null); users.reload(); }} />}
       {!users.data ? (
         <Loading error={users.error} />
@@ -251,9 +253,26 @@ function Users() {
                     <Badge tone={u.role === 'admin' ? 'blue' : 'neutral'}>{u.role.replace('_', ' ')}</Badge>
                     {!u.is_active && <Badge tone="red">{tl("inactive")}</Badge>}
                   </td>
-                  <td className={cx(td, 'text-xs text-ink-400')}>{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}</td>
+                  <td className={cx(td, 'text-xs text-ink-400')}>
+                    {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : u.has_password ? tl('never') : <Badge tone="amber">{tl('invited')}</Badge>}
+                  </td>
                   <td className={td}>
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>{tl("Edit")}</Button>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>{tl("Edit")}</Button>
+                      {u.is_active && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title={u.has_password ? tl('Email a password reset link') : tl('Email an invite link to set a password')}
+                          onClick={async () => {
+                            const r = await api<Omit<InviteResult, 'email'>>(`/api/admin/users/${u.id}/invite`, { method: 'POST' });
+                            setInvite({ ...r, email: u.email });
+                          }}
+                        >
+                          {u.has_password ? tl('Send reset link') : tl('Send invite')}
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -265,7 +284,7 @@ function Users() {
   );
 }
 
-function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
+function UserForm({ user, onDone }: { user?: any; onDone(invite?: InviteResult | null): void }) {
   const { departments } = useAuth();
   const [f, setF] = useState({
     email: user?.email ?? '',
@@ -275,6 +294,7 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
     department_id: user?.department_id ?? departments[0]?.id ?? '',
     is_active: user?.is_active ?? true,
     extra_departments: (user?.extra_departments ?? []) as string[],
+    send_invite: true,
   });
   const [error, setError] = useState<string | null>(null);
   const set = (k: string, v: any) => setF((x) => ({ ...x, [k]: v }));
@@ -295,9 +315,18 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
           },
         });
       } else {
-        await api('/api/admin/users', {
-          body: { email: f.email, display_name: f.display_name, password: f.password, role: f.role, department_id: f.department_id },
+        const r = await api<{ id: string; invite: Omit<InviteResult, 'email'> | null }>('/api/admin/users', {
+          body: {
+            email: f.email,
+            display_name: f.display_name,
+            password: f.send_invite ? '' : f.password,
+            send_invite: f.send_invite,
+            role: f.role,
+            department_id: f.department_id,
+          },
         });
+        onDone(r.invite ? { ...r.invite, email: f.email } : null);
+        return;
       }
       onDone();
     } catch (e) {
@@ -314,9 +343,26 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
         <Field label={tl("Name")}>
           <input className={inputCls} value={f.display_name} onChange={(e) => set('display_name', e.target.value)} />
         </Field>
-        <Field label={user ? tl('Reset password (optional)') : tl('Initial password')} hint={tl("At least 10 characters")}>
-          <input className={inputCls} type="password" value={f.password} onChange={(e) => set('password', e.target.value)} />
-        </Field>
+        {user ? (
+          <Field label={tl('Reset password (optional)')} hint={tl("At least 10 characters")}>
+            <input className={inputCls} type="password" value={f.password} onChange={(e) => set('password', e.target.value)} />
+          </Field>
+        ) : (
+          <div className="space-y-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1 accent-accent-600" checked={f.send_invite} onChange={(e) => set('send_invite', e.target.checked)} />
+              <span>
+                <span className="font-medium">{tl('Email them an invite link')}</span>
+                <span className="block text-xs text-ink-400">{tl('They choose their own password from the link (valid 7 days).')}</span>
+              </span>
+            </label>
+            {!f.send_invite && (
+              <Field label={tl('Initial password')} hint={tl("At least 10 characters")}>
+                <input className={inputCls} type="password" value={f.password} onChange={(e) => set('password', e.target.value)} />
+              </Field>
+            )}
+          </div>
+        )}
         <Field label={tl("Role")}>
           <select className={inputCls} value={f.role} onChange={(e) => set('role', e.target.value)}>
             <option value="employee">{tl("Employee")}</option>
@@ -365,7 +411,7 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
       <div className="mt-4 flex gap-2">
         <Button variant="primary" size="sm" onClick={save}>{user ? tl('Save') : tl('Create user')}</Button>
-        <Button size="sm" onClick={onDone}>{tl("Cancel")}</Button>
+        <Button size="sm" onClick={() => onDone()}>{tl("Cancel")}</Button>
       </div>
     </div>
   );
@@ -1117,5 +1163,50 @@ function PromptSandbox({ layer, promptKey, content }: { layer: string; promptKey
         </div>
       )}
     </Card>
+  );
+}
+
+
+// ── Invite / reset link result ───────────────────────────────────────────────
+
+interface InviteResult {
+  email: string;
+  link: string;
+  emailed: boolean;
+  blocked: boolean;
+}
+
+function InviteNotice({ result, onClose }: { result: InviteResult; onClose(): void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={cx('mb-4 rounded-lg border p-3 text-sm', result.emailed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50')}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium">
+          {result.emailed
+            ? tl('Link emailed to {email}.', { email: result.email })
+            : result.blocked
+              ? tl("{email} is outside the allowed email domains, so nothing was emailed. Send them this link yourself:", { email: result.email })
+              : tl("Email isn't connected yet (record-only outbox), so nothing was sent. Send {email} this link yourself:", { email: result.email })}
+        </p>
+        <button onClick={onClose} className="text-xs text-ink-400 hover:text-ink-900">
+          {tl('Dismiss')}
+        </button>
+      </div>
+      {!result.emailed && (
+        <div className="mt-2 flex gap-2">
+          <input readOnly value={result.link} className={cx(inputCls, 'font-mono text-xs')} onFocus={(e) => e.target.select()} />
+          <Button
+            size="sm"
+            onClick={async () => {
+              await navigator.clipboard.writeText(result.link);
+              setCopied(true);
+            }}
+          >
+            {copied ? tl('Copied') : tl('Copy')}
+          </Button>
+        </div>
+      )}
+      <p className="mt-1 text-xs text-ink-600">{tl('The link works once. Invites expire after 7 days, reset links after 1 hour.')}</p>
+    </div>
   );
 }

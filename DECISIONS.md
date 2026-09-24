@@ -108,3 +108,14 @@ Defaults chosen for the open decisions in §12:
 - **Share links** are read-only, open only to signed-in colleagues, revocable, and every view is audited. Sharing is the owner's explicit choice, so this is consistent with PDPA handling of their own history.
 - **Prompt sandbox** runs an unsaved draft through the same layers, model role and JSON schema as the real step, and reports schema validity. It runs in the API process, which has its own GPU gate separate from the worker's. That's acceptable for an admin-only tool.
 - **Not built:** SSO (waiting on decision #3), bilingual UI labels (a v2 requirement), and the WhatsApp/email entry point via n8n (optional).
+
+## Bahasa Malaysia UI and account invites (2026-09-24)
+
+- **SSO not built:** Andrew is fine with staff having a separate Council password. Decision #3 is closed.
+- **UI translation uses English strings as keys** (`tl('Save')`), with a Malay dictionary in `web/src/i18n.ms.ts`. Missing entries fall back to English, so a new screen never shows blank text. A codemod wrapped the existing JSX text and label attributes. Persona and department names use their stored `name_ms`.
+- **The language choice is saved on the user's account** (`users.locale`) and follows them across devices. The login-page choice is kept in the browser and copied to the account at sign-in. Switching language re-renders the app.
+- **Not translated:** AI output (it already follows the question's language), notification texts saved before a switch, the analytics PDF labels, and task emails. Task emails are written in the plan's language by the Herald; their fixed labels are English.
+- **New users get an invite email** with a single-use link to set their own password (valid 7 days). **"Forgot password?"** sends a 1-hour reset link, and always answers the same whether or not the email exists.
+- **Only a SHA-256 of each link token is stored.** Issuing a new link cancels older ones, and setting a password uses up all open links.
+- **Account emails are bilingual** (English, then BM). They go through the same outbox and domain allowlist, but are sent **immediately**, not held for business hours.
+- **While email isn't connected** (`MAIL_PROVIDER=outbox`) or the address is outside the allowed domains, the admin screen shows the link so the admin can pass it on. Admins can already set passwords, so this doesn't widen their access.
