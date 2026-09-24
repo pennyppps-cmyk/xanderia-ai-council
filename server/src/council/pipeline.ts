@@ -20,7 +20,15 @@ interface LoadedJob {
     reply_to: string;
     requested_mode: 'auto' | 'quick' | 'council';
     department_id: string;
-    options: { peerReview?: boolean; skipClarify?: boolean; template?: string; task?: string; persona?: string };
+    options: {
+      peerReview?: boolean;
+      skipClarify?: boolean;
+      template?: string;
+      task?: string;
+      persona?: string;
+      whatIf?: { base: string; change: string };
+      effectiveQuestion?: string;
+    };
     status: string;
   };
   question: string;
@@ -82,6 +90,27 @@ async function previousAssistant(conversationId: string, userMessageId: string) 
   return rows[0] ?? null;
 }
 
+const WHAT_IF_RERUN = ['contrarian', 'executor'];
+
+/** The original council run a what-if builds on (must belong to the same user). */
+async function loadWhatIfBase(baseId: string, userId: string) {
+  const { rows } = await query(
+    `SELECT m.verdict FROM messages m JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.id = $1 AND c.user_id = $2 AND m.mode = 'council' AND m.verdict IS NOT NULL`,
+    [baseId, userId],
+  );
+  if (!rows[0]) throw new Error('The verdict this what-if builds on is no longer available');
+  const { rows: parts } = await query(
+    `SELECT p.persona_key, p.content, pe.name FROM message_parts p JOIN personas pe ON pe.key = p.persona_key
+      WHERE p.message_id = $1 AND p.stage = 1 AND p.content <> ''`,
+    [baseId],
+  );
+  return {
+    verdict: rows[0].verdict.verdict as string,
+    opinions: parts.map((p) => ({ advisor: { key: p.persona_key, name: `${p.name} (original run)` }, label: '-', content: p.content })),
+  };
+}
+
 /** Quick-mode tasks and the model role each runs on (documents need a larger output budget). */
 const QUICK_TASKS: Record<string, string> = { quick: 'quick', script_check: 'quick', document: 'document' };
 
@@ -122,7 +151,8 @@ export async function processMessage(messageId: string, events: Publisher) {
   const job = await load(messageId);
   if (!job || job.message.status === 'done') return;
   const { message, user, department } = job;
-  let question = job.question;
+  // A what-if carries the original question plus the changed assumption.
+  let question = message.options.whatIf && message.options.effectiveQuestion ? message.options.effectiveQuestion : job.question;
 
   // A retried job (worker crash) starts clean.
   await query('DELETE FROM message_parts WHERE message_id = $1', [messageId]);
@@ -300,6 +330,9 @@ export async function processMessage(messageId: string, events: Publisher) {
       // The Compliance Officer joins for regulated departments, and whenever the router raised a red flag.
       const seatDepts = await getSetting<string[]>('compliance_seat_departments', []);
       const withCompliance = seatDepts.includes(department.slug) || (router?.red_flag && router.red_flag !== 'none');
+      // What-if: re-run only the Contrarian and the Executor on the changed assumption; the other
+      // advisors' opinions carry over from the original run, and the Chairman updates the verdict.
+      const whatIf = message.options.whatIf ? await loadWhatIfBase(message.options.whatIf.base, user.id) : null;
       const { rows: personas } = await query(
         `SELECT key, name FROM personas
           WHERE is_active AND (in_council OR (key = 'compliance' AND $1))
@@ -316,7 +349,12 @@ export async function processMessage(messageId: string, events: Publisher) {
           language: router?.language ?? 'en',
           sensitivity,
           peerReview: message.options.peerReview ?? (await getSetting('peer_review_default', false)),
-          advisors: personas as Advisor[],
+          advisors: whatIf ? (personas as Advisor[]).filter((p) => WHAT_IF_RERUN.includes(p.key)) : (personas as Advisor[]),
+          priorOpinions: whatIf?.opinions.filter((o) => !WHAT_IF_RERUN.includes(o.advisor.key)),
+          chairmanNote: whatIf
+            ? `WHAT-IF RE-RUN. The user changed one assumption: "${message.options.whatIf!.change}". The previous verdict was: "${whatIf.verdict}". ` +
+              'Opinions from advisors who did not re-run are from the original run. Update the verdict for the changed assumption, and say explicitly in "why" what changed compared with the previous verdict and why.'
+            : undefined,
           userId: user.id,
           messageId,
         },

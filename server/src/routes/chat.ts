@@ -12,6 +12,8 @@ import { hub, openSse } from '../sse.js';
 import { createHash } from 'node:crypto';
 import { renderReport } from '../report/councilReport.js';
 import { loadReportData } from '../report/loadReport.js';
+import { renderDocx } from '../report/docx.js';
+import { verdictToMarkdown } from '../council/format.js';
 
 const publisher = createPublisher(redis);
 
@@ -314,6 +316,68 @@ export default async function chatRoutes(app: FastifyInstance) {
       .header('content-disposition', `attachment; filename="Xanderia-AI-Council-${slug}.pdf"`)
       .header('cache-control', 'private, no-store')
       .send(pdf);
+  });
+
+  /** Any finished answer as an editable Word document (drafts, SOPs, letters, verdicts). */
+  app.get('/api/messages/:id/export.docx', auth, async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const data = await loadReportData(pool, id, req.user.id);
+    if (!data) return reply.code(404).send({ error: 'No finished answer to export' });
+    const markdown = data.verdict ? verdictToMarkdown(data.verdict) : data.content;
+    const buf = await renderDocx({
+      title: data.title,
+      subtitle: `${data.department.name} · asked by ${data.askedBy} · ${(data.completedAt ?? data.createdAt).toISOString().slice(0, 10)}`,
+      markdown,
+    });
+    await writeAudit({ actorUserId: req.user.id, action: 'docx_exported', targetType: 'message', targetId: id, detail: { bytes: buf.length } });
+    const slug = data.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'answer';
+    return reply
+      .header('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+      .header('content-disposition', `attachment; filename="Xanderia-AI-Council-${slug}.docx"`)
+      .header('cache-control', 'private, no-store')
+      .send(buf);
+  });
+
+  /**
+   * What-if: change one assumption of a verdict and re-run part of the council. Creates a new
+   * question/answer pair in the same conversation.
+   */
+  app.post('/api/messages/:id/whatif', auth, async (req, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+    const { change } = z.object({ change: z.string().trim().min(3).max(1000) }).parse(req.body);
+    const base = await ownedMessage(id, req.user.id);
+    if (!base || base.mode !== 'council' || !base.verdict) return reply.code(404).send({ error: 'Only a finished council verdict can be re-run' });
+    const { rows: q } = await query(
+      `SELECT COALESCE(m.options->>'effectiveQuestion', u.content) AS question FROM messages m JOIN messages u ON u.id = m.reply_to WHERE m.id = $1`,
+      [id],
+    );
+    const content = `What if: ${change}`;
+    const result = await tx(async (c) => {
+      const userMsg = (
+        await c.query(`INSERT INTO messages (conversation_id, role, content, department_id) VALUES ($1, 'user', $2, $3) RETURNING *`, [
+          base.conversation_id,
+          content,
+          base.department_id,
+        ])
+      ).rows[0];
+      const assistant = (
+        await c.query(
+          `INSERT INTO messages (conversation_id, role, reply_to, requested_mode, department_id, status, options)
+           VALUES ($1, 'assistant', $2, 'council', $3, 'queued', $4) RETURNING *`,
+          [
+            base.conversation_id,
+            userMsg.id,
+            base.department_id,
+            JSON.stringify({ skipClarify: true, whatIf: { base: id, change }, effectiveQuestion: `${q[0].question}\n\nWHAT-IF (changed assumption): ${change}` }),
+          ],
+        )
+      ).rows[0];
+      await c.query('UPDATE conversations SET updated_at = now() WHERE id = $1', [base.conversation_id]);
+      return { userMessage: userMsg, assistantMessage: { ...assistant, parts: [] } };
+    });
+    await writeAudit({ actorUserId: req.user.id, action: 'what_if', targetType: 'message', targetId: result.assistantMessage.id, detail: { base: id } });
+    await enqueueMessage(result.assistantMessage.id, 'council');
+    return result;
   });
 
   /** Retry a failed answer. */

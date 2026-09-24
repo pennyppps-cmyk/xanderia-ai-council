@@ -13,6 +13,10 @@ export interface Advisor {
 }
 
 export interface CouncilInput {
+  /** What-if runs: opinions carried over from the original run (only some advisors re-run). */
+  priorOpinions?: Opinion[];
+  /** Extra instruction for the Chairman (e.g. "this is a what-if: update the previous verdict"). */
+  chairmanNote?: string;
   question: string;
   history: ChatMessage[];
   department: { slug: string; name: string };
@@ -168,7 +172,7 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
     }),
   );
 
-  const good = opinions.filter((o) => !o.error && o.content);
+  const good = [...opinions.filter((o) => !o.error && o.content), ...(input.priorOpinions ?? [])];
   if (good.length < 2) {
     throw new Error(
       `Council needs at least 2 advisor opinions, got ${good.length}. ${opinions.find((o) => o.error)?.error ?? ''}`.trim(),
@@ -262,7 +266,8 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
     (await deps.assemble({ persona: 'chairman', department: input.department.slug, task: 'chairman' })) +
     (input.language === 'ms'
       ? '\n\nThe user wrote in Bahasa Malaysia: write every text field of the verdict in Bahasa Malaysia.'
-      : '\n\nWrite every text field of the verdict in English.');
+      : '\n\nWrite every text field of the verdict in English.') +
+    (input.chairmanNote ? `\n\n${input.chairmanNote}` : '');
   // Budget: context minus output, system prompt, schema and question overhead.
   const budget = cfg.num_ctx - cfg.num_predict - estimateTokens(system + input.question) - 1200;
   const { texts } = condenseForChairman(good, reviewsText, budget);

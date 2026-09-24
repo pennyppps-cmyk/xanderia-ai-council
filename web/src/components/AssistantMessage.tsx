@@ -19,9 +19,13 @@ interface Props {
   onSkipClarify(): void;
   /** Shared view: no actions, no follow-ups. */
   readOnly?: boolean;
+  /** Re-run the council with one assumption changed. */
+  onWhatIf?(change: string): Promise<void>;
+  /** Ask for a document (SOP, policy, letter, memo) drafted from this answer. */
+  onDraft?(request: string): void;
 }
 
-export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onSkipClarify, readOnly = false }: Props) {
+export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onSkipClarify, onWhatIf, onDraft, readOnly = false }: Props) {
   const live = useMessageStream(message, onFinished);
   const { departments } = useAuth();
   const dept = departments.find((d) => d.id === message.department_id);
@@ -63,7 +67,7 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onS
 
         {!readOnly && finished && mode === 'council' && live.verdict && <PutIntoAction messageId={message.id} />}
         {!readOnly && finished && mode !== 'clarify' && (
-          <Actions message={message} text={text} verdict={live.verdict} onFollowUp={onFollowUp} />
+          <Actions message={message} text={text} verdict={live.verdict} onFollowUp={onFollowUp} onWhatIf={onWhatIf} onDraft={onDraft} />
         )}
       </div>
     </div>
@@ -456,12 +460,17 @@ function Actions({
   text,
   verdict,
   onFollowUp,
+  onWhatIf,
+  onDraft,
 }: {
   message: Message;
   text: string;
   verdict: Verdict | null;
   onFollowUp(text: string, mode?: Mode): void;
+  onWhatIf?(change: string): Promise<void>;
+  onDraft?(request: string): void;
 }) {
+  const [panel, setPanel] = useState<null | 'whatif' | 'draft'>(null);
   const [rating, setRating] = useState<1 | -1 | null>(message.my_rating ?? null);
   const [commenting, setCommenting] = useState(false);
   const [comment, setComment] = useState('');
@@ -494,8 +503,27 @@ function Actions({
         >
           <Icon name="print" className="h-3.5 w-3.5" /> {verdict ? tl('Download report (PDF)') : tl('Export PDF')}
         </a>
+        <a
+          href={`/api/messages/${message.id}/export.docx`}
+          download
+          title={tl('Download this answer as a Word document you can edit')}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900"
+        >
+          <Icon name="edit" className="h-3.5 w-3.5" /> {tl('Word')}
+        </a>
         <ShareButton messageId={message.id} />
         {verdict && <RecordDecision messageId={message.id} />}
+        {verdict && onWhatIf && (
+          <Button size="sm" variant="ghost" aria-expanded={panel === 'whatif'} onClick={() => setPanel(panel === 'whatif' ? null : 'whatif')}
+            title={tl('Change one assumption and let the council update its verdict')}>
+            <Icon name="search" className="h-3.5 w-3.5" /> {tl('What if…')}
+          </Button>
+        )}
+        {onDraft && (
+          <Button size="sm" variant="ghost" aria-expanded={panel === 'draft'} onClick={() => setPanel(panel === 'draft' ? null : 'draft')}>
+            <Icon name="copy" className="h-3.5 w-3.5" /> {tl('Draft a document')}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -546,6 +574,15 @@ function Actions({
           />
           <Button size="sm" variant="primary">{tl("Send")}</Button>
         </form>
+      )}
+      {panel === 'whatif' && onWhatIf && <WhatIfForm onSubmit={async (c) => { await onWhatIf(c); setPanel(null); }} />}
+      {panel === 'draft' && onDraft && verdict !== undefined && (
+        <DraftPicker
+          onPick={(kind) => {
+            setPanel(null);
+            onDraft(draftRequest(kind, verdict ? verdict.verdict : text));
+          }}
+        />
       )}
     </div>
   );
@@ -712,6 +749,66 @@ function PutIntoAction({ messageId }: { messageId: string }) {
 
 
 /** Copy a read-only link a signed-in colleague can open. */
+const DRAFT_KINDS = ['SOP (step-by-step procedure)', 'Policy', 'Customer letter', 'Staff memo'] as const;
+
+function draftRequest(kind: string, basis: string) {
+  return `**Draft a document**\n\n**Type:** ${kind}\n\n**Based on the answer above:** ${basis.slice(0, 1500)}\n\n` +
+    'Write the full document, ready to review. Mark anything I must fill in as [TO CONFIRM].';
+}
+
+function DraftPicker({ onPick }: { onPick(kind: string): void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-200 bg-white p-2 text-xs">
+      <span className="text-ink-600">{tl('Draft from this answer:')}</span>
+      {DRAFT_KINDS.map((k) => (
+        <Button key={k} size="sm" variant="secondary" onClick={() => onPick(k)}>
+          {tl(k)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function WhatIfForm({ onSubmit }: { onSubmit(change: string): Promise<void> }) {
+  const [change, setChange] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="space-y-2 rounded-lg border border-ink-200 bg-white p-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (change.trim().length < 3) return;
+        setBusy(true);
+        setError(null);
+        try {
+          await onSubmit(change.trim());
+        } catch (err) {
+          setError((err as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="block text-xs text-ink-600">
+        {tl('What if… (change one assumption; the Contrarian and the Executor re-run, the Chairman updates the verdict)')}
+        <input
+          autoFocus
+          value={change}
+          onChange={(e) => setChange(e.target.value)}
+          maxLength={1000}
+          placeholder={tl('e.g. the budget is cut by half')}
+          className="mt-1 w-full rounded-md border border-ink-200 px-2 py-1.5 text-sm"
+        />
+      </label>
+      {error && <p className="text-xs text-red-700">{error}</p>}
+      <Button size="sm" type="submit" disabled={busy || change.trim().length < 3}>
+        {busy ? tl('Starting…') : tl('Re-run')}
+      </Button>
+    </form>
+  );
+}
+
 function ShareButton({ messageId }: { messageId: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
   return (

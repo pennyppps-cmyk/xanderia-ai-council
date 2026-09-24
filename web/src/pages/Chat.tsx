@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { AssistantMessage } from '../components/AssistantMessage';
@@ -39,6 +39,15 @@ export default function Chat() {
     api<CouncilTemplate[]>('/api/templates').then(setTemplates).catch(() => {});
   }, []);
   const composer = useRef<ComposerHandle>(null);
+  // Arriving from Tools with a result: put it in the composer for the asker to finish and send.
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as { prefill?: string; mode?: Mode } | null;
+    if (!st?.prefill) return;
+    // Not cancelled on cleanup: clearing the state below re-runs this effect.
+    setTimeout(() => composer.current?.setText(st.prefill!, st.mode), 50);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const bottom = useRef<HTMLDivElement>(null);
 
   const loadList = useCallback(async () => {
@@ -185,6 +194,13 @@ export default function Chat() {
                           departmentId: m.department_id ?? undefined,
                           skipClarify: true,
                         }).catch(() => {})
+                      }
+                      onWhatIf={async (change) => {
+                        const res = await api<{ userMessage: Message; assistantMessage: Message }>(`/api/messages/${m.id}/whatif`, { body: { change } });
+                        setMessages((all) => [...all, { ...res.userMessage, parts: [] }, res.assistantMessage]);
+                      }}
+                      onDraft={(request) =>
+                        send({ content: request, mode: 'quick', departmentId: m.department_id ?? undefined, template: 'policy_draft' }).catch(() => {})
                       }
                       onRetry={async () => {
                         await api(`/api/messages/${m.id}/retry`, { method: 'POST' });

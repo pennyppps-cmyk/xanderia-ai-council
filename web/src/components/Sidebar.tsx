@@ -87,6 +87,13 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
           >
             <Icon name="pin" className="h-3.5 w-3.5" /> {tl('Decisions')}
           </Link>
+          <Link
+            to="/tools"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="edit" className="h-3.5 w-3.5" /> {tl('Tools')}
+          </Link>
           {me && me.user.role !== 'employee' && (
             <Link
               to="/admin"
