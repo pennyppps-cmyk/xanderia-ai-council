@@ -690,4 +690,5 @@ export const ms: Record<string, string> = {
   'The link works once and expires in 15 minutes. Then close this window.': 'Pautan ini hanya sekali guna dan tamat dalam 15 minit. Kemudian tutup tetingkap ini.',
   'Connect Telegram': 'Sambung Telegram',
   Product: 'Produk',
+  'Receives the weekly digest email': 'Menerima e-mel ringkasan mingguan',
 };

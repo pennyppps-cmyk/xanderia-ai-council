@@ -5,7 +5,7 @@ Screenshots live in docs/guide-images/ (captured from the running app with Playw
 from pathlib import Path
 
 from PIL import Image as PILImage
-from reportlab.graphics.shapes import Drawing, Line, Polygon, Rect, String
+from reportlab.graphics.shapes import Circle, Drawing, Line, Polygon, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
@@ -49,6 +49,9 @@ S = {
     "cellb": ParagraphStyle("cellb", fontName="Sans-Bold", fontSize=8.6, leading=11.8, textColor=INK),
     "th": ParagraphStyle("th", fontName="Sans-Bold", fontSize=8.2, leading=10.5, textColor=colors.white),
     "tip": ParagraphStyle("tip", fontName="Sans", fontSize=8.8, leading=12.5, textColor=INK2),
+    "wtitle": ParagraphStyle("wtitle", fontName="Sans-Bold", fontSize=9.5, leading=12, textColor=colors.white),
+    "wstep": ParagraphStyle("wstep", fontName="Sans", fontSize=9, leading=12.8, textColor=INK2),
+    "group": ParagraphStyle("group", fontName="Sans-Bold", fontSize=9, leading=12, textColor=TEAL),
 }
 
 
@@ -131,6 +134,130 @@ def side_by_side(names, caption, crop=None):
     t = Table([cells], colWidths=[each + 3 * mm] * len(names))
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("BOX", (0, 0), (0, 0), 0.6, LINE), ("BOX", (1, 0), (1, 0), 0.6, LINE)]))
     return KeepTogether([t, P(caption, "caption")])
+
+
+# ── Walkthroughs ─────────────────────────────────────────────────────────────
+
+def num_badge(n):
+    d = Drawing(7 * mm, 7 * mm)
+    d.add(Circle(3.5 * mm, 3.5 * mm, 3.2 * mm, fillColor=TEAL, strokeColor=TEAL))
+    d.add(String(3.5 * mm, 2.25 * mm, str(n), fontName="Sans-Bold", fontSize=8.5, fillColor=colors.white, textAnchor="middle"))
+    return d
+
+
+def framed(name, width, max_h=85 * mm):
+    src = IMG / f"{name}.jpg"
+    im = PILImage.open(src)
+    w, h = im.size
+    dw, dh = width, width * h / w
+    if dh > max_h:
+        dh, dw = max_h, max_h * w / h
+    t = Table([[Image(str(src), width=dw, height=dh)]], colWidths=[dw + 1])
+    t.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, LINE), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                           ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+    t.hAlign = "LEFT"
+    return t
+
+
+def walkthrough(title, steps, img_w=92 * mm):
+    """Numbered steps. Each step: (text, image or None, "side" | "wide").
+    side = text left, screenshot right; wide = screenshot under the text, full width."""
+    inner = W - 2
+    text_w = inner - 9 * mm - img_w - 3 * mm
+    rows = [[P(f"WALKTHROUGH  \u00b7  {title}", "wtitle"), "", ""]]
+    style = [("BACKGROUND", (0, 0), (-1, 0), INK), ("SPAN", (0, 0), (-1, 0)),
+             ("VALIGN", (0, 1), (-1, -1), "TOP"), ("BOX", (0, 0), (-1, -1), 0.6, LINE),
+             ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+             ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+             ("BACKGROUND", (0, 1), (-1, -1), colors.white)]
+    for i, (text, img, mode) in enumerate(steps, 1):
+        r = len(rows)
+        if r > 1:
+            style.append(("LINEABOVE", (0, r), (-1, r), 0.4, LINE))
+        if img and mode == "side":
+            rows.append([num_badge(i), P(text, "wstep"), framed(img, img_w)])
+        else:
+            cell = [P(text, "wstep")]
+            if img:
+                cell += [Spacer(1, 4), framed(img, inner - 9 * mm - 14, max_h=68 * mm)]
+            rows.append([num_badge(i), cell, ""])
+            style.append(("SPAN", (1, r), (2, r)))
+    t = Table(rows, colWidths=[9 * mm, text_w, img_w + 3 * mm], repeatRows=1)
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def wrap(text, font, size, width):
+    out = []
+    for para in text.split("\n"):
+        line = ""
+        for word in para.split(" "):
+            test = (line + " " + word).strip()
+            if pdfmetrics.stringWidth(test, font, size) <= width:
+                line = test
+            else:
+                out.append(line)
+                line = word
+        out.append(line)
+    return out
+
+
+def telegram_chat():
+    """Illustration of a chat with the bot (drawn, not a screenshot)."""
+    w = 74 * mm
+    msgs = [
+        ("me", "/council Should we send WhatsApp reminders to 1-30 DPD customers instead of SMS?"),
+        ("bot", "The council is meeting. This takes 1-3 minutes; I will send the verdict here."),
+        ("bot", "VERDICT\nPilot WhatsApp reminders in two branches for 8 weeks, with SMS as fallback, and compare cure rates before rolling out.\n\nWHY\nCheaper per contact and higher read rates, but consent and PDPA wording must be checked first.\n\nFull report, action plan and PDF: https://council.xanderia.com.my/c/..."),
+        ("me", "Voice note  0:05"),
+        ("bot", "\U0001F399 \u201cBerapa kos untuk perintis di dua cawangan?\u201d".replace("\U0001F399 ", "Heard: ")),
+        ("bot", "Anggaran kos perintis: ... (jawapan dalam Bahasa Malaysia)"),
+    ]
+    font, size, lead = "Sans", 6.6, 8.2
+    bw = w - 22 * mm
+    blocks = []
+    for who, text in msgs:
+        lines = wrap(text, font, size, bw - 8)
+        tw = max(pdfmetrics.stringWidth(l, font, size) for l in lines) + 8
+        blocks.append((who, lines, tw, len(lines) * lead + 7))
+    head, pad = 13 * mm, 5
+    h = head + sum(b[3] + pad for b in blocks) + 10
+    d = Drawing(w, h)
+    d.add(Rect(0, 0, w, h, rx=10, ry=10, fillColor=colors.HexColor("#dfe9ef"), strokeColor=INK, strokeWidth=2.2))
+    d.add(Rect(1.1, h - head, w - 2.2, head - 1.1, rx=9, ry=9, fillColor=INK, strokeColor=INK))
+    d.add(Rect(1.1, h - head, w - 2.2, 6, fillColor=INK, strokeColor=INK))
+    d.add(Circle(9 * mm, h - head / 2, 3.2 * mm, fillColor=TEAL, strokeColor=TEAL))
+    d.add(String(9 * mm, h - head / 2 - 2.3, "X", fontName="Sans-Bold", fontSize=7.5, fillColor=colors.white, textAnchor="middle"))
+    d.add(String(14 * mm, h - head / 2 + 1, "Xanderia Council Bot", fontName="Sans-Bold", fontSize=7.8, fillColor=colors.white))
+    d.add(String(14 * mm, h - head / 2 - 7, "bot", fontName="Sans", fontSize=6.2, fillColor=colors.HexColor("#9fb3c2")))
+    y = h - head - 6
+    for who, lines, tw, bh in blocks:
+        y -= bh
+        x = w - 5 - tw if who == "me" else 5
+        d.add(Rect(x, y, tw, bh, rx=5, ry=5, fillColor=colors.HexColor("#e3fbd4") if who == "me" else colors.white,
+                   strokeColor=colors.HexColor("#c9d6df"), strokeWidth=0.4))
+        for j, l in enumerate(lines):
+            bold = l.isupper() and len(l) < 20
+            d.add(String(x + 4, y + bh - 4 - (j + 1) * lead + 2, l, fontName="Sans-Bold" if bold else font, fontSize=size, fillColor=INK))
+        y -= pad
+    return d
+
+
+def catalogue(groups):
+    """Complete feature list: groups of (feature, what it does, where)."""
+    rows = [[P("Feature", "th"), P("What it does", "th"), P("Where", "th")]]
+    style = [("VALIGN", (0, 0), (-1, -1), "TOP"), ("BACKGROUND", (0, 0), (-1, 0), INK), ("LINEBELOW", (0, 0), (-1, -1), 0.4, LINE),
+             ("LEFTPADDING", (0, 0), (-1, -1), 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+             ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5)]
+    for title, items in groups:
+        r = len(rows)
+        rows.append([P(title.upper(), "group"), "", ""])
+        style += [("SPAN", (0, r), (-1, r)), ("BACKGROUND", (0, r), (-1, r), TEAL_BG), ("TOPPADDING", (0, r), (-1, r), 6)]
+        for f, what, where in items:
+            rows.append([P(f, "cellb"), P(what, "cell"), P(where, "cell")])
+    t = Table(rows, colWidths=[40 * mm, 92 * mm, 38 * mm], repeatRows=1)
+    t.setStyle(TableStyle(style))
+    return t
 
 
 # ── Diagrams ─────────────────────────────────────────────────────────────────
@@ -266,11 +393,12 @@ def build(out):
     st += [P("What's inside", "h2"),
            table([["Part", "For", "Covers"],
                   ["1. What it is", "Everyone", "The three things it does, how a question flows, where it runs"],
-                  ["2. Features at a glance", "Everyone", "Every feature on one page"],
+                  ["2. Features at a glance", "Everyone", "The main features on two pages (the full list is in part 7)"],
                   ["3. Using it", "All staff", "Asking, the council, reading a verdict, the report, sharing, putting a plan into action, tasks you receive"],
                   ["4. Doing more", "All staff", "Templates, script checker, what-if, drafting documents and Word, the decision register, calculators, arrears files, Telegram, voice, Bahasa Malaysia screens"],
                   ["5. Running it", "Admins, department leads", "Users and invites, staff directory, Action Crew and email, knowledge and freshness, prompts, models, heatmap, weekly digest, red flags, go-live checklist"],
-                  ["6. Privacy, safety and tips", "Everyone", "What stays on-premises, what needs approval, good questions, timing, FAQ"]],
+                  ["6. Privacy, safety and tips", "Everyone", "What stays on-premises, what needs approval, good questions, timing, FAQ"],
+                  ["7. Complete feature list", "Everyone", "Every feature, what it does and where to find it, on a few pages"]],
                  [42, 38, 90]),
            Spacer(1, 6),
            tip("Everything the Council says is <b>advice</b>. Final decisions sit with the responsible staff and management. Legal and finance answers must be reviewed before acting.", "Remember"),
@@ -389,65 +517,115 @@ def build(out):
 
     # Part 4
     st += [P("4 · Doing more with the council", "h1"),
-           P("Shortcuts for common jobs, ways to test and record decisions, working tools for collections and finance, and other ways to ask.", "lead"),
+           P("Step-by-step walkthroughs. In each screenshot, the <font color='#d97706'><b>amber frame</b></font> marks what to click.", "lead"),
+
            P("4.1 Start from a template", "h2"),
-           P("Press <b>Templates</b> in the question box, or pick one on the home screen. A template asks for the facts the council needs (goal, numbers, constraints, deadline), so it goes straight to work without clarifying questions."),
-           shot("22-templates", "Templates on the home screen: council templates for decisions, a Quick one for drafting, and the script checker.", crop=TEMPLATES_CROP),
-           shot("23-template-dialog", "A template form. Fill in what you know; empty fields are left out.", crop=DIALOG_CROP, width=120 * mm),
+           P("Templates ask for the facts the council needs up front (goal, numbers, constraints, deadline), so it goes straight to work without clarifying questions. Templates: <b>New product launch</b>, <b>Collections strategy change</b>, <b>Vendor selection</b>, <b>Hiring plan</b> (council); <b>Draft a policy or SOP</b> (quick); <b>Check a customer script</b>."),
+           walkthrough("Ask the council with a template", [
+               ("Press <b>Templates</b> in the question box, or pick a template card on the home screen.", "w-t1-templates-button", "wide"),
+               ("Fill in what you know. Fields marked * are required; empty fields are left out. Press <b>Ask the council</b>.", "23-template-dialog", "side"),
+               ("The council starts straight away. The verdict arrives in 1\u20132 minutes, like any council question.", None, None),
+           ]),
+           Spacer(1, 8),
+
            P("4.2 Check a customer script before it goes out", "h2"),
-           P("Use the <b>Check a customer script</b> template for SMS, WhatsApp, letters or call scripts, especially collections messages. The Customer Advocate checks tone, clarity, fair treatment (no threats or misleading statements), and PDPA (no personal data a third party could see). It returns <b>OK to send</b>, <b>Needs changes</b> or <b>Do not send</b>, a table of issues, and a rewrite in English and BM."),
-           shot("24-script-check", "Script check result: the verdict, each issue with the reason, and a compliant rewrite.", crop=SCRIPT_CROP),
+           walkthrough("Check a collections SMS", [
+               ("Press <b>Templates</b> \u2192 <b>Check a customer script</b>. Choose the channel (SMS, WhatsApp, letter, call), describe the customer's situation, and paste the script.", None, None),
+               ("The Customer Advocate checks tone, clarity, fair treatment (no threats, shaming or misleading statements), lawful debt collection (no third-party contact about the debt) and PDPA.", None, None),
+               ("You get <b>OK to send</b>, <b>Needs changes</b> or <b>Do not send</b>, a table of issues with fixes, and a rewrite in English and Bahasa Malaysia.", "24-script-check", "wide"),
+           ]),
            CondPageBreak(90 * mm),
-           P("4.3 Ask “what if…”", "h2"),
-           P("Under a council verdict, press <b>What if…</b> and change one assumption (“only 40% accept”, “the budget is halved”, “we launch in Q3 instead”). The <b>Contrarian</b> and the <b>Executor</b> re-run on the new assumption, the other advisors' opinions carry over, and the Chairman updates the verdict and says what changed. It takes about half as long as a full council."),
-           shot("27-whatif-form", "What if…: type the changed assumption and press Re-run.", crop=WHATIF_FORM_CROP),
-           shot("26-whatif", "The updated verdict appears as a new answer in the same conversation, so you can compare it with the original.", crop=WHATIF_CROP),
+
+           P("4.3 Ask \u201cwhat if\u2026\u201d", "h2"),
+           P("Test a verdict against a different assumption without running the whole council again. The <b>Contrarian</b> and the <b>Executor</b> re-run; the other advisors' opinions carry over; the Chairman updates the verdict and says what changed. It takes about half the time of a full council."),
+           walkthrough("Change one assumption", [
+               ("Under a council verdict, press <b>What if\u2026</b>.", "w-w1-whatif-button", "wide"),
+               ("Type the changed assumption, for example \u201conly 40% of eligible customers accept\u201d or \u201cthe budget is halved\u201d, and press <b>Re-run</b>.", "27-whatif-form", "wide"),
+               ("The updated verdict appears as a new answer in the same conversation, so you can compare it with the original.", "26-whatif", "wide"),
+           ]),
            CondPageBreak(90 * mm),
-           P("4.4 Draft a document, and download Word", "h2"),
-           *steps(["Under any answer, press <b>Draft a document</b> and pick <b>SOP</b>, <b>Policy</b>, <b>Customer letter</b> or <b>Staff memo</b>.",
-                   "The draft is written from the answer, with anything you must confirm marked <b>[TO CONFIRM]</b>.",
-                   "Press <b>Word</b> under the draft (or any answer) to download an editable .docx with headings, lists and tables."]),
-           shot("28-draft-picker", "Draft a document: choose the type.", crop=DRAFT_PICKER_CROP),
-           shot("29-draft-memo", "A staff memo drafted from a council verdict, ready to download as Word.", crop=DRAFT_CROP),
+
+           P("4.4 Draft a document and download Word", "h2"),
+           walkthrough("Turn a verdict into a staff memo", [
+               ("Under any answer, press <b>Draft a document</b>.", "w-d1-draft-button", "wide"),
+               ("Pick the type: <b>SOP</b>, <b>Policy</b>, <b>Customer letter</b> or <b>Staff memo</b>.", "w-d2-draft-kinds", "wide"),
+               ("The draft is written from the answer. Anything you must fill in or confirm is marked <b>[TO CONFIRM]</b>.", "29-draft-memo", "wide"),
+               ("Press <b>Word</b> to download an editable .docx with headings, lists and tables. <b>Word</b> works under every answer, not only drafts.", "w-d3-word-button", "wide"),
+           ]),
            CondPageBreak(90 * mm),
-           P("4.5 The decision register", "h2"),
-           P("When you act on a verdict, press <b>Record as decision</b> under it. Choose whether your department or the whole company can see it. The register (sidebar → <b>Decisions</b>) lists who decided what and when, the action-plan progress, and the latest outcome."),
-           shot("30-decisions", "Decisions: search and filter by department and status.", crop=DECISIONS_CROP),
-           *bullets(["<b>Outcome check-ins:</b> 30 and 60 days after a decision, whoever recorded it gets a notification and email: <i>did it work?</i> Record <b>Worked</b>, <b>Partly</b>, <b>Did not work</b> or <b>Too early to tell</b>, with a note. Numbers help (“roll rate fell from 8% to 6%”).",
-                     "<b>Meeting brief:</b> pick a date range and press <b>Write brief</b> for a one-page summary of the decisions in that period, including progress and outcomes, ready for a management meeting."]),
-           shot("31-decision-detail", "A decision: the verdict it came from, its status, and the outcomes recorded so far.", crop=DECISION_DETAIL_CROP),
-           shot("32-meeting-brief", "A meeting brief written from the register.", crop=BRIEF_CROP),
+
+           P("4.5 Record decisions and learn what works", "h2"),
+           P("The <b>decision register</b> (sidebar \u2192 <b>Decisions</b>) is the company's memory of what was decided, by whom, and whether it worked."),
+           walkthrough("From verdict to outcome", [
+               ("When you act on a verdict, press <b>Record as decision</b> under it. It then shows <b>In decision register</b>.", "w-r1-record-button", "wide"),
+               ("Open <b>Decisions</b> in the sidebar to search and filter the register by department and status. Each decision shows its action-plan progress and latest outcome. On the decision page you choose who can see it: your department or the whole company.", "30-decisions", "wide"),
+               ("<b>30 and 60 days later</b>, you get a notification and an email: <i>did it work?</i>", "w-r2-checkin-bell", "side"),
+               ("On the decision page, choose <b>Worked</b>, <b>Partly worked</b>, <b>Did not work</b> or <b>Too early to tell</b>, add what happened (numbers help), and press <b>Record outcome</b>.", "w-r3-outcome", "wide"),
+               ("<b>Meeting brief:</b> on the register, press <b>Meeting brief</b>, choose the dates and press <b>Write brief</b>. You get a one-page summary of the decisions, their progress and outcomes, and questions for discussion.", "32-meeting-brief", "wide"),
+           ]),
            CondPageBreak(90 * mm),
+
            P("4.6 Calculators", "h2"),
-           P("Sidebar → <b>Tools</b>. The calculations run in your browser; nothing is sent until you press <b>Ask the council about this</b>, which puts the figures into a new question for you to finish."),
+           P("Sidebar \u2192 <b>Tools</b>. Calculations run in your browser; nothing is sent until you ask the council."),
            table([["Calculator", "What it gives you"],
                   ["Instalment", "Monthly instalment, total interest and total payable, flat rate or reducing balance, and the effective interest rate (EIR) of a flat-rate loan."],
                   ["Early settlement rebate", "The rebate of unearned interest under Rule of 78 and straight-line, the settlement amount, and the difference to the customer. Check which method the agreement requires."],
-                  ["Roll rates", "Enter bucket balances at two month-ends; see the share that rolled one bucket worse (Current → 1–30 → … → 91+). Rolls above 30% are shown in red."],
+                  ["Roll rates", "Bucket balances at two month-ends \u2192 the share that rolled one bucket worse (Current \u2192 1\u201330 \u2192 \u2026 \u2192 91+). Rolls above 30% are shown in red."],
                   ["Cost to collect", "Cost per RM 1 collected, cost as a % of collections, and cost per account resolved."]],
                  [38, 132]),
            Spacer(1, 6),
-           shot("33-calculator", "The instalment calculator. RM 20,000 at 8% flat over 60 months is an EIR of about 14%.", crop=CALC_CROP),
+           walkthrough("Take a calculation to the council", [
+               ("Open <b>Tools</b> from the sidebar.", "w-c1-tools-link", "side"),
+               ("Choose a calculator and enter the figures. The results update as you type. Press <b>Ask the council about this</b>.", "w-c2-calc-ask", "wide"),
+               ("The figures are put into a new question. Finish it with what you want to know, choose the mode, and send.", "w-c3-calc-prefilled", "wide"),
+           ]),
            CondPageBreak(90 * mm),
+
            P("4.7 Analyse an arrears file", "h2"),
-           P("<b>Tools → Arrears file.</b> Upload a collections export (.csv or .xlsx, one row per account) with a days-past-due column. Balance, branch and product columns are used if present; English and BM column names are recognised (“DPD”, “Hari tertunggak”, “Baki”, “Cawangan”). You get the balance in each DPD bucket, and each branch and product with its bucket mix and 91+ share. <b>Ask the council about this file</b> sends only these totals, never customer rows. The file itself is not stored."),
-           shot("35-arrears", "Arrears file analysis (sample data). One branch stands out with 28% of its balance 91+ days past due.", crop=ARREARS_CROP),
-           CondPageBreak(80 * mm),
+           walkthrough("From collections export to council question", [
+               ("<b>Tools \u2192 Arrears file.</b> Click the box and choose a .csv or .xlsx export, one row per account, with a days-past-due column. Balance, branch and product columns are used if present; English and BM names are recognised (\u201cDPD\u201d, \u201cHari tertunggak\u201d, \u201cBaki\u201d, \u201cCawangan\u201d, \u201cProduk\u201d).", "w-a1-upload", "wide"),
+               ("You see the balance in each DPD bucket, and every branch and product with its bucket mix and 91+ share (red above 10%). The file is analysed in memory and <b>not stored</b>.", "35-arrears", "wide"),
+               ("Press <b>Ask the council about this file</b>. Only the totals go into the question, never customer rows. Add your question and send.", "w-a2-arrears-prefilled", "wide"),
+           ]),
+           CondPageBreak(90 * mm),
+
            P("4.8 Ask from Telegram", "h2"),
-           P("If IT has switched the bot on, click <b>Telegram</b> in the sidebar, press <b>Connect Telegram</b>, and open the link on your phone. It works once and expires in 15 minutes. Then message the bot like the Council itself:"),
-           table([["You send", "What happens"],
-                  ["A question", "Auto mode: a quick answer, or the full council for plans and decisions. The answer comes back in the chat, with a link to the full report."],
-                  ["/quick … or /council …", "Force Quick or Council. A council verdict takes 1–3 minutes; the bot tells you it has started."],
-                  ["A voice note", "Transcribed on our own server, then answered (if voice is enabled)."],
-                  ["/new, /help, /unlink", "Start a new conversation (follow-ups within 6 hours continue the last one), show help, or disconnect."]],
-                 [40, 130]),
+           P("If IT has switched the bot on, you can ask the council from Telegram on your phone. Questions go through the same checks as the web app (personal-data guard, audit log, your document access) and appear in your Council history marked <b>[Telegram]</b>."),
+           walkthrough("Connect Telegram (once)", [
+               ("In the sidebar, click <b>Telegram</b>.", "w-g1-telegram-link", "side"),
+               ("Read the warning, then press <b>Connect Telegram</b>.", "w-g2-telegram-connect", "side"),
+               ("Press <b>Open @XanderiaCouncilBot and press Start</b> (on your phone, or scan it across). In Telegram, press <b>Start</b>. The link works once and expires in 15 minutes. The bot replies \u201cConnected\u201d.", "w-g3-telegram-open", "side"),
+           ], img_w=70 * mm),
+           Spacer(1, 8),
+           KeepTogether([P("Using the bot", "h3"),
+                         Table([[telegram_chat(),
+                                 [table([["You send", "What happens"],
+                                         ["A question", "Auto: a quick answer, or the full council for plans and decisions. The answer comes back in the chat, with a link to the full report."],
+                                         ["/quick \u2026", "A fast answer from one department advisor."],
+                                         ["/council \u2026", "The full council. The bot says it has started, then sends the verdict and a link to the report, action plan and PDF."],
+                                         ["A voice note", "Transcribed on our own server; the bot shows what it heard, then answers."],
+                                         ["A follow-up", "Within 6 hours it continues the same conversation, including answering clarifying questions."],
+                                         ["/new", "Start a fresh conversation."],
+                                         ["/help, /unlink", "Show help, or disconnect this chat."]],
+                                        [24, 68]),
+                                  Spacer(1, 4),
+                                  P("Illustration of a chat with the bot.", "caption")]]],
+                               colWidths=[78 * mm, 92 * mm],
+                               style=[("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)])]),
            Spacer(1, 4),
-           tip("Telegram is an outside service. Messages pass through Telegram's servers, so <b>never send customer personal data</b> (IC, account or phone numbers) through the bot. Everything asked from Telegram also appears in your Council history, marked [Telegram].", "Important"),
+           tip("Telegram is an outside service; messages pass through Telegram's servers. <b>Never send customer personal data</b> (IC, account or phone numbers) through the bot. Use the web app for anything sensitive. Only private chats are answered; group chats are ignored.", "Important"),
+           CondPageBreak(80 * mm),
+
            P("4.9 Ask by voice", "h2"),
-           P("Press the <b>microphone</b> in the question box, speak in English or Bahasa Malaysia, and press it again. The words appear in the box for you to check and send. Transcription runs on Xanderia's own server (Whisper); the recording is not stored."),
-           shot("39-voice", "The microphone button next to Send (shown when voice is enabled).", crop=VOICE_CROP, width=130 * mm),
+           walkthrough("Speak your question", [
+               ("Press the <b>microphone</b> next to Send. The first time, allow microphone access in your browser.", "w-v1-mic", "wide"),
+               ("Speak in English or Bahasa Malaysia. The button turns red while recording (up to 2 minutes). Press it again to stop.", "w-v2-recording", "wide"),
+               ("The words appear in the box after a few seconds. Check them, edit if needed, and press Send. Transcription runs on Xanderia's own server; the recording is not stored.", "w-v3-transcript", "wide"),
+           ]),
+           Spacer(1, 8),
+
            P("4.10 Bahasa Malaysia screens", "h2"),
-           P("Switch the whole app between English and BM with the <b>EN / BM</b> toggle (on the sign-in page, in the sidebar and at the top of each page). Your choice is saved to your account. Answers follow the language of your question, whichever screen language you use."),
+           P("Switch the whole app between English and BM with the <b>EN / BM</b> toggle (on the sign-in page, in the sidebar and at the top of each page). Your choice is saved to your account and follows you to other devices. Answers follow the language of your question, whichever screen language you use."),
            shot("40-bm-tools", "The Tools page in Bahasa Malaysia.", crop=BM_CROP),
            PageBreak()]
 
@@ -541,6 +719,91 @@ def build(out):
                   ["Does the council remember what we decided?", "Only if you press Record as decision. Then it asks you after 30 and 60 days whether it worked."],
                   ["Who do I contact?", "Your department lead for access or knowledge documents; the AI Systems team for anything else."]],
                  [48, 122])]
+
+    st += [PageBreak(), P("7 · Complete feature list", "h1"),
+           P("Everything the Xanderia AI Council can do, and where to find it.", "lead"),
+           catalogue([
+               ("Asking and answers", [
+                   ("Auto, Quick and Council modes", "Auto lets the router choose. Quick gives one fast answer from a department advisor; Council convenes the advisors and the Chairman.", "Question box"),
+                   ("Choose the department", "Ask as your own department or another one; its expert answers. You still see only documents you have access to.", "Question box"),
+                   ("Council templates", "Guided forms: new product launch, collections strategy change, vendor selection, hiring plan, policy or SOP draft, customer script check.", "Templates button; home screen"),
+                   ("Clarifying questions", "Before a council run it may ask up to 3 short questions if key facts are missing. Answer them, or press Skip to go ahead on its stated assumptions.", "Automatic"),
+                   ("Follow-ups", "Continue the conversation; the council remembers the verdict. Click an open question to answer it and have the council reconsider.", "Under an answer"),
+                   ("Live progress", "Watch the stages and advisors' opinions stream in. Leave the page if you like: a notification tells you when it's done.", "Automatic"),
+                   ("Fair queue", "Quick questions are served before council work; you see your place in the queue when the model is busy.", "Automatic"),
+                   ("Sources", "Answers based on the knowledge base cite the document and page, section or sheet as [S1], [S2].", "Under an answer"),
+                   ("Answers in BM", "Ask in Bahasa Malaysia and the answer or verdict comes back in BM.", "Automatic"),
+               ]),
+               ("The council", [
+                   ("Six advisors and a Chairman", "Contrarian, First Principles Thinker, Expansionist, Customer Advocate, Executor and the Department Expert answer independently; the Chairman decides.", "Council mode"),
+                   ("Compliance seat", "A Compliance Officer joins for Credit & Collections, Legal & Compliance, Finance and HR (configurable).", "Automatic"),
+                   ("Peer review (optional)", "Advisors critique each other anonymously and score each answer 1\u20135 before the Chairman decides.", "Question box checkbox"),
+                   ("Structured verdict", "Decision, why, disagreements resolved (with the reason), action plan with owners and timing, risks rated by likelihood and impact, open questions, confidence.", "Council answer"),
+                   ("Advisor stances", "For / Conditional / Against with a conviction score, and a bar showing how the council split.", "Advisor opinions"),
+                   ("What if\u2026", "Change one assumption; two advisors re-run and the Chairman updates the verdict.", "Under a verdict"),
+               ]),
+               ("Reports and documents", [
+                   ("Analytics report (PDF)", "Executive summary, stance map, peer scores, risk heat map, action-plan timeline, disagreements and every advisor's full opinion.", "Download report (PDF)"),
+                   ("Export PDF", "Any quick answer as a PDF.", "Under an answer"),
+                   ("Word download", "Any answer as an editable .docx.", "Word, under an answer"),
+                   ("Draft a document", "SOP, policy, customer letter or staff memo written from an answer, with [TO CONFIRM] markers.", "Under an answer"),
+                   ("Customer script checker", "OK to send / Needs changes / Do not send, an issues table, and a rewrite in English and BM.", "Templates"),
+                   ("Share", "A read-only link for a signed-in colleague; revocable; every view is logged.", "Under an answer"),
+                   ("Copy and feedback", "Copy the text; thumbs up or down with an optional comment to improve the prompts.", "Under an answer"),
+               ]),
+               ("Decisions and follow-through", [
+                   ("Record as decision", "Add a verdict to the register, visible to your department or the whole company.", "Under a verdict"),
+                   ("Decision register", "Search and filter decisions; status, action-plan progress and latest outcome.", "Sidebar \u2192 Decisions"),
+                   ("Outcome check-ins", "At 30 and 60 days, a notification and email ask whoever recorded it whether it worked.", "Bell and email"),
+                   ("Outcomes", "Worked, partly, did not work or too early, with a note.", "Decision page"),
+                   ("Meeting brief", "A one-page summary of the decisions in a date range, for a management meeting.", "Decisions \u2192 Meeting brief"),
+               ]),
+               ("Action Crew", [
+                   ("Put into action", "The Dispatcher splits the action plan into tasks with owners from the staff directory, working-day due dates and dependencies. It never invents people.", "Under a verdict"),
+                   ("Launch plan and approval", "Review owners, dates and each email; approve per task or all at once. Nothing is sent before you approve.", "Launch plan screen"),
+                   ("Herald emails", "Short task emails in business hours, to internal addresses only, with one-click Accept / Need help / Mark done / Can't do links.", "Email"),
+                   ("Tracker", "Reminds owners who haven't acknowledged and before due dates; nudges you when overdue (remind, snooze, reassign); proposes manager escalation for your approval.", "Automatic; bell"),
+                   ("Runner", "Drafts writing tasks (SOPs, templates, summaries) for you to review.", "Task board"),
+                   ("Task board and Tasks", "Sent \u2192 Accepted \u2192 In progress \u2192 Blocked \u2192 Done; your assigned tasks and the plans you started.", "Plan page; sidebar \u2192 Tasks"),
+                   ("Notifications", "Plan ready, accepted/done, needs help, overdue, escalation requests, check-ins, stale documents, red flags.", "Bell"),
+               ]),
+               ("Tools", [
+                   ("Instalment", "Monthly instalment, total interest and payable, flat or reducing balance, EIR.", "Sidebar \u2192 Tools"),
+                   ("Early settlement rebate", "Rule of 78 vs straight-line rebate and settlement amount.", "Tools"),
+                   ("Roll rates", "Share of each bucket rolling one bucket worse between two month-ends.", "Tools"),
+                   ("Cost to collect", "Cost per RM 1 collected, % of collections, cost per account resolved.", "Tools"),
+                   ("Arrears file analysis", "CSV/XLSX export \u2192 DPD buckets by branch and product; not stored; only totals go to the council.", "Tools \u2192 Arrears file"),
+                   ("Ask the council about this", "Puts the figures from any tool into a new question.", "Every tool"),
+               ]),
+               ("Ways in", [
+                   ("Web app", "Works in any browser, on desktop and phone.", "Council address"),
+                   ("Telegram bot", "Ask from Telegram; /quick, /council, /new, /help, /unlink; voice notes; answers with a link to the full report.", "Sidebar \u2192 Telegram"),
+                   ("Voice questions", "Speak in English or BM; transcribed on our own server.", "Microphone in the question box"),
+                   ("EN / BM screens", "The whole app in English or Bahasa Malaysia, saved to your account.", "EN / BM toggle"),
+               ]),
+               ("Your history and privacy", [
+                   ("History", "Search, pin, rename and delete conversations; delete your whole history at any time.", "Sidebar"),
+                   ("Retention", "Conversations older than the retention period (default 12 months) are deleted automatically.", "Automatic"),
+                   ("On-premises AI", "Hermes 3 runs on Xanderia's own GPU server; no outside AI service is used.", "Automatic"),
+                   ("Personal data guard", "IC, account and phone numbers, emails and names are detected and never sent to an outside model.", "Automatic"),
+                   ("Red-flag detector", "Requests that look like harassment, fraud, data misuse or discrimination get a warning and are flagged to Compliance.", "Automatic"),
+                   ("Access control", "You retrieve only your department's and company-wide documents, unless granted more.", "Automatic"),
+                   ("Audit log", "Every sign-in, question (by reference), model call, retrieval, email and change is logged and cannot be edited.", "Admin \u2192 Audit log"),
+               ]),
+               ("Administration", [
+                   ("Users and invites", "Add users with roles (employee, department lead, admin); invite email to set their own password; resend invite; forgot-password link; extra knowledge access; weekly-digest opt-out.", "Admin \u2192 Users"),
+                   ("Departments", "Departments with English and BM names.", "Admin \u2192 Departments"),
+                   ("Personas and prompts", "Layered prompts (base, persona, department, task), versioned with rollback, and a test sandbox.", "Admin \u2192 Personas & prompts"),
+                   ("Model routing", "The model and settings for each role; upgrade the model without a redeploy.", "Admin \u2192 Model routing"),
+                   ("Knowledge base", "Upload PDF, Word, Excel, text; per department or company-wide; review intervals and stale-document alerts.", "Admin \u2192 Knowledge"),
+                   ("Staff directory", "Who the Action Crew may assign and email; CSV import from HR.", "Admin \u2192 Staff directory"),
+                   ("Action Crew and email", "Allowed domains, business hours, weekend, public holidays, reminder and escalation timings, agent names, and the email outbox.", "Admin \u2192 Action Crew & email"),
+                   ("Overview", "System health (database, queue, Ollama), 30-day usage, latency and feedback.", "Admin \u2192 Overview"),
+                   ("Ask-the-org heatmap", "Which departments ask about which areas; counts only.", "Admin \u2192 Overview"),
+                   ("Weekly digest", "Monday email to each department lead: questions, decisions, outcomes, overdue tasks, documents to review; counts only. Preview and send now.", "Admin \u2192 Overview"),
+                   ("Settings", "Who may use Council mode, retention, peer review default, clarifying questions, knowledge base, weekly digest, compliance-seat departments.", "Admin \u2192 Settings"),
+               ]),
+           ])]
 
     doc.build(st, onFirstPage=cover, onLaterPages=footer)
 

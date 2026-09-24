@@ -426,6 +426,7 @@ function UserForm({ user, onDone }: { user?: any; onDone(invite?: InviteResult |
     department_id: user?.department_id ?? departments[0]?.id ?? '',
     is_active: user?.is_active ?? true,
     extra_departments: (user?.extra_departments ?? []) as string[],
+    weekly_digest: user?.weekly_digest ?? true,
     send_invite: true,
   });
   const [error, setError] = useState<string | null>(null);
@@ -443,6 +444,7 @@ function UserForm({ user, onDone }: { user?: any; onDone(invite?: InviteResult |
             department_id: f.department_id,
             is_active: f.is_active,
             extra_departments: f.extra_departments,
+            weekly_digest: f.weekly_digest,
             ...(f.password ? { password: f.password } : {}),
           },
         });
@@ -516,6 +518,12 @@ function UserForm({ user, onDone }: { user?: any; onDone(invite?: InviteResult |
               <option value="false">{tl("Deactivated")}</option>
             </select>
           </Field>
+        )}
+        {user && f.role === 'dept_lead' && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="accent-accent-600" checked={f.weekly_digest} onChange={(e) => set('weekly_digest', e.target.checked)} />
+            {tl('Receives the weekly digest email')}
+          </label>
         )}
       </div>
       {user && (
