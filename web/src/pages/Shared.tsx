@@ -5,6 +5,8 @@ import { AssistantMessage } from '../components/AssistantMessage';
 import { Spinner } from '../components/ui';
 import type { Message } from '../types';
 import { Shell } from './Plan';
+import { tl } from '../i18n';
+
 
 interface Shared {
   title: string;
@@ -25,14 +27,14 @@ export default function SharedPage() {
   }, [token]);
 
   return (
-    <Shell title={data ? data.title : 'Shared answer'}>
+    <Shell title={data ? data.title : tl('Shared answer')}>
       <div className="mx-auto max-w-3xl space-y-6">
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {!data && !error && <Spinner className="h-5 w-5 text-ink-400" />}
         {data && (
           <>
             <p className="text-xs text-ink-400">
-              Shared by {data.sharedBy} · {new Date(data.sharedAt).toLocaleString()} · read-only
+              {tl("Shared by")} {data.sharedBy} · {new Date(data.sharedAt).toLocaleString()} {tl("· read-only")}
             </p>
             <div className="flex justify-end">
               <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-ink-900 px-4 py-2.5 text-sm whitespace-pre-wrap text-white">{data.question}</div>

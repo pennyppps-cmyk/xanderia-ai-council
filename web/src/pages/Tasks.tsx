@@ -5,6 +5,7 @@ import { CrewPanel } from '../components/CrewPanel';
 import { Badge, Button, Spinner } from '../components/ui';
 import type { CrewTask, PlanSummary } from '../types';
 import { Shell } from './Plan';
+import { statusLabel, tl } from '../i18n';
 
 const STATUS_TONE: Record<string, 'neutral' | 'green' | 'amber' | 'red' | 'blue'> = {
   sent: 'amber',
@@ -30,7 +31,7 @@ export default function TasksPage() {
   const act = async (t: CrewTask, action: string) => {
     let note: string | undefined;
     if (action === 'help' || action === 'cant') {
-      note = prompt(action === 'help' ? 'What do you need?' : "Why can't you do it?") ?? undefined;
+      note = prompt(action === 'help' ? tl('What do you need?') : tl("Why can't you do it?")) ?? undefined;
       if (!note) return;
     }
     await api(`/api/tasks/${t.id}/action`, { body: { action, note } }).catch((e) => alert(e.message));
@@ -38,16 +39,16 @@ export default function TasksPage() {
   };
 
   return (
-    <Shell title="Tasks">
+    <Shell title={tl("Tasks")}>
       <div className="space-y-6">
         <CrewPanel refreshKey={tick} />
 
         <section>
-          <h2 className="mb-2 text-sm font-semibold">Assigned to me</h2>
+          <h2 className="mb-2 text-sm font-semibold">{tl("Assigned to me")}</h2>
           {!mine ? (
             <Spinner className="h-5 w-5 text-ink-400" />
           ) : mine.length === 0 ? (
-            <p className="rounded-xl border border-ink-100 bg-white p-4 text-sm text-ink-400">No tasks assigned to you.</p>
+            <p className="rounded-xl border border-ink-100 bg-white p-4 text-sm text-ink-400">{tl("No tasks assigned to you.")}</p>
           ) : (
             <ul className="divide-y divide-ink-100 rounded-xl border border-ink-100 bg-white">
               {mine.map((t) => (
@@ -56,32 +57,32 @@ export default function TasksPage() {
                     <p className="text-sm font-medium">{t.title}</p>
                     <p className="text-xs text-ink-600">{t.description}</p>
                     <p className="mt-0.5 text-[11px] text-ink-400">
-                      From {t.requester_name} · {t.plan_title}
+                      {tl("From")} {t.requester_name} · {t.plan_title}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
-                    <Badge tone={STATUS_TONE[t.status] ?? 'neutral'}>{t.status.replace('_', ' ')}</Badge>
-                    {t.due_date && <Badge>due {t.due_date}</Badge>}
+                    <Badge tone={STATUS_TONE[t.status] ?? 'neutral'}>{statusLabel(t.status)}</Badge>
+                    {t.due_date && <Badge>{tl("due")} {t.due_date}</Badge>}
                     {t.status === 'sent' && (
                       <Button size="sm" variant="primary" onClick={() => act(t, 'accept')}>
-                        Accept
+                        {tl("Accept")}
                       </Button>
                     )}
                     {['sent', 'accepted'].includes(t.status) && (
                       <Button size="sm" onClick={() => act(t, 'start')}>
-                        Start
+                        {tl("Start")}
                       </Button>
                     )}
                     {['sent', 'accepted', 'in_progress', 'blocked'].includes(t.status) && (
                       <>
                         <Button size="sm" onClick={() => act(t, 'done')}>
-                          Mark done
+                          {tl("Mark done")}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => act(t, 'help')}>
-                          Need help
+                          {tl("Need help")}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => act(t, 'cant')}>
-                          Can't do
+                          {tl("Can't do")}
                         </Button>
                       </>
                     )}
@@ -93,12 +94,12 @@ export default function TasksPage() {
         </section>
 
         <section>
-          <h2 className="mb-2 text-sm font-semibold">Action plans I started</h2>
+          <h2 className="mb-2 text-sm font-semibold">{tl("Action plans I started")}</h2>
           {!plans ? (
             <Spinner className="h-5 w-5 text-ink-400" />
           ) : plans.length === 0 ? (
             <p className="rounded-xl border border-ink-100 bg-white p-4 text-sm text-ink-400">
-              None yet. Open a council verdict and press <strong>Put into action</strong>.
+              {tl("None yet. Open a council verdict and press")} <strong>{tl("Put into action")}</strong>.
             </p>
           ) : (
             <ul className="grid gap-2 md:grid-cols-2">
@@ -112,8 +113,8 @@ export default function TasksPage() {
                         <div className="h-full bg-accent-500" style={{ width: `${pct}%` }} />
                       </div>
                       <p className="mt-1 text-[11px] text-ink-400">
-                        {p.status === 'ready' ? 'awaiting your approval' : p.status} · {p.done}/{p.total} done
-                        {p.overdue ? ` · ${p.overdue} overdue` : ''}
+                        {statusLabel(p.status)} · {p.done}/{p.total} {tl("done")}
+                        {p.overdue ? ` · ${tl('{n} overdue', { n: p.overdue })}` : ''}
                       </p>
                     </Link>
                   </li>

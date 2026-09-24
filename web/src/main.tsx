@@ -1,7 +1,8 @@
-import { StrictMode } from 'react';
+import { Fragment, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
+import { useLang } from './i18n';
 import { Spinner } from './components/ui';
 import './index.css';
 import Admin from './pages/Admin';
@@ -14,6 +15,7 @@ import { Toaster } from './toast';
 
 function Root() {
   const { me, loading } = useAuth();
+  const lang = useLang();
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-ink-400">
@@ -21,9 +23,9 @@ function Root() {
       </div>
     );
   }
-  if (!me) return <Login />;
+  if (!me) return <Login key={lang} />;
   return (
-    <>
+    <Fragment key={lang}>
       <Routes>
         <Route path="/" element={<Chat />} />
         <Route path="/c/:id" element={<Chat />} />
@@ -34,7 +36,7 @@ function Root() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
       <Toaster />
-    </>
+    </Fragment>
   );
 }
 

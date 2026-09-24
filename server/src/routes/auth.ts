@@ -60,6 +60,12 @@ export default async function authRoutes(app: FastifyInstance) {
     };
   });
 
+  app.patch('/api/auth/locale', { preHandler: app.authenticate }, async (req) => {
+    const { locale } = z.object({ locale: z.enum(['en', 'ms']) }).parse(req.body);
+    await query('UPDATE users SET locale = $2 WHERE id = $1', [req.user.id, locale]);
+    return { ok: true };
+  });
+
   app.post('/api/auth/password', { preHandler: app.authenticate }, async (req, reply) => {
     const body = ChangePassword.parse(req.body);
     const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);

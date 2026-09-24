@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { CrewAgent } from '../types';
 import { cx } from './ui';
+import { tl } from '../i18n';
+
+/** Server status lines ("5 tasks planned") translated via a {n} template. */
+function crewLine(s: string) {
+  const m = /^(\d+) (.*)$/.exec(s);
+  return m ? tl(`{n} ${m[2]}`, { n: m[1] }) : tl(s);
+}
 
 const INITIALS: Record<string, string> = { dispatcher: 'D', herald: 'H', tracker: 'T', runner: 'R' };
 const TONE: Record<string, string> = {
@@ -30,9 +37,9 @@ export function CrewPanel({ refreshKey, compact = false }: { refreshKey?: unknow
   return (
     <div className={cx('rounded-xl border border-ink-100 bg-white', compact ? 'p-2' : 'p-3')}>
       <div className="mb-2 flex items-center justify-between px-1">
-        <p className="text-xs font-semibold text-ink-800">Action Crew</p>
+        <p className="text-xs font-semibold text-ink-800">{tl("Action Crew")}</p>
         <p className="flex items-center gap-1.5 text-[11px] text-ink-400">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {agents.length} online
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {agents.length} {tl("online")}
         </p>
       </div>
       <ul className={cx('grid gap-1.5', compact ? 'grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-4')}>
@@ -44,7 +51,7 @@ export function CrewPanel({ refreshKey, compact = false }: { refreshKey?: unknow
             </span>
             <span className="min-w-0">
               <span className="block truncate text-xs font-semibold text-ink-900">{a.name}</span>
-              <span className="block truncate text-[11px] text-ink-600">{a.status}</span>
+              <span className="block truncate text-[11px] text-ink-600">{crewLine(a.status)}</span>
             </span>
           </li>
         ))}

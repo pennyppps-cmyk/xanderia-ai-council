@@ -8,6 +8,8 @@ import { Sidebar } from '../components/Sidebar';
 import { cx, Icon, Spinner } from '../components/ui';
 import type { ConversationSummary, Message, Mode } from '../types';
 import { useUserEvents } from '../useUserEvents';
+import { tl } from '../i18n';
+
 
 const EXAMPLES = [
   { mode: 'council' as Mode, text: 'We want to send collections reminders on day 2 instead of day 5 and add WhatsApp. Should we, and how do we roll it out?' },
@@ -103,13 +105,13 @@ export default function Chat() {
       {drawer && (
         <div className="fixed inset-0 z-40 flex md:hidden">
           <Sidebar conversations={conversations} query={query} onQuery={setQuery} onChanged={loadList} onNavigate={() => setDrawer(false)} pulse={pulse} />
-          <button className="flex-1 bg-black/40" aria-label="Close menu" onClick={() => setDrawer(false)} />
+          <button className="flex-1 bg-black/40" aria-label={tl("Close menu")} onClick={() => setDrawer(false)} />
         </div>
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-2 border-b border-ink-100 bg-white px-3 py-2 md:hidden">
-          <button onClick={() => setDrawer(true)} className="rounded-md p-1.5 text-ink-600 hover:bg-ink-100" aria-label="Menu">
+          <button onClick={() => setDrawer(true)} className="rounded-md p-1.5 text-ink-600 hover:bg-ink-100" aria-label={tl("Menu")}>
             <Icon name="menu" className="h-5 w-5" />
           </button>
           <span className="truncate text-sm font-semibold">
@@ -122,21 +124,20 @@ export default function Chat() {
             {empty ? (
               <div className="text-center">
                 <h1 className="text-2xl font-semibold text-ink-900">
-                  Selamat datang{me ? `, ${me.user.display_name.split(' ')[0]}` : ''}.
+                  {tl("Selamat datang")}{me ? `, ${me.user.display_name.split(' ')[0]}` : ''}.
                 </h1>
                 <p className="mx-auto mt-2 max-w-lg text-sm text-ink-600">
-                  Ask a quick question, or bring a plan or decision to the council: six advisors with different
-                  mandates weigh in, and the Chairman returns one verdict with an action plan.
+                  {tl("Ask a quick question, or bring a plan or decision to the council: six advisors with different mandates weigh in, and the Chairman returns one verdict with an action plan.")}
                 </p>
                 <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
                   {EXAMPLES.map((e) => (
                     <button
                       key={e.text}
-                      onClick={() => composer.current?.setText(e.text)}
+                      onClick={() => composer.current?.setText(tl(e.text))}
                       className="rounded-xl border border-ink-100 bg-white p-3 text-sm text-ink-700 shadow-sm hover:border-accent-500"
                     >
                       <span className="mb-1 block text-[11px] font-semibold tracking-wide text-accent-700 uppercase">{e.mode}</span>
-                      {e.text}
+                      {tl(e.text)}
                     </button>
                   ))}
                 </div>
@@ -165,7 +166,7 @@ export default function Chat() {
                       onFollowUp={(t, mode) => composer.current?.setText(t, mode)}
                       onSkipClarify={() =>
                         send({
-                          content: 'Skip: please go ahead with your stated assumptions.',
+                          content: tl('Skip: please go ahead with your stated assumptions.'),
                           mode: 'council',
                           departmentId: m.department_id ?? undefined,
                           skipClarify: true,
@@ -193,12 +194,11 @@ export default function Chat() {
               ref={composer}
               busy={sending}
               defaultDepartmentId={convDept}
-              placeholder={awaitingAnswers ? "Answer the council's questions here (all in one message), or press Skip above…" : undefined}
+              placeholder={awaitingAnswers ? tl("Answer the council's questions here (all in one message), or press Skip above…") : undefined}
               onSend={send}
             />
             <p className="mt-2 text-center text-[11px] text-ink-400">
-              Advisory output only. Final decisions sit with the responsible staff and management. Legal and finance
-              answers must be reviewed before acting.
+              {tl("Advisory output only. Final decisions sit with the responsible staff and management. Legal and finance answers must be reviewed before acting.")}
             </p>
           </div>
         </div>

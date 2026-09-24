@@ -3,8 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import type { ConversationSummary } from '../types';
+import { LanguageToggle } from './LanguageToggle';
 import { NotificationBell } from './Notifications';
 import { cx, Icon, Spinner } from './ui';
+import { tl } from '../i18n';
+
 
 interface Props {
   conversations: ConversationSummary[];
@@ -27,7 +30,7 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
     <aside className="flex h-full w-72 flex-col bg-ink-950 text-ink-100">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <img src="/favicon.svg" alt="" className="h-7 w-7" />
-        <span className="font-semibold text-white">Xanderia AI Council</span>
+        <span className="font-semibold text-white">{tl("Xanderia AI Council")}</span>
       </div>
       <div className="space-y-2 px-3">
         <button
@@ -37,33 +40,36 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
           }}
           className="flex w-full items-center gap-2 rounded-lg border border-ink-800 px-3 py-2 text-sm font-medium text-white hover:bg-ink-900"
         >
-          <Icon name="plus" /> New question
+          <Icon name="plus" /> {tl("New question")}
         </button>
         <div className="relative">
           <Icon name="search" className="absolute top-2.5 left-2.5 h-4 w-4 text-ink-400" />
           <input
             value={query}
             onChange={(e) => onQuery(e.target.value)}
-            placeholder="Search history"
+            placeholder={tl("Search history")}
             className="w-full rounded-lg bg-ink-900 py-2 pr-3 pl-8 text-sm text-white placeholder:text-ink-400 focus:ring-1 focus:ring-accent-500 focus:outline-none"
           />
         </div>
       </div>
 
       <nav className="mt-3 flex-1 space-y-4 overflow-y-auto px-2 pb-4">
-        {pinned.length > 0 && <Group title="Pinned" items={pinned} activeId={activeId} onChanged={onChanged} onNavigate={onNavigate} />}
-        <Group title={query ? 'Results' : 'Recent'} items={recent} activeId={activeId} onChanged={onChanged} onNavigate={onNavigate} />
+        {pinned.length > 0 && <Group title={tl("Pinned")} items={pinned} activeId={activeId} onChanged={onChanged} onNavigate={onNavigate} />}
+        <Group title={query ? tl('Results') : tl('Recent')} items={recent} activeId={activeId} onChanged={onChanged} onNavigate={onNavigate} />
         {conversations.length === 0 && (
-          <p className="px-3 text-xs text-ink-400">{query ? 'No matches.' : 'Your conversations will appear here.'}</p>
+          <p className="px-3 text-xs text-ink-400">{query ? tl('No matches.') : tl('Your conversations will appear here.')}</p>
         )}
       </nav>
 
       <div className="border-t border-ink-900 p-3">
-        <div className="mb-2 px-1">
+        <div className="mb-2 flex items-start justify-between gap-2 px-1">
+          <div className="min-w-0">
           <p className="truncate text-sm font-medium text-white">{me?.user.display_name}</p>
           <p className="truncate text-xs text-ink-400">
             {me?.department.name} · {me?.user.role.replace('_', ' ')}
           </p>
+          </div>
+          <LanguageToggle dark />
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <NotificationBell pulse={pulse} />
@@ -72,7 +78,7 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
             onClick={onNavigate}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
           >
-            <Icon name="reply" className="h-3.5 w-3.5 -scale-x-100" /> Tasks
+            <Icon name="reply" className="h-3.5 w-3.5 -scale-x-100" /> {tl("Tasks")}
           </Link>
           {me && me.user.role !== 'employee' && (
             <Link
@@ -80,25 +86,25 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
               onClick={onNavigate}
               className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
             >
-              <Icon name="settings" className="h-3.5 w-3.5" /> {me.user.role === 'admin' ? 'Admin' : 'Knowledge'}
+              <Icon name="settings" className="h-3.5 w-3.5" /> {me.user.role === 'admin' ? tl('Admin') : tl('Knowledge')}
             </Link>
           )}
           <button
             onClick={async () => {
-              if (!confirm('Permanently delete ALL of your conversations? This cannot be undone.')) return;
+              if (!confirm(tl('Permanently delete ALL of your conversations? This cannot be undone.'))) return;
               await api('/api/conversations', { method: 'DELETE' });
               navigate('/');
               onChanged();
             }}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
           >
-            <Icon name="trash" className="h-3.5 w-3.5" /> Delete history
+            <Icon name="trash" className="h-3.5 w-3.5" /> {tl("Delete history")}
           </button>
           <button
             onClick={logout}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
           >
-            <Icon name="logout" className="h-3.5 w-3.5" /> Sign out
+            <Icon name="logout" className="h-3.5 w-3.5" /> {tl("Sign out")}
           </button>
         </div>
       </div>
@@ -174,9 +180,9 @@ function Item({ c, active, onChanged, onNavigate }: { c: ConversationSummary; ac
       )}
       {!editing && (
         <span className="hidden shrink-0 gap-0.5 group-hover:flex">
-          <IconBtn title="Rename" icon="edit" onClick={() => setEditing(true)} />
+          <IconBtn title={tl("Rename")} icon="edit" onClick={() => setEditing(true)} />
           <IconBtn
-            title={c.pinned ? 'Unpin' : 'Pin'}
+            title={c.pinned ? tl('Unpin') : tl('Pin')}
             icon="pin"
             onClick={async () => {
               await api(`/api/conversations/${c.id}`, { method: 'PATCH', body: { pinned: !c.pinned } });
@@ -184,10 +190,10 @@ function Item({ c, active, onChanged, onNavigate }: { c: ConversationSummary; ac
             }}
           />
           <IconBtn
-            title="Delete"
+            title={tl("Delete")}
             icon="trash"
             onClick={async () => {
-              if (!confirm(`Delete "${c.title}"?`)) return;
+              if (!confirm(tl('Delete "{title}"?', { title: c.title }))) return;
               await api(`/api/conversations/${c.id}`, { method: 'DELETE' });
               if (active) navigate('/');
               onChanged();

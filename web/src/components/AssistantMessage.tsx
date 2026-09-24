@@ -6,6 +6,8 @@ import type { Citation, ClarifyRequest, Level, Message, Mode, PlanSummary, Stanc
 import { useMessageStream, type LivePart, type LiveState } from '../useMessageStream';
 import { Markdown } from './Markdown';
 import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
+import { getLang, statusLabel, tl } from '../i18n';
+
 
 interface Props {
   message: Message;
@@ -42,10 +44,10 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onS
 
         {live.status === 'error' ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <p className="font-medium">This answer could not be completed.</p>
+            <p className="font-medium">{tl("This answer could not be completed.")}</p>
             <p className="mt-1 text-red-700">{live.error}</p>
             <Button size="sm" variant="danger" className="no-print mt-3" onClick={onRetry}>
-              <Icon name="retry" /> Try again
+              <Icon name="retry" /> {tl("Try again")}
             </Button>
           </div>
         ) : mode === 'clarify' && live.clarify ? (
@@ -71,24 +73,24 @@ function Header({ live, mode, message, reviewFlag }: { live: LiveState; mode: st
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
       <span className="font-semibold text-ink-800">
-        {mode === 'council' ? 'Council' : mode === 'quick' ? 'Quick answer' : mode === 'clarify' ? 'Council · before it meets' : 'Assistant'}
+        {mode === 'council' ? tl('Council') : mode === 'quick' ? tl('Quick answer') : mode === 'clarify' ? tl('Council · before it meets') : tl('Assistant')}
       </span>
       {live.router && (
         <span title={live.router.reason}>
           · {live.router.intent}
-          {live.router.source === 'fallback' && ' (heuristic)'}
+          {live.router.source === 'fallback' && ` (${tl('heuristic')})`}
         </span>
       )}
       {message.requested_mode === 'auto' && live.router && (
-        <Badge tone="blue" title="Mode chosen automatically by the router">auto → {live.router.suggested_mode}</Badge>
+        <Badge tone="blue" title={tl("Mode chosen automatically by the router")}>{tl("auto →")} {live.router.suggested_mode}</Badge>
       )}
       {!message.cloud_used && (
-        <Badge tone="green" title="Every model call for this answer ran on Xanderia's own servers">
-          <Icon name="shield" className="h-3 w-3" /> Processed on-premises
+        <Badge tone="green" title={tl("Every model call for this answer ran on Xanderia's own servers")}>
+          <Icon name="shield" className="h-3 w-3" /> {tl("Processed on-premises")}
         </Badge>
       )}
-      {live.router?.sensitivity === 'high' && <Badge tone="amber">Sensitive: kept local</Badge>}
-      {reviewFlag && <Badge tone="red">Review before acting</Badge>}
+      {live.router?.sensitivity === 'high' && <Badge tone="amber">{tl("Sensitive: kept local")}</Badge>}
+      {reviewFlag && <Badge tone="red">{tl("Review before acting")}</Badge>}
     </div>
   );
 }
@@ -106,10 +108,10 @@ function QuickView({ live, text }: { live: LiveState; text: string }) {
 function Waiting({ live }: { live: LiveState }) {
   const label =
     live.status === 'queued' || live.position
-      ? `Queued${live.position ? ` · position ${live.position}` : ''}. The model is busy with other requests.`
+      ? `${tl('Queued')}${live.position ? ` · ${tl('position {n}', { n: live.position })}` : ''}. ${tl('The model is busy with other requests.')}`
       : live.stage === 'router'
-        ? 'Reading your question…'
-        : 'Thinking…';
+        ? tl('Reading your question…')
+        : tl('Thinking…');
   return (
     <div className="flex items-center gap-2 rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-600 shadow-sm">
       <Spinner className="h-4 w-4 text-accent-600" /> {label}
@@ -148,14 +150,14 @@ function ProgressStrip({ live, peerReview }: { live: LiveState; peerReview: bool
               )}
             >
               {state === 'active' && <Spinner className="h-3 w-3" />}
-              {s.label}
+              {tl(s.label)}
               {s.key === 'stage1' && count(opinions)}
               {s.key === 'stage2' && count(reviews)}
             </span>
           </li>
         );
       })}
-      {live.position ? <span className="ml-2 text-ink-400">queued · position {live.position}</span> : null}
+      {live.position ? <span className="ml-2 text-ink-400">{tl("queued · position")} {live.position}</span> : null}
     </ol>
   );
 }
@@ -165,7 +167,7 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
   const opinions = Object.values(live.parts).filter((p) => p.stage === 1);
   const reviews = Object.values(live.parts).filter((p) => p.stage === 2);
   const chairman = live.parts.chairman;
-  const name = (key: string) => personas[key]?.name ?? key;
+  const name = (key: string) => (getLang() === 'ms' && personas[key]?.name_ms) || personas[key]?.name || key;
   const peerReview = Boolean(message.options?.peerReview) || reviews.length > 0;
   const running = live.status !== 'done';
 
@@ -178,22 +180,22 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
       ) : live.raw ? (
         <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
           <p className="mb-2 text-xs font-medium text-amber-700">
-            The Chairman's answer did not match the structured format, so it is shown as plain text.
+            {tl("The Chairman's answer did not match the structured format, so it is shown as plain text.")}
           </p>
           <Markdown text={live.raw} />
         </div>
       ) : running ? (
         live.stage === 'stage3' ? (
           <div className="flex items-center gap-2 rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-600 shadow-sm">
-            <Spinner className="h-4 w-4 text-accent-600" /> The Chairman is weighing the opinions and writing the verdict
-            {chairman?.text ? ` · ${Math.round(chairman.text.length / 4)} tokens` : ''}…
+            <Spinner className="h-4 w-4 text-accent-600" /> {tl("The Chairman is weighing the opinions and writing the verdict")}
+            {chairman?.text ? ` · ${tl('{n} tokens', { n: Math.round(chairman.text.length / 4) })}` : ''}…
           </div>
         ) : opinions.some((p) => p.text) ? (
           <div className="flex items-center gap-2 rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-600 shadow-sm">
             <Spinner className="h-4 w-4 text-accent-600" />
             {live.stage === 'stage2'
-              ? 'Advisors are reviewing each other’s answers anonymously…'
-              : `The advisors are giving their opinions (${opinions.filter((p) => p.done).length}/${opinions.length} done). The verdict appears here when the Chairman has decided.`}
+              ? tl('Advisors are reviewing each other’s answers anonymously…')
+              : tl('The advisors are giving their opinions ({done}/{total} done). The verdict appears here when the Chairman has decided.', { done: opinions.filter((p) => p.done).length, total: opinions.length })}
           </div>
         ) : (
           <Waiting live={live} />
@@ -201,7 +203,7 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
       ) : null}
 
       {opinions.length > 0 && (
-        <Section title={`Advisor opinions (${opinions.length})`} defaultOpen={running}>
+        <Section title={tl('Advisor opinions ({n})', { n: opinions.length })} defaultOpen={running}>
           <StanceSummary opinions={opinions} />
           <div className="grid items-start gap-2 lg:grid-cols-2">
             {opinions.map((p) => (
@@ -213,7 +215,7 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
                 status={p.error ? 'error' : p.done ? 'done' : p.text ? 'streaming' : 'waiting'}
                 defaultOpen={running && !p.done && Boolean(p.text)}
               >
-                {p.error ? <p className="text-sm text-red-700">Unavailable: {p.error}</p> : <Markdown text={p.text} />}
+                {p.error ? <p className="text-sm text-red-700">{tl("Unavailable:")} {p.error}</p> : <Markdown text={p.text} />}
               </Collapsible>
             ))}
           </div>
@@ -221,12 +223,12 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
       )}
 
       {reviews.length > 0 && (
-        <Section title="Peer reviews (anonymised)">
+        <Section title={tl("Peer reviews (anonymised)")}>
           <div className="space-y-2">
             {reviews.map((p) => (
               <Collapsible
                 key={p.part}
-                title={`Review by ${name(p.persona)}`}
+                title={tl('Review by {name}', { name: name(p.persona) })}
                 status={p.error ? 'error' : p.done ? 'done' : 'waiting'}
               >
                 <ReviewBody part={p} name={name} />
@@ -248,7 +250,7 @@ function ReviewBody({ part, name }: { part: LivePart; name: (k: string) => strin
           <li key={key}>
             <span className="font-medium">{name(key)}</span>{' '}
             <Badge tone={s.score >= 4 ? 'green' : s.score <= 2 ? 'red' : 'neutral'}>{s.score}/5</Badge>
-            <span className="text-ink-600"> · biggest flaw: {s.flaw}</span>
+            <span className="text-ink-600"> {tl("· biggest flaw:")} {s.flaw}</span>
           </li>
         ))}
       </ul>
@@ -264,18 +266,18 @@ function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(
     <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm">
       <div className="border-b border-ink-100 bg-ink-900 px-5 py-4 text-white">
         <div className="mb-1 flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold tracking-wider text-accent-100 uppercase">Chairman's verdict</span>
-          <Badge tone={CONFIDENCE_TONE[v.confidence.level]}>Confidence: {v.confidence.level}</Badge>
+          <span className="text-[11px] font-semibold tracking-wider text-accent-100 uppercase">{tl("Chairman's verdict")}</span>
+          <Badge tone={CONFIDENCE_TONE[v.confidence.level]}>{tl("Confidence:")} {v.confidence.level}</Badge>
         </div>
         <p className="text-base leading-relaxed font-medium">{v.verdict}</p>
       </div>
       <div className="space-y-5 px-5 py-4 text-sm text-ink-800">
-        <Block title="Why">
+        <Block title={tl("Why")}>
           <p className="leading-relaxed">{v.why}</p>
         </Block>
 
         {v.conflicts.length > 0 && (
-          <Block title="Disagreements resolved">
+          <Block title={tl("Disagreements resolved")}>
             <ul className="space-y-2">
               {v.conflicts.map((c, i) => (
                 <li key={i} className="rounded-lg bg-ink-50 p-3">
@@ -289,8 +291,8 @@ function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(
                     </p>
                   </div>
                   <p className="mt-2">
-                    <span className="font-semibold text-accent-700">Decision:</span> {c.decision}{' '}
-                    <span className="font-semibold text-ink-700">Because:</span>{' '}
+                    <span className="font-semibold text-accent-700">{tl("Decision:")}</span> {c.decision}{' '}
+                    <span className="font-semibold text-ink-700">{tl("Because:")}</span>{' '}
                     <span className="text-ink-600">{c.because.replace(/^because\s+/i, '')}</span>
                   </p>
                 </li>
@@ -299,15 +301,15 @@ function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(
           </Block>
         )}
 
-        <Block title="Action plan">
+        <Block title={tl("Action plan")}>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-ink-400">
                 <tr>
                   <th className="w-6 py-1 pr-2 font-medium">#</th>
-                  <th className="py-1 pr-3 font-medium">Step</th>
-                  <th className="py-1 pr-3 font-medium">Owner</th>
-                  <th className="py-1 font-medium">When</th>
+                  <th className="py-1 pr-3 font-medium">{tl("Step")}</th>
+                  <th className="py-1 pr-3 font-medium">{tl("Owner")}</th>
+                  <th className="py-1 font-medium">{tl("When")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
@@ -325,7 +327,7 @@ function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(
         </Block>
 
         {v.risks.length > 0 && (
-          <Block title="Key risks & mitigations">
+          <Block title={tl("Key risks & mitigations")}>
             <ul className="space-y-1.5">
               {v.risks.map((r, i) => (
                 <li key={i} className="flex gap-2">
@@ -342,28 +344,28 @@ function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(
         )}
 
         {v.open_questions.length > 0 && (
-          <Block title="Open questions">
+          <Block title={tl("Open questions")}>
             <ul className="space-y-1.5">
               {v.open_questions.map((q, i) => (
                 <li key={i}>
                   <button
                     className="no-print group flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left text-ink-700 hover:bg-accent-50"
-                    title="Answer this and the council will reconsider"
-                    onClick={() => onFollowUp(`Answer to the council's open question "${q}":\n`, 'council')}
+                    title={tl("Answer this and the council will reconsider")}
+                    onClick={() => onFollowUp(tl('Answer to the council\'s open question "{q}":', { q }) + '\n', 'council')}
                   >
                     <Icon name="reply" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-600" />
                     <span className="flex-1">{q}</span>
-                    <span className="hidden text-xs font-medium text-accent-700 group-hover:inline">Answer</span>
+                    <span className="hidden text-xs font-medium text-accent-700 group-hover:inline">{tl("Answer")}</span>
                   </button>
                 </li>
               ))}
             </ul>
-            <p className="mt-1 px-2 text-xs text-ink-400">Click a question to answer it; the council will reconsider with your answer.</p>
+            <p className="mt-1 px-2 text-xs text-ink-400">{tl("Click a question to answer it; the council will reconsider with your answer.")}</p>
           </Block>
         )}
 
         <div className="rounded-lg border border-ink-100 bg-ink-50 px-3 py-2 text-xs text-ink-600">
-          <span className="font-semibold text-ink-800">What would change this recommendation:</span>{' '}
+          <span className="font-semibold text-ink-800">{tl("What would change this recommendation:")}</span>{' '}
           {v.confidence.what_would_change}
         </div>
       </div>
@@ -417,7 +419,7 @@ function Collapsible({
           {subtitle && <span className="block truncate text-xs text-ink-400">{subtitle}</span>}
         </span>
         {badge}
-        {status === 'waiting' && <span className="text-xs text-ink-400">waiting</span>}
+        {status === 'waiting' && <span className="text-xs text-ink-400">{tl("waiting")}</span>}
         {status === 'streaming' && <Spinner className="h-3.5 w-3.5 text-accent-600" />}
         {status === 'done' && !badge && <span className="h-2 w-2 rounded-full bg-accent-500" />}
         {status === 'error' && <span className="h-2 w-2 rounded-full bg-red-500" />}
@@ -430,7 +432,7 @@ function Collapsible({
 function Citations({ citations }: { citations: Citation[] }) {
   return (
     <div className="rounded-xl border border-ink-100 bg-white px-3 py-2 text-xs">
-      <p className="mb-1 font-semibold text-ink-600">Sources from the knowledge base</p>
+      <p className="mb-1 font-semibold text-ink-600">{tl("Sources from the knowledge base")}</p>
       <ul className="space-y-0.5 text-ink-600">
         {citations.map((c) => (
           <li key={c.id}>
@@ -476,23 +478,23 @@ function Actions({
             setTimeout(() => setCopied(false), 1500);
           }}
         >
-          <Icon name="copy" className="h-3.5 w-3.5" /> {copied ? 'Copied' : 'Copy'}
+          <Icon name="copy" className="h-3.5 w-3.5" /> {copied ? tl('Copied') : tl('Copy')}
         </Button>
         <a
           href={`/api/messages/${message.id}/report.pdf`}
           download
-          title={verdict ? 'Council report with analytics: stances, risk heat map, timeline' : 'Download this answer as a PDF'}
+          title={verdict ? tl('Council report with analytics: stances, risk heat map, timeline') : tl('Download this answer as a PDF')}
           className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900"
         >
-          <Icon name="print" className="h-3.5 w-3.5" /> {verdict ? 'Download report (PDF)' : 'Export PDF'}
+          <Icon name="print" className="h-3.5 w-3.5" /> {verdict ? tl('Download report (PDF)') : tl('Export PDF')}
         </a>
         <ShareButton messageId={message.id} />
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => onFollowUp(verdict ? `Follow-up on the verdict ("${verdict.verdict.slice(0, 80)}…"): ` : '')}
+          onClick={() => onFollowUp(verdict ? tl('Follow-up on the verdict ("{v}…"): ', { v: verdict.verdict.slice(0, 80) }) : '')}
         >
-          <Icon name="reply" className="h-3.5 w-3.5" /> Ask a follow-up
+          <Icon name="reply" className="h-3.5 w-3.5" /> {tl("Ask a follow-up")}
         </Button>
         <span className="mx-1 h-4 w-px bg-ink-200" />
         <Button
@@ -501,7 +503,7 @@ function Actions({
           aria-pressed={rating === 1}
           className={cx(rating === 1 && 'text-accent-700')}
           onClick={() => rate(1)}
-          title="Helpful"
+          title={tl("Helpful")}
         >
           <Icon name="up" className="h-3.5 w-3.5" />
         </Button>
@@ -514,7 +516,7 @@ function Actions({
             void rate(-1);
             setCommenting(true);
           }}
-          title="Not helpful"
+          title={tl("Not helpful")}
         >
           <Icon name="down" className="h-3.5 w-3.5" />
         </Button>
@@ -531,11 +533,11 @@ function Actions({
           <input
             autoFocus
             className="flex-1 rounded-lg border border-ink-200 px-3 py-1.5 text-sm focus:border-accent-600 focus:outline-none"
-            placeholder="What was wrong or missing? (optional)"
+            placeholder={tl("What was wrong or missing? (optional)")}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
-          <Button size="sm" variant="primary">Send</Button>
+          <Button size="sm" variant="primary">{tl("Send")}</Button>
         </form>
       )}
     </div>
@@ -554,8 +556,8 @@ const STANCE_STYLE: Record<Stance['value'], { label: string; cls: string }> = {
 function StanceBadge({ stance }: { stance: Stance }) {
   const s = STANCE_STYLE[stance.value];
   return (
-    <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1', s.cls)} title="The advisor's own declared stance and conviction">
-      {s.label}
+    <span className={cx('shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1', s.cls)} title={tl("The advisor's own declared stance and conviction")}>
+      {tl(s.label)}
       {stance.strength ? ` ${stance.strength}/5` : ''}
     </span>
   );
@@ -578,7 +580,7 @@ function StanceSummary({ opinions }: { opinions: LivePart[] }) {
         {order
           .map((v) => [v, stances.filter((s) => s.value === v).length] as const)
           .filter(([, n]) => n)
-          .map(([v, n]) => `${n} ${STANCE_STYLE[v].label.toLowerCase()}`)
+          .map(([v, n]) => `${n} ${tl(STANCE_STYLE[v].label).toLowerCase()}`)
           .join(' · ')}
       </p>
     </div>
@@ -590,8 +592,8 @@ const LEVEL_RANK: Record<Level, number> = { low: 0, medium: 1, high: 2 };
 function RiskBadge({ likelihood, impact }: { likelihood: Level; impact: Level }) {
   const sev = LEVEL_RANK[likelihood] + LEVEL_RANK[impact];
   return (
-    <Badge tone={sev >= 3 ? 'red' : sev === 2 ? 'amber' : 'green'} title="Likelihood · Impact, as rated by the Chairman">
-      L {likelihood} · I {impact}
+    <Badge tone={sev >= 3 ? 'red' : sev === 2 ? 'amber' : 'green'} title={tl("Likelihood · Impact, as rated by the Chairman")}>
+      {tl('L')} {tl(likelihood)} · {tl('I')} {tl(impact)}
     </Badge>
   );
 }
@@ -608,7 +610,7 @@ function ClarifyView({
   const template = clarify.questions.map((q, i) => `${i + 1}. ${q}\n→ `).join('\n');
   return (
     <div className="rounded-2xl border border-accent-100 bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-ink-900">Before the council meets, a few questions so the advice fits your situation:</p>
+      <p className="text-sm font-medium text-ink-900">{tl("Before the council meets, a few questions so the advice fits your situation:")}</p>
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink-800">
         {clarify.questions.map((q, i) => (
           <li key={i}>{q}</li>
@@ -616,7 +618,7 @@ function ClarifyView({
       </ol>
       {clarify.assumptions.length > 0 && (
         <div className="mt-3 rounded-lg bg-ink-50 px-3 py-2 text-xs text-ink-600">
-          <span className="font-semibold text-ink-800">If you skip, the council will assume:</span>
+          <span className="font-semibold text-ink-800">{tl("If you skip, the council will assume:")}</span>
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
             {clarify.assumptions.map((a, i) => (
               <li key={i}>{a}</li>
@@ -626,10 +628,10 @@ function ClarifyView({
       )}
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" variant="primary" onClick={() => onAnswer(template, 'council')}>
-          <Icon name="reply" className="h-3.5 w-3.5" /> Answer the questions
+          <Icon name="reply" className="h-3.5 w-3.5" /> {tl("Answer the questions")}
         </Button>
         <Button size="sm" onClick={onSkip}>
-          Skip: go ahead with these assumptions
+          {tl("Skip: go ahead with these assumptions")}
         </Button>
       </div>
     </div>
@@ -658,10 +660,10 @@ function PutIntoAction({ messageId }: { messageId: string }) {
         className="no-print block w-full rounded-xl border border-ink-100 bg-white p-3 text-left hover:border-accent-500"
       >
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-ink-800">Action plan</span>
+          <span className="font-semibold text-ink-800">{tl("Action plan")}</span>
           <span className="text-ink-400">
-            {plan.status === 'planning' ? 'planning…' : plan.status === 'ready' ? 'awaiting your approval' : `${plan.done}/${plan.total} done`}
-            {plan.overdue ? ` · ${plan.overdue} overdue` : ''}
+            {plan.status === 'planning' ? tl('planning…') : plan.status === 'ready' ? statusLabel('ready') : tl('{done}/{total} done', { done: plan.done, total: plan.total })}
+            {plan.overdue ? ` · ${tl('{n} overdue', { n: plan.overdue })}` : ''}
           </span>
         </div>
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100">
@@ -673,9 +675,9 @@ function PutIntoAction({ messageId }: { messageId: string }) {
   return (
     <div className="no-print flex flex-wrap items-center gap-3 rounded-xl border border-accent-100 bg-accent-50/60 p-3">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink-900">Put this verdict into action</p>
+        <p className="text-sm font-semibold text-ink-900">{tl("Put this verdict into action")}</p>
         <p className="text-xs text-ink-600">
-          The Action Crew turns the plan into tasks, finds owners in the staff directory and drafts the emails. You approve before anything is sent.
+          {tl("The Action Crew turns the plan into tasks, finds owners in the staff directory and drafts the emails. You approve before anything is sent.")}
         </p>
         {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
       </div>
@@ -695,7 +697,7 @@ function PutIntoAction({ messageId }: { messageId: string }) {
           }
         }}
       >
-        {busy ? <Spinner className="h-3.5 w-3.5" /> : <Icon name="send" className="h-3.5 w-3.5" />} Put into action
+        {busy ? <Spinner className="h-3.5 w-3.5" /> : <Icon name="send" className="h-3.5 w-3.5" />} {tl("Put into action")}
       </Button>
     </div>
   );
@@ -709,7 +711,7 @@ function ShareButton({ messageId }: { messageId: string }) {
     <Button
       size="sm"
       variant="ghost"
-      title="Copy a read-only link for a colleague (they must be signed in)"
+      title={tl("Copy a read-only link for a colleague (they must be signed in)")}
       onClick={async () => {
         try {
           const r = await api<{ path: string }>(`/api/messages/${messageId}/share`, { method: 'POST' });
@@ -721,7 +723,7 @@ function ShareButton({ messageId }: { messageId: string }) {
         setTimeout(() => setState('idle'), 2000);
       }}
     >
-      <Icon name="reply" className="h-3.5 w-3.5 -scale-x-100" /> {state === 'copied' ? 'Link copied' : state === 'error' ? 'Could not share' : 'Share'}
+      <Icon name="reply" className="h-3.5 w-3.5 -scale-x-100" /> {state === 'copied' ? tl('Link copied') : state === 'error' ? tl('Could not share') : tl('Share')}
     </Button>
   );
 }

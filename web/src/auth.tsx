@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api';
+import { setLang } from './i18n';
 import type { Department, Me, Persona } from './types';
 
 interface AuthState {
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const m = await api<Me>('/api/auth/me');
+      if (m.user.locale === 'en' || m.user.locale === 'ms') setLang(m.user.locale);
       setMe(m);
       const [d, p] = await Promise.all([api<Department[]>('/api/departments'), api<Persona[]>('/api/personas')]);
       setDepartments(d);

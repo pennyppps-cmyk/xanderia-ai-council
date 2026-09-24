@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Person } from '../types';
 import { cx } from './ui';
+import { tl } from '../i18n';
 
 /** Choose a task owner from the staff directory only (candidates first, then search). */
 export function OwnerPicker({
@@ -55,7 +56,7 @@ export function OwnerPicker({
             </span>
           </>
         ) : (
-          <span className="text-amber-800">{candidates.length ? `Choose owner (${candidates.length} match)` : 'Unassigned: choose owner'}</span>
+          <span className="text-amber-800">{candidates.length ? tl('Choose owner ({n} match)', { n: candidates.length }) : tl('Unassigned: choose owner')}</span>
         )}
       </button>
       {open && (
@@ -64,7 +65,7 @@ export function OwnerPicker({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, position or department"
+            placeholder={tl("Search name, position or department")}
             className="mb-1 w-full rounded-md border border-ink-200 px-2 py-1 text-sm focus:border-accent-600 focus:outline-none"
           />
           <ul className="max-h-60 overflow-y-auto">
@@ -79,7 +80,7 @@ export function OwnerPicker({
                   className="w-full rounded-md px-2 py-1.5 text-left hover:bg-ink-50"
                 >
                   <span className="block text-sm font-medium">
-                    {p.name} {candidates.some((c) => c.id === p.id) && <span className="text-xs text-accent-700">· suggested</span>}
+                    {p.name} {candidates.some((c) => c.id === p.id) && <span className="text-xs text-accent-700">{tl("· suggested")}</span>}
                   </span>
                   <span className="block text-xs text-ink-400">
                     {p.position}
@@ -88,7 +89,7 @@ export function OwnerPicker({
                 </button>
               </li>
             ))}
-            {!list.length && <li className="px-2 py-2 text-xs text-ink-400">No one found. Ask an admin to add them to the staff directory.</li>}
+            {!list.length && <li className="px-2 py-2 text-xs text-ink-400">{tl("No one found. Ask an admin to add them to the staff directory.")}</li>}
           </ul>
         </div>
       )}

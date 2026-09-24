@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { tl } from './i18n';
 import { toast } from './toast';
 
 /**
@@ -28,13 +29,13 @@ export function useUserEvents(activeConversationId: string | undefined, onAnyCha
       const elsewhere = e.conversationId !== activeRef.current;
       if (elsewhere) {
         toast({
-          title: e.mode === 'council' ? 'Council verdict ready' : 'Answer ready',
+          title: e.mode === 'council' ? tl('Council verdict ready') : tl('Answer ready'),
           body: e.title,
           href: `/c/${e.conversationId}`,
         });
       }
       if ((elsewhere || document.hidden) && 'Notification' in window && Notification.permission === 'granted') {
-        const n = new Notification(e.mode === 'council' ? 'Council verdict ready' : 'Answer ready', {
+        const n = new Notification(e.mode === 'council' ? tl('Council verdict ready') : tl('Answer ready'), {
           body: e.title,
           icon: '/favicon.svg',
           tag: e.messageId,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Badge, Button, cx, Field, inputCls, Spinner } from '../components/ui';
+import { tl } from '../i18n';
 
 function Card({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
   return (
@@ -43,7 +44,7 @@ export function DirectoryAdmin() {
     setMsg(null);
     try {
       const r = await api<{ imported: number; skipped: string[] }>('/api/admin/directory/import', { body: { csv: await file.text() } });
-      setMsg({ ok: true, text: `Imported ${r.imported} people${r.skipped.length ? `; skipped ${r.skipped.length} row(s) with missing name, position or email` : ''}.` });
+      setMsg({ ok: true, text: tl('Imported {n} people', { n: r.imported }) + (r.skipped.length ? `; ${tl('skipped {n} row(s) with missing name, position or email', { n: r.skipped.length })}` : '') + '.' });
       load();
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
@@ -75,36 +76,36 @@ export function DirectoryAdmin() {
 
   return (
     <Card
-      title={`Staff directory${rows ? ` (${rows.filter((r) => r.is_active).length} active)` : ''}`}
+      title={`${tl('Staff directory')}${rows ? ` (${tl('{n} active', { n: rows.filter((r) => r.is_active).length })})` : ''}`}
       actions={
         <div className="flex gap-2">
           <label className="inline-flex cursor-pointer items-center rounded-lg border border-ink-200 px-2.5 py-1 text-xs font-medium hover:bg-ink-50">
-            Import CSV
+            {tl("Import CSV")}
             <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
           </label>
           <Button size="sm" variant="primary" onClick={() => setEditing({ is_active: true })}>
-            Add person
+            {tl("Add person")}
           </Button>
         </div>
       }
     >
       <p className="mb-3 text-xs text-ink-400">
-        The Action Crew only assigns tasks and sends emails to people in this directory. CSV columns (from an HR export):{' '}
-        <code>name, position, department, email, manager_email</code>. Re-importing updates people by email.
+        {tl("The Action Crew only assigns tasks and sends emails to people in this directory. CSV columns (from an HR export):")}{' '}
+        <code>name, position, department, email, manager_email</code>{tl(". Re-importing updates people by email.")}
       </p>
       {msg && <p className={cx('mb-3 rounded-lg px-3 py-2 text-sm', msg.ok ? 'bg-accent-50 text-accent-700' : 'bg-red-50 text-red-700')}>{msg.text}</p>}
       {editing && (
         <div className="mb-4 grid gap-3 rounded-lg border border-accent-100 bg-accent-50/50 p-4 sm:grid-cols-3">
-          <Field label="Name">
+          <Field label={tl("Name")}>
             <input className={inputCls} value={editing.name ?? ''} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
           </Field>
-          <Field label="Position">
+          <Field label={tl("Position")}>
             <input className={inputCls} value={editing.position ?? ''} onChange={(e) => setEditing({ ...editing, position: e.target.value })} />
           </Field>
-          <Field label="Work email">
+          <Field label={tl("Work email")}>
             <input className={inputCls} value={editing.email ?? ''} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
           </Field>
-          <Field label="Department">
+          <Field label={tl("Department")}>
             <select className={inputCls} value={editing.department_id ?? ''} onChange={(e) => setEditing({ ...editing, department_id: e.target.value || null })}>
               <option value="">—</option>
               {departments.map((d) => (
@@ -114,26 +115,26 @@ export function DirectoryAdmin() {
               ))}
             </select>
           </Field>
-          <Field label="Manager's email" hint="Used only for escalations the requester approves">
+          <Field label={tl("Manager's email")} hint={tl("Used only for escalations the requester approves")}>
             <input className={inputCls} value={editing.manager_email ?? ''} onChange={(e) => setEditing({ ...editing, manager_email: e.target.value })} />
           </Field>
           {editing.id && (
             <label className="flex items-center gap-2 self-end pb-2 text-sm">
               <input type="checkbox" className="accent-accent-600" checked={editing.is_active ?? true} onChange={(e) => setEditing({ ...editing, is_active: e.target.checked })} />
-              Active
+              {tl("Active")}
             </label>
           )}
           <div className="flex gap-2 sm:col-span-3">
             <Button size="sm" variant="primary" onClick={save}>
-              Save
+              {tl("Save")}
             </Button>
             <Button size="sm" onClick={() => setEditing(null)}>
-              Cancel
+              {tl("Cancel")}
             </Button>
           </div>
         </div>
       )}
-      <input className={cx(inputCls, 'mb-3')} placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      <input className={cx(inputCls, 'mb-3')} placeholder={tl("Filter")} value={filter} onChange={(e) => setFilter(e.target.value)} />
       {!rows ? (
         <Spinner className="h-5 w-5 text-ink-400" />
       ) : (
@@ -141,10 +142,10 @@ export function DirectoryAdmin() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink-100 text-left text-xs text-ink-400">
-                <th className="px-3 py-2 font-medium">Name</th>
-                <th className="px-3 py-2 font-medium">Position</th>
-                <th className="px-3 py-2 font-medium">Department</th>
-                <th className="px-3 py-2 font-medium">Manager</th>
+                <th className="px-3 py-2 font-medium">{tl("Name")}</th>
+                <th className="px-3 py-2 font-medium">{tl("Position")}</th>
+                <th className="px-3 py-2 font-medium">{tl("Department")}</th>
+                <th className="px-3 py-2 font-medium">{tl("Manager")}</th>
                 <th />
               </tr>
             </thead>
@@ -160,7 +161,7 @@ export function DirectoryAdmin() {
                   <td className="px-3 py-2 text-xs text-ink-600">{r.manager_email ?? '—'}</td>
                   <td className="px-3 py-2">
                     <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
-                      Edit
+                      {tl("Edit")}
                     </Button>
                   </td>
                 </tr>
@@ -168,7 +169,7 @@ export function DirectoryAdmin() {
               {!shown.length && (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-sm text-ink-400">
-                    No one yet. Import the HR export or add people one by one.
+                    {tl("No one yet. Import the HR export or add people one by one.")}
                   </td>
                 </tr>
               )}
@@ -217,7 +218,7 @@ export function CrewAdmin() {
           crew_timings: timings,
         },
       });
-      setSaved('Saved');
+      setSaved(tl('Saved'));
     } catch (e) {
       setSaved((e as Error).message);
     }
@@ -225,30 +226,30 @@ export function CrewAdmin() {
 
   return (
     <>
-      <Card title="Action Crew" actions={saved && <span className="text-xs text-accent-700">{saved}</span>}>
+      <Card title={tl("Action Crew")} actions={saved && <span className="text-xs text-accent-700">{saved}</span>}>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Agent names" hint="Shown in the crew panel">
+          <Field label={tl("Agent names")} hint={tl("Shown in the crew panel")}>
             <div className="grid grid-cols-2 gap-2">
               {(['dispatcher', 'herald', 'tracker', 'runner'] as const).map((k) => (
                 <input key={k} className={inputCls} value={names[k] ?? ''} onChange={(e) => set('crew_names', { ...names, [k]: e.target.value })} />
               ))}
             </div>
           </Field>
-          <Field label="Allowed email domains" hint="Comma-separated. Emails to any other domain are blocked.">
+          <Field label={tl("Allowed email domains")} hint={tl("Comma-separated. Emails to any other domain are blocked.")}>
             <input
               className={inputCls}
               value={(s.crew_email_domains ?? []).join(', ')}
               onChange={(e) => set('crew_email_domains', e.target.value.split(',').map((x) => x.trim()).filter(Boolean))}
             />
           </Field>
-          <Field label="Business hours (KL time)" hint="No emails are sent outside these hours">
+          <Field label={tl("Business hours (KL time)")} hint={tl("No emails are sent outside these hours")}>
             <div className="flex items-center gap-2">
               <input type="number" min={0} max={23} className={inputCls} value={s.crew_business_hours?.start ?? 9} onChange={(e) => set('crew_business_hours', { ...s.crew_business_hours, start: Number(e.target.value) })} />
-              <span className="text-ink-400">to</span>
+              <span className="text-ink-400">{tl("to")}</span>
               <input type="number" min={1} max={24} className={inputCls} value={s.crew_business_hours?.end ?? 18} onChange={(e) => set('crew_business_hours', { ...s.crew_business_hours, end: Number(e.target.value) })} />
             </div>
           </Field>
-          <Field label="Weekend" hint="Kedah, Kelantan and Terengganu use Fri + Sat">
+          <Field label={tl("Weekend")} hint={tl("Kedah, Kelantan and Terengganu use Fri + Sat")}>
             <div className="flex flex-wrap gap-2">
               {DAYS.map((d, i) => (
                 <label key={d} className="inline-flex items-center gap-1 text-sm">
@@ -258,37 +259,37 @@ export function CrewAdmin() {
                     checked={(s.crew_weekend ?? [0, 6]).includes(i)}
                     onChange={(e) => set('crew_weekend', e.target.checked ? [...(s.crew_weekend ?? []), i] : (s.crew_weekend ?? []).filter((x: number) => x !== i))}
                   />
-                  {d}
+                  {tl(d)}
                 </label>
               ))}
             </div>
           </Field>
-          <Field label="Reminder if not acknowledged after (working days)">
+          <Field label={tl("Reminder if not acknowledged after (working days)")}>
             <input type="number" min={1} className={inputCls} value={timings.ackReminderDays ?? 1} onChange={(e) => set('crew_timings', { ...timings, ackReminderDays: Number(e.target.value) })} />
           </Field>
-          <Field label="Reminder before the due date (working days)">
+          <Field label={tl("Reminder before the due date (working days)")}>
             <input type="number" min={0} className={inputCls} value={timings.dueReminderDaysBefore ?? 1} onChange={(e) => set('crew_timings', { ...timings, dueReminderDaysBefore: Number(e.target.value) })} />
           </Field>
-          <Field label="Propose manager escalation after overdue (working days)">
+          <Field label={tl("Propose manager escalation after overdue (working days)")}>
             <input type="number" min={1} className={inputCls} value={timings.escalateAfterDays ?? 3} onChange={(e) => set('crew_timings', { ...timings, escalateAfterDays: Number(e.target.value) })} />
           </Field>
           <label className="flex items-center gap-2 self-end pb-2 text-sm">
             <input type="checkbox" className="accent-accent-600" checked={timings.escalationEnabled ?? true} onChange={(e) => set('crew_timings', { ...timings, escalationEnabled: e.target.checked })} />
-            Allow manager escalation (always needs the requester's approval)
+            {tl("Allow manager escalation (always needs the requester's approval)")}
           </label>
         </div>
         <div className="mt-4">
           <Button size="sm" variant="primary" onClick={save}>
-            Save crew settings
+            {tl("Save crew settings")}
           </Button>
         </div>
       </Card>
 
-      <Card title="Public holidays">
-        <p className="mb-3 text-xs text-ink-400">No emails are sent, and no working days are counted, on these dates. Add national and state holidays (Hari Raya, CNY, Deepavali…) each year.</p>
+      <Card title={tl("Public holidays")}>
+        <p className="mb-3 text-xs text-ink-400">{tl("No emails are sent, and no working days are counted, on these dates. Add national and state holidays (Hari Raya, CNY, Deepavali…) each year.")}</p>
         <div className="mb-3 flex flex-wrap gap-2">
           <input type="date" className={cx(inputCls, 'w-44')} value={newHoliday.date} onChange={(e) => setNewHoliday({ ...newHoliday, date: e.target.value })} />
-          <input className={cx(inputCls, 'w-64')} placeholder="Name, e.g. Hari Kebangsaan" value={newHoliday.name} onChange={(e) => setNewHoliday({ ...newHoliday, name: e.target.value })} />
+          <input className={cx(inputCls, 'w-64')} placeholder={tl("Name, e.g. Hari Kebangsaan")} value={newHoliday.name} onChange={(e) => setNewHoliday({ ...newHoliday, name: e.target.value })} />
           <Button
             size="sm"
             disabled={!newHoliday.date || !newHoliday.name}
@@ -298,7 +299,7 @@ export function CrewAdmin() {
               load();
             }}
           >
-            Add
+            {tl("Add")}
           </Button>
         </div>
         <ul className="divide-y divide-ink-100 text-sm">
@@ -308,28 +309,27 @@ export function CrewAdmin() {
                 <span className="font-mono text-xs text-ink-400">{h.date}</span> {h.name}
               </span>
               <Button size="sm" variant="ghost" onClick={async () => (await api(`/api/admin/holidays/${h.date}`, { method: 'DELETE' }), load())}>
-                Remove
+                {tl("Remove")}
               </Button>
             </li>
           ))}
-          {!holidays.length && <li className="py-2 text-xs text-ink-400">No holidays configured.</li>}
+          {!holidays.length && <li className="py-2 text-xs text-ink-400">{tl("No holidays configured.")}</li>}
         </ul>
       </Card>
 
       <Card
-        title="Email outbox"
+        title={tl("Email outbox")}
         actions={
           outbox && (
             <Badge tone={outbox.provider === 'outbox' ? 'amber' : 'green'}>
-              {outbox.provider === 'outbox' ? 'Record-only: emails are not sent' : `Sending via ${outbox.provider}`}
+              {outbox.provider === 'outbox' ? tl('Record-only: emails are not sent') : tl('Sending via {p}', { p: outbox.provider })}
             </Badge>
           )
         }
       >
         {outbox?.provider === 'outbox' && (
           <p className="mb-3 text-xs text-ink-400">
-            To send real email, set <code>MAIL_PROVIDER=smtp</code> (with SMTP_HOST, SMTP_USER, SMTP_PASS) or <code>MAIL_PROVIDER=n8n</code> (with N8N_MAIL_WEBHOOK_URL) in
-            .env and restart.
+            {tl("To send real email, set")} <code>MAIL_PROVIDER=smtp</code> {tl("(with SMTP_HOST, SMTP_USER, SMTP_PASS) or")} <code>MAIL_PROVIDER=n8n</code> {tl("(with N8N_MAIL_WEBHOOK_URL) in .env and restart.")}
           </p>
         )}
         <ul className="divide-y divide-ink-100 text-sm">
@@ -350,7 +350,7 @@ export function CrewAdmin() {
               )}
             </li>
           ))}
-          {outbox && !outbox.emails.length && <li className="py-2 text-xs text-ink-400">No emails yet.</li>}
+          {outbox && !outbox.emails.length && <li className="py-2 text-xs text-ink-400">{tl("No emails yet.")}</li>}
         </ul>
       </Card>
     </>

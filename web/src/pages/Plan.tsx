@@ -3,9 +3,11 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { CrewPanel } from '../components/CrewPanel';
 import { Markdown } from '../components/Markdown';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { OwnerPicker } from '../components/OwnerPicker';
 import { Badge, Button, cx, Icon, Spinner } from '../components/ui';
 import type { CrewTask, Person, PlanSummary } from '../types';
+import { statusLabel, tl } from '../i18n';
 
 interface PlanData {
   plan: PlanSummary & { requester_id: string };
@@ -75,8 +77,8 @@ export default function PlanPage() {
   const drafts = useMemo(() => data?.tasks.filter((t) => t.status === 'draft') ?? [], [data]);
   const board = useMemo(() => data?.tasks.filter((t) => t.status !== 'draft' && t.status !== 'cancelled') ?? [], [data]);
 
-  if (error) return <Shell title="Action plan"><p className="text-sm text-red-700">{error}</p></Shell>;
-  if (!data) return <Shell title="Action plan"><Spinner className="h-5 w-5 text-ink-400" /></Shell>;
+  if (error) return <Shell title={tl("Action plan")}><p className="text-sm text-red-700">{error}</p></Shell>;
+  if (!data) return <Shell title={tl("Action plan")}><Spinner className="h-5 w-5 text-ink-400" /></Shell>;
   const { plan } = data;
   const pct = plan.total ? Math.round((plan.done / plan.total) * 100) : 0;
 
@@ -97,10 +99,10 @@ export default function PlanPage() {
       });
       const r = await api<{ queued: number; blocked: number; agentTasks: string[] }>(`/api/plans/${id}/launch`, { body: { tasks } });
       setFlash(
-        `${r.queued} email${r.queued === 1 ? '' : 's'} queued` +
-          (r.blocked ? `, ${r.blocked} blocked (recipient outside the allowed email domains)` : '') +
-          (r.agentTasks.length ? `, ${r.agentTasks.length} task${r.agentTasks.length === 1 ? '' : 's'} handed to the Runner` : '') +
-          '. Emails go out during business hours.',
+        tl('{n} email(s) queued', { n: r.queued }) +
+          (r.blocked ? `, ${tl('{n} blocked (recipient outside the allowed email domains)', { n: r.blocked })}` : '') +
+          (r.agentTasks.length ? `, ${tl('{n} task(s) handed to the Runner', { n: r.agentTasks.length })}` : '') +
+          `. ${tl('Emails go out during business hours.')}`,
       );
       setTick((n) => n + 1);
     } catch (e) {
@@ -118,7 +120,7 @@ export default function PlanPage() {
       back={`/c/${plan.conversation_id}`}
       right={
         <Badge tone={plan.status === 'done' ? 'green' : plan.status === 'error' ? 'red' : plan.status === 'launched' ? 'blue' : 'neutral'}>
-          {plan.status === 'ready' ? 'awaiting your approval' : plan.status}
+          {statusLabel(plan.status)}
         </Badge>
       }
     >
@@ -129,7 +131,7 @@ export default function PlanPage() {
           <div>
             <div className="mb-1 flex justify-between text-xs text-ink-600">
               <span>
-                {plan.done} of {plan.total} tasks done{plan.overdue ? ` · ${plan.overdue} overdue` : ''}
+                {plan.done} {tl("of")} {plan.total} {tl("tasks done")}{plan.overdue ? ` · ${tl('{n} overdue', { n: plan.overdue })}` : ''}
               </span>
               <span>{pct}%</span>
             </div>
@@ -141,13 +143,13 @@ export default function PlanPage() {
 
         {plan.status === 'planning' && (
           <div className="flex items-center gap-2 rounded-xl border border-ink-100 bg-white p-4 text-sm text-ink-600">
-            <Spinner className="h-4 w-4 text-accent-600" /> The Dispatcher is turning the verdict into tasks and the Herald is drafting emails. This takes about a minute.
+            <Spinner className="h-4 w-4 text-accent-600" /> {tl("The Dispatcher is turning the verdict into tasks and the Herald is drafting emails. This takes about a minute.")}
           </div>
         )}
 
         {plan.status === 'error' && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-            <p className="font-medium">Planning failed.</p>
+            <p className="font-medium">{tl("Planning failed.")}</p>
             <p className="mt-1">{plan.error}</p>
             <Button
               size="sm"
@@ -158,7 +160,7 @@ export default function PlanPage() {
                 window.location.assign(`/plans/${r.id}`);
               }}
             >
-              <Icon name="retry" /> Try again
+              <Icon name="retry" /> {tl("Try again")}
             </Button>
           </div>
         )}
@@ -169,17 +171,17 @@ export default function PlanPage() {
           <section className="rounded-xl border border-ink-100 bg-white">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-4 py-3">
               <div>
-                <h2 className="text-sm font-semibold">Launch plan</h2>
+                <h2 className="text-sm font-semibold">{tl("Launch plan")}</h2>
                 <p className="text-xs text-ink-400">
-                  Check owners, dates and emails. Nothing is sent until you approve. Emails go only to staff in the directory, during business hours.
+                  {tl("Check owners, dates and emails. Nothing is sent until you approve. Emails go only to staff in the directory, during business hours.")}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" disabled={busy} onClick={() => launch(true)}>
-                  Send approved
+                  {tl("Send approved")}
                 </Button>
                 <Button size="sm" variant="primary" disabled={busy} onClick={() => launch(false)}>
-                  {busy && <Spinner className="h-3.5 w-3.5" />} Approve &amp; send all
+                  {busy && <Spinner className="h-3.5 w-3.5" />} {tl("Approve & send all")}
                 </Button>
               </div>
             </div>
@@ -193,14 +195,14 @@ export default function PlanPage() {
 
         {board.length > 0 && (
           <section>
-            <h2 className="mb-2 text-sm font-semibold">Task board</h2>
+            <h2 className="mb-2 text-sm font-semibold">{tl("Task board")}</h2>
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
               {COLUMNS.map((col) => {
                 const items = board.filter((t) => col.statuses.includes(t.status));
                 return (
                   <div key={col.key} className="rounded-xl bg-ink-100/60 p-2">
                     <p className="mb-2 px-1 text-xs font-semibold text-ink-600">
-                      {col.label} <span className="font-normal text-ink-400">{items.length}</span>
+                      {tl(col.label)} <span className="font-normal text-ink-400">{items.length}</span>
                     </p>
                     <div className="space-y-2">
                       {items.map((t) => (
@@ -216,7 +218,7 @@ export default function PlanPage() {
 
         <p className="text-center text-[11px] text-ink-400">
           <Link to="/tasks" className="underline">
-            All my plans and tasks
+            {tl("All my plans and tasks")}
           </Link>
         </p>
       </div>
@@ -236,18 +238,18 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
         </p>
         <p className="text-xs text-ink-600">{t.description}</p>
         <p className="mt-1 text-[11px] text-ink-400">
-          Suggested owner: {t.owner_role}
-          {t.depends_on.length > 0 && ` · after step ${t.depends_on.join(', ')}`}
+          {tl("Suggested owner:")} {t.owner_role}
+          {t.depends_on.length > 0 && ` · ${tl('after step {n}', { n: t.depends_on.join(', ') })}`}
         </p>
         {!isAgent && (
           <button className="mt-1 text-xs font-medium text-accent-700 hover:underline" onClick={() => setShowEmail((s) => !s)}>
-            {showEmail ? 'Hide email' : 'Preview / edit email'}
+            {showEmail ? tl('Hide email') : tl('Preview / edit email')}
           </button>
         )}
         {showEmail && !isAgent && (
           <div className="mt-2 rounded-lg border border-ink-100 bg-ink-50 p-2">
             <p className="mb-1 text-xs text-ink-600">
-              <span className="font-semibold">Subject:</span> {t.email_subject}
+              <span className="font-semibold">{tl("Subject:")}</span> {t.email_subject}
             </p>
             <textarea
               value={edit.email_body}
@@ -255,7 +257,7 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
               rows={6}
               className="w-full rounded-md border border-ink-200 bg-white p-2 text-sm focus:border-accent-600 focus:outline-none"
             />
-            <p className="text-[11px] text-ink-400">Accept / Need help / Mark done / Can't do buttons and the task details are added automatically. Personal data is removed before sending.</p>
+            <p className="text-[11px] text-ink-400">{tl("Accept / Need help / Mark done / Can't do buttons and the task details are added automatically. Personal data is removed before sending.")}</p>
           </div>
         )}
       </div>
@@ -267,18 +269,18 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
               onClick={() => onChange({ owner_type: k, approved: k === 'agent' ? true : Boolean(edit.owner) })}
               className={cx('rounded px-2 py-0.5 font-medium', edit.owner_type === k ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600')}
             >
-              {k === 'human' ? 'Person' : 'AI Runner drafts it'}
+              {k === 'human' ? tl('Person') : tl('AI Runner drafts it')}
             </button>
           ))}
         </div>
         {isAgent ? (
-          <p className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">The Runner writes a draft for you to review. Nothing is sent.</p>
+          <p className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">{tl("The Runner writes a draft for you to review. Nothing is sent.")}</p>
         ) : (
           <OwnerPicker value={edit.owner} candidates={t.candidates} onChange={(p) => onChange({ owner: p, approved: true })} />
         )}
       </div>
       <label className="text-xs text-ink-600">
-        Due
+        {tl("Due")}
         <input
           type="date"
           value={edit.due_date ?? ''}
@@ -287,7 +289,7 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
           className="mt-0.5 block w-full rounded-lg border border-ink-200 px-2 py-1.5 text-sm"
         />
       </label>
-      <label className="flex items-center gap-2 self-center text-sm" title={!isAgent && !edit.owner ? 'Choose an owner first' : undefined}>
+      <label className="flex items-center gap-2 self-center text-sm" title={!isAgent && !edit.owner ? tl('Choose an owner first') : undefined}>
         <input
           type="checkbox"
           className="accent-accent-600"
@@ -295,7 +297,7 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
           checked={edit.approved && (isAgent || Boolean(edit.owner))}
           onChange={(e) => onChange({ approved: e.target.checked })}
         />
-        Approve
+        {tl("Approve")}
       </label>
     </li>
   );
@@ -322,17 +324,17 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
     <div className={cx('rounded-lg border bg-white p-2.5 text-sm shadow-sm', overdue ? 'border-red-200' : 'border-ink-100')}>
       <p className="font-medium text-ink-900">{t.title}</p>
       <p className="mt-0.5 text-xs text-ink-600">
-        {t.owner_type === 'agent' ? 'AI Runner' : t.owner_name ?? 'Unassigned'}
+        {t.owner_type === 'agent' ? tl('AI Runner') : t.owner_name ?? tl('Unassigned')}
         {t.owner_position ? ` · ${t.owner_position}` : ''}
       </p>
       <div className="mt-1 flex flex-wrap gap-1">
-        {t.due_date && <Badge tone={overdue ? 'red' : 'neutral'}>due {t.due_date}</Badge>}
-        {t.status === 'cant_do' && <Badge tone="red">can't do</Badge>}
-        {t.status === 'review' && <Badge tone="green">draft ready</Badge>}
-        {t.status === 'running' && <Badge tone="blue">Runner drafting…</Badge>}
+        {t.due_date && <Badge tone={overdue ? 'red' : 'neutral'}>{tl("due")} {t.due_date}</Badge>}
+        {t.status === 'cant_do' && <Badge tone="red">{tl("can't do")}</Badge>}
+        {t.status === 'review' && <Badge tone="green">{tl("draft ready")}</Badge>}
+        {t.status === 'running' && <Badge tone="blue">{tl("Runner drafting…")}</Badge>}
         {lastEmail && t.owner_type === 'human' && (
-          <Badge tone={lastEmail.status === 'blocked' || lastEmail.status === 'failed' ? 'red' : 'neutral'} title={`Last email to ${lastEmail.to}`}>
-            {lastEmail.kind} email {lastEmail.status === 'queued' ? 'queued' : lastEmail.status === 'logged' ? 'in outbox' : lastEmail.status}
+          <Badge tone={lastEmail.status === 'blocked' || lastEmail.status === 'failed' ? 'red' : 'neutral'} title={tl('Last email to {to}', { to: lastEmail.to })}>
+            {tl(`${lastEmail.kind} email`)} {lastEmail.status === 'queued' ? tl('queued') : lastEmail.status === 'logged' ? tl('in outbox') : tl(lastEmail.status)}
           </Badge>
         )}
       </div>
@@ -340,13 +342,13 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
 
       {t.escalation_state === 'pending' && (
         <div className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-800">
-          Overdue. Escalate to {t.owner_name}'s manager ({t.manager_email})?
+          {tl("Overdue. Escalate to {name}'s manager ({email})?", { name: t.owner_name ?? '', email: t.manager_email ?? '' })}
           <div className="mt-1 flex gap-1">
             <Button size="sm" variant="danger" onClick={() => act(`/api/tasks/${t.id}/escalation`, { approve: true })}>
-              Escalate
+              {tl("Escalate")}
             </Button>
             <Button size="sm" onClick={() => act(`/api/tasks/${t.id}/escalation`, { approve: false })}>
-              Not now
+              {tl("Not now")}
             </Button>
           </div>
         </div>
@@ -355,7 +357,7 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
       {t.status === 'review' && (
         <div className="mt-2">
           <button className="text-xs font-medium text-accent-700 hover:underline" onClick={() => setShowDraft((s) => !s)}>
-            {showDraft ? 'Hide draft' : 'Review draft'}
+            {showDraft ? tl('Hide draft') : tl('Review draft')}
           </button>
           {showDraft && (
             <div className="mt-1 max-h-72 overflow-y-auto rounded border border-ink-100 bg-ink-50 p-2">
@@ -369,33 +371,33 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
         {t.status === 'review' && (
           <>
             <Button size="sm" variant="primary" onClick={() => act(`/api/tasks/${t.id}/action`, { action: 'approve_draft' })}>
-              Approve draft
+              {tl("Approve draft")}
             </Button>
             <Button size="sm" onClick={() => navigator.clipboard.writeText(t.agent_output ?? '')}>
-              <Icon name="copy" className="h-3 w-3" /> Copy
+              <Icon name="copy" className="h-3 w-3" /> {tl("Copy")}
             </Button>
           </>
         )}
         {t.owner_type === 'human' && ['sent', 'accepted', 'in_progress', 'blocked'].includes(t.status) && (
           <>
             <Button size="sm" variant="ghost" onClick={() => act(`/api/tasks/${t.id}/follow-up`, { kind: 'remind' })}>
-              Send reminder
+              {tl("Send reminder")}
             </Button>
             {overdue && (
               <Button size="sm" variant="ghost" onClick={() => act(`/api/tasks/${t.id}/follow-up`, { kind: 'snooze' })}>
-                Snooze 2 days
+                {tl("Snooze 2 days")}
               </Button>
             )}
           </>
         )}
         {t.owner_type === 'human' && t.status !== 'done' && (
           <Button size="sm" variant="ghost" onClick={() => setReassign((r) => !r)}>
-            Reassign
+            {tl("Reassign")}
           </Button>
         )}
         {t.status !== 'done' && (
-          <Button size="sm" variant="ghost" onClick={() => confirm(`Cancel "${t.title}"?`) && act(`/api/tasks/${t.id}/action`, { action: 'cancel' })}>
-            Cancel
+          <Button size="sm" variant="ghost" onClick={() => confirm(tl('Cancel "{title}"?', { title: t.title })) && act(`/api/tasks/${t.id}/action`, { action: 'cancel' })}>
+            {tl("Cancel")}
           </Button>
         )}
       </div>
@@ -415,7 +417,7 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
               }
             }}
           />
-          <p className="mt-1 text-[11px] text-ink-400">The task goes back to “Launch plan” so you can approve the new email.</p>
+          <p className="mt-1 text-[11px] text-ink-400">{tl("The task goes back to “Launch plan” so you can approve the new email.")}</p>
         </div>
       )}
       {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
@@ -428,10 +430,11 @@ export function Shell({ title, back = '/', right, children }: { title: string; b
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-ink-100 bg-white px-4 py-3">
         <Link to={back} className="inline-flex shrink-0 items-center gap-1 text-sm text-ink-600 hover:text-ink-900">
-          <Icon name="chevron" className="h-4 w-4 rotate-180" /> Back
+          <Icon name="chevron" className="h-4 w-4 rotate-180" /> {tl("Back")}
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h1>
         {right}
+        <LanguageToggle />
       </header>
       <main className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-6xl">{children}</div>

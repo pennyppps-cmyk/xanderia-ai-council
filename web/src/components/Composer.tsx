@@ -2,6 +2,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { useAuth } from '../auth';
 import type { Mode } from '../types';
 import { cx, Icon, Spinner } from './ui';
+import { getLang, tl } from '../i18n';
+
 
 export interface ComposerHandle {
   /** Prefill the box (and optionally switch mode), e.g. for follow-ups or answering the council. */
@@ -80,11 +82,11 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
             void submit();
           }
         }}
-        placeholder={placeholder ?? 'Ask a question, or bring a plan or decision for the council… (English or Bahasa Malaysia)'}
+        placeholder={placeholder ?? tl('Ask a question, or bring a plan or decision for the council… (English or Bahasa Malaysia)')}
         className="block w-full resize-none rounded-t-2xl bg-transparent px-4 pt-3 pb-1 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
       />
       <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
-        <div className="inline-flex rounded-lg bg-ink-100 p-0.5" role="radiogroup" aria-label="Mode">
+        <div className="inline-flex rounded-lg bg-ink-100 p-0.5" role="radiogroup" aria-label={tl("Mode")}>
           {MODES.map((m) => {
             const disabled = m.key === 'council' && !me?.canUseCouncil;
             return (
@@ -92,7 +94,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
                 key={m.key}
                 role="radio"
                 aria-checked={effectiveMode === m.key}
-                title={disabled ? 'Council mode is not enabled for your role yet' : m.hint}
+                title={disabled ? tl('Council mode is not enabled for your role yet') : tl(m.hint)}
                 disabled={disabled}
                 onClick={() => setMode(m.key)}
                 className={cx(
@@ -100,7 +102,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
                   effectiveMode === m.key ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-600 hover:text-ink-900',
                 )}
               >
-                {m.label}
+                {tl(m.label)}
               </button>
             );
           })}
@@ -109,12 +111,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
         <select
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
-          title="Which department's advisor should answer"
+          title={tl("Which department's advisor should answer")}
           className="max-w-44 rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs text-ink-700 focus:border-accent-600 focus:outline-none"
         >
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.id === me?.user.department_id ? `${d.name} (mine)` : d.name}
+              {(getLang() === 'ms' && d.name_ms) || d.name}{d.id === me?.user.department_id ? ` (${tl('mine')})` : ''}
             </option>
           ))}
         </select>
@@ -122,7 +124,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
         {effectiveMode !== 'quick' && (
           <label
             className="inline-flex items-center gap-1.5 text-xs text-ink-600"
-            title="Advisors anonymously critique each other before the Chairman decides. Adds about a minute."
+            title={tl("Advisors anonymously critique each other before the Chairman decides. Adds about a minute.")}
           >
             <input
               type="checkbox"
@@ -130,7 +132,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
               onChange={(e) => setPeerReview(e.target.checked)}
               className="accent-accent-600"
             />
-            Peer review
+            {tl("Peer review")}
           </label>
         )}
 
@@ -138,7 +140,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
           onClick={submit}
           disabled={!text.trim() || busy}
           className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg bg-ink-900 text-white hover:bg-ink-800 disabled:opacity-30"
-          aria-label="Send"
+          aria-label={tl("Send")}
         >
           {busy ? <Spinner /> : <Icon name="send" />}
         </button>

@@ -5,6 +5,9 @@ import { useAuth } from '../auth';
 import { Badge, Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
 import type { Department } from '../types';
 import { CrewAdmin, DirectoryAdmin } from './AdminCrew';
+import { LanguageToggle } from '../components/LanguageToggle';
+import { tl } from '../i18n';
+
 
 const TABS = [
   { path: 'overview', label: 'Overview', admin: true },
@@ -27,9 +30,10 @@ export default function Admin() {
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-ink-100 bg-white px-4 py-3">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-ink-600 hover:text-ink-900">
-          <Icon name="chevron" className="h-4 w-4 rotate-180" /> Back to chat
+          <Icon name="chevron" className="h-4 w-4 rotate-180" /> {tl("Back to chat")}
         </Link>
-        <h1 className="text-sm font-semibold">{isAdmin ? 'Administration' : 'Knowledge base'}</h1>
+        <h1 className="flex-1 text-sm font-semibold">{isAdmin ? tl('Administration') : tl('Knowledge base')}</h1>
+        <LanguageToggle />
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-ink-100 bg-white p-2 md:w-52 md:flex-col md:border-r md:border-b-0">
@@ -44,7 +48,7 @@ export default function Admin() {
                 )
               }
             >
-              {t.label}
+              {tl(t.label)}
             </NavLink>
           ))}
         </nav>
@@ -110,7 +114,7 @@ function Loading({ error }: { error?: string | null }) {
 
 function Saved({ at }: { at: number | null }) {
   if (!at) return null;
-  return <span className="text-xs text-accent-700">Saved</span>;
+  return <span className="text-xs text-accent-700">{tl("Saved")}</span>;
 }
 
 const th = 'px-3 py-2 text-left text-xs font-medium text-ink-400';
@@ -124,45 +128,45 @@ function Overview() {
   const h = health.data;
   return (
     <>
-      <Card title="System health" actions={<Button size="sm" onClick={health.reload}>Refresh</Button>}>
+      <Card title={tl("System health")} actions={<Button size="sm" onClick={health.reload}>{tl("Refresh")}</Button>}>
         {!h ? (
           <Loading error={health.error} />
         ) : (
           <div className="grid gap-3 sm:grid-cols-3">
-            <HealthItem label="Database" ok={h.db.ok} detail={h.db.error} />
-            <HealthItem label="Redis / queue" ok={h.redis.ok} detail={h.redis.error} />
+            <HealthItem label={tl("Database")} ok={h.db.ok} detail={h.db.error} />
+            <HealthItem label={tl("Redis / queue")} ok={h.redis.ok} detail={h.redis.error} />
             <HealthItem
-              label="Ollama"
+              label={tl("Ollama")}
               ok={h.ollama.ok && !h.ollama.detail?.missing?.length}
               detail={
                 h.ollama.ok
                   ? h.ollama.detail.missing.length
-                    ? `Missing models: ${h.ollama.detail.missing.join(', ')} (run: ollama pull …)`
-                    : `${h.ollama.detail.url} · ${h.ollama.detail.installed.length} models`
+                    ? tl('Missing models: {m} (run: ollama pull …)', { m: h.ollama.detail.missing.join(', ') })
+                    : `${h.ollama.detail.url} · ${tl('{n} models', { n: h.ollama.detail.installed.length })}`
                   : h.ollama.error
               }
             />
           </div>
         )}
       </Card>
-      <Card title="Last 30 days">
+      <Card title={tl("Last 30 days")}>
         {!stats.data ? (
           <Loading error={stats.error} />
         ) : (
           <div className="grid gap-6 md:grid-cols-3">
             <div>
-              <p className="mb-2 text-xs font-medium text-ink-400">Questions by department</p>
+              <p className="mb-2 text-xs font-medium text-ink-400">{tl("Questions by department")}</p>
               <ul className="space-y-1 text-sm">
                 {stats.data.byDepartment.map((d: any) => (
                   <li key={d.name} className="flex justify-between">
                     <span>{d.name}</span> <span className="font-medium tabular-nums">{d.questions}</span>
                   </li>
                 ))}
-                {!stats.data.byDepartment.length && <li className="text-ink-400">No questions yet</li>}
+                {!stats.data.byDepartment.length && <li className="text-ink-400">{tl("No questions yet")}</li>}
               </ul>
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium text-ink-400">Mode & latency</p>
+              <p className="mb-2 text-xs font-medium text-ink-400">{tl("Mode & latency")}</p>
               <ul className="space-y-1 text-sm">
                 {stats.data.modes.map((m: any) => {
                   const lat = stats.data.latency.find((l: any) => l.mode === m.mode);
@@ -171,7 +175,7 @@ function Overview() {
                       <span className="capitalize">{m.mode ?? 'pending'}</span>
                       <span className="tabular-nums">
                         {m.n}
-                        {lat && <span className="text-ink-400"> · avg {lat.avg_seconds}s, p90 {lat.p90_seconds}s</span>}
+                        {lat && <span className="text-ink-400"> {tl("· avg")} {lat.avg_seconds}s, p90 {lat.p90_seconds}s</span>}
                       </span>
                     </li>
                   );
@@ -179,7 +183,7 @@ function Overview() {
               </ul>
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium text-ink-400">Feedback</p>
+              <p className="mb-2 text-xs font-medium text-ink-400">{tl("Feedback")}</p>
               <p className="text-sm">
                 <span className="font-medium text-accent-700">👍 {stats.data.feedback.up}</span>
                 <span className="ml-4 font-medium text-red-700">👎 {stats.data.feedback.down}</span>
@@ -213,7 +217,7 @@ function Users() {
   const [editing, setEditing] = useState<any | null>(null);
   const deptName = (id: string) => departments.find((d) => d.id === id)?.name ?? '—';
   return (
-    <Card title="Users" actions={<Button size="sm" variant="primary" onClick={() => setAdding(true)}><Icon name="plus" className="h-3.5 w-3.5" /> Add user</Button>}>
+    <Card title={tl("Users")} actions={<Button size="sm" variant="primary" onClick={() => setAdding(true)}><Icon name="plus" className="h-3.5 w-3.5" /> {tl("Add user")}</Button>}>
       {adding && <UserForm onDone={() => { setAdding(false); users.reload(); }} />}
       {editing && <UserForm user={editing} onDone={() => { setEditing(null); users.reload(); }} />}
       {!users.data ? (
@@ -223,10 +227,10 @@ function Users() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink-100">
-                <th className={th}>Name</th>
-                <th className={th}>Department</th>
-                <th className={th}>Role</th>
-                <th className={th}>Last login</th>
+                <th className={th}>{tl("Name")}</th>
+                <th className={th}>{tl("Department")}</th>
+                <th className={th}>{tl("Role")}</th>
+                <th className={th}>{tl("Last login")}</th>
                 <th className={th} />
               </tr>
             </thead>
@@ -240,16 +244,16 @@ function Users() {
                   <td className={td}>
                     {deptName(u.department_id)}
                     {u.extra_departments.length > 0 && (
-                      <p className="text-xs text-ink-400">+ access: {u.extra_departments.map(deptName).join(', ')}</p>
+                      <p className="text-xs text-ink-400">{tl("+ access:")} {u.extra_departments.map(deptName).join(', ')}</p>
                     )}
                   </td>
                   <td className={td}>
                     <Badge tone={u.role === 'admin' ? 'blue' : 'neutral'}>{u.role.replace('_', ' ')}</Badge>
-                    {!u.is_active && <Badge tone="red">inactive</Badge>}
+                    {!u.is_active && <Badge tone="red">{tl("inactive")}</Badge>}
                   </td>
                   <td className={cx(td, 'text-xs text-ink-400')}>{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}</td>
                   <td className={td}>
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>Edit</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>{tl("Edit")}</Button>
                   </td>
                 </tr>
               ))}
@@ -304,23 +308,23 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
   return (
     <div className="mb-4 rounded-lg border border-accent-100 bg-accent-50/50 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Email">
+        <Field label={tl("Email")}>
           <input className={inputCls} value={f.email} disabled={Boolean(user)} onChange={(e) => set('email', e.target.value)} />
         </Field>
-        <Field label="Name">
+        <Field label={tl("Name")}>
           <input className={inputCls} value={f.display_name} onChange={(e) => set('display_name', e.target.value)} />
         </Field>
-        <Field label={user ? 'Reset password (optional)' : 'Initial password'} hint="At least 10 characters">
+        <Field label={user ? tl('Reset password (optional)') : tl('Initial password')} hint={tl("At least 10 characters")}>
           <input className={inputCls} type="password" value={f.password} onChange={(e) => set('password', e.target.value)} />
         </Field>
-        <Field label="Role">
+        <Field label={tl("Role")}>
           <select className={inputCls} value={f.role} onChange={(e) => set('role', e.target.value)}>
-            <option value="employee">Employee</option>
-            <option value="dept_lead">Department lead</option>
-            <option value="admin">Admin</option>
+            <option value="employee">{tl("Employee")}</option>
+            <option value="dept_lead">{tl("Department lead")}</option>
+            <option value="admin">{tl("Admin")}</option>
           </select>
         </Field>
-        <Field label="Primary department">
+        <Field label={tl("Primary department")}>
           <select className={inputCls} value={f.department_id} onChange={(e) => set('department_id', e.target.value)}>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
@@ -328,17 +332,17 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
           </select>
         </Field>
         {user && (
-          <Field label="Status">
+          <Field label={tl("Status")}>
             <select className={inputCls} value={String(f.is_active)} onChange={(e) => set('is_active', e.target.value === 'true')}>
-              <option value="true">Active</option>
-              <option value="false">Deactivated</option>
+              <option value="true">{tl("Active")}</option>
+              <option value="false">{tl("Deactivated")}</option>
             </select>
           </Field>
         )}
       </div>
       {user && (
         <fieldset className="mt-3">
-          <legend className="mb-1 text-sm font-medium">Extra knowledge access (cross-department)</legend>
+          <legend className="mb-1 text-sm font-medium">{tl("Extra knowledge access (cross-department)")}</legend>
           <div className="flex flex-wrap gap-3">
             {departments
               .filter((d) => d.id !== f.department_id)
@@ -360,8 +364,8 @@ function UserForm({ user, onDone }: { user?: any; onDone(): void }) {
       )}
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
       <div className="mt-4 flex gap-2">
-        <Button variant="primary" size="sm" onClick={save}>{user ? 'Save' : 'Create user'}</Button>
-        <Button size="sm" onClick={onDone}>Cancel</Button>
+        <Button variant="primary" size="sm" onClick={save}>{user ? tl('Save') : tl('Create user')}</Button>
+        <Button size="sm" onClick={onDone}>{tl("Cancel")}</Button>
       </div>
     </div>
   );
@@ -374,7 +378,7 @@ function Departments() {
   const list = useLoad<any[]>('/api/admin/departments');
   const [editing, setEditing] = useState<any | null>(null);
   return (
-    <Card title="Departments" actions={<Button size="sm" variant="primary" onClick={() => setEditing({})}><Icon name="plus" className="h-3.5 w-3.5" /> Add department</Button>}>
+    <Card title={tl("Departments")} actions={<Button size="sm" variant="primary" onClick={() => setEditing({})}><Icon name="plus" className="h-3.5 w-3.5" /> {tl("Add department")}</Button>}>
       {editing && (
         <DepartmentForm
           dept={editing}
@@ -393,15 +397,15 @@ function Departments() {
             <li key={d.id} className={cx('flex items-start gap-3 py-3', !d.is_active && 'opacity-50')}>
               <div className="min-w-0 flex-1">
                 <p className="font-medium">
-                  {d.name} <span className="text-xs font-normal text-ink-400">{d.name_ms} · {d.slug} · {d.user_count} users</span>
+                  {d.name} <span className="text-xs font-normal text-ink-400">{d.name_ms} · {d.slug} · {d.user_count} {tl("users")}</span>
                 </p>
                 <p className="text-sm text-ink-600">{d.description}</p>
                 <div className="mt-1 flex gap-1">
-                  {d.review_before_acting && <Badge tone="red">Review before acting</Badge>}
-                  {!d.is_active && <Badge>inactive</Badge>}
+                  {d.review_before_acting && <Badge tone="red">{tl("Review before acting")}</Badge>}
+                  {!d.is_active && <Badge>{tl("inactive")}</Badge>}
                 </div>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>Edit</Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>{tl("Edit")}</Button>
             </li>
           ))}
         </ul>
@@ -438,40 +442,40 @@ function DepartmentForm({ dept, onDone }: { dept: any; onDone(): void }) {
   return (
     <div className="mb-4 rounded-lg border border-accent-100 bg-accent-50/50 p-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Slug" hint="lowercase-with-dashes; cannot change later">
+        <Field label={tl("Slug")} hint={tl("lowercase-with-dashes; cannot change later")}>
           <input className={inputCls} value={f.slug} disabled={!isNew} onChange={(e) => set('slug', e.target.value)} />
         </Field>
-        <Field label="Name (English)">
+        <Field label={tl("Name (English)")}>
           <input className={inputCls} value={f.name} onChange={(e) => set('name', e.target.value)} />
         </Field>
-        <Field label="Name (Bahasa Malaysia)">
+        <Field label={tl("Name (Bahasa Malaysia)")}>
           <input className={inputCls} value={f.name_ms} onChange={(e) => set('name_ms', e.target.value)} />
         </Field>
       </div>
       <div className="mt-3 space-y-3">
-        <Field label="Description">
+        <Field label={tl("Description")}>
           <input className={inputCls} value={f.description} onChange={(e) => set('description', e.target.value)} />
         </Field>
-        <Field label="Department prompt layer" hint="Loaded into the Department Expert and the Chairman. Keep it short (under ~120 words); each save creates a new version.">
+        <Field label={tl("Department prompt layer")} hint={tl("Loaded into the Department Expert and the Chairman. Keep it short (under ~120 words); each save creates a new version.")}>
           <textarea className={cx(inputCls, 'h-28 font-mono text-xs')} value={f.prompt} onChange={(e) => set('prompt', e.target.value)} />
         </Field>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="inline-flex items-center gap-1.5">
             <input type="checkbox" className="accent-accent-600" checked={f.review_before_acting} onChange={(e) => set('review_before_acting', e.target.checked)} />
-            Flag answers "review before acting"
+            {tl("Flag answers \"review before acting\"")}
           </label>
           {!isNew && (
             <label className="inline-flex items-center gap-1.5">
               <input type="checkbox" className="accent-accent-600" checked={f.is_active} onChange={(e) => set('is_active', e.target.checked)} />
-              Active
+              {tl("Active")}
             </label>
           )}
         </div>
       </div>
       {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
       <div className="mt-4 flex gap-2">
-        <Button variant="primary" size="sm" onClick={save}>Save</Button>
-        <Button size="sm" onClick={onDone}>Cancel</Button>
+        <Button variant="primary" size="sm" onClick={save}>{tl("Save")}</Button>
+        <Button size="sm" onClick={onDone}>{tl("Cancel")}</Button>
       </div>
     </div>
   );
@@ -496,7 +500,7 @@ function Prompts() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
-      <Card title="Prompt layers">
+      <Card title={tl("Prompt layers")}>
         {(['base', 'persona', 'task'] as const).map((layer) => (
           <div key={layer} className="mb-3">
             <p className="mb-1 text-xs font-semibold tracking-wide text-ink-400 uppercase">{layer}</p>
@@ -536,8 +540,7 @@ function Prompts() {
       ) : (
         <Card>
           <p className="text-sm text-ink-600">
-            Prompts are assembled at runtime from layers: <strong>base → persona → department → task</strong>. Pick a layer on
-            the left to edit it. Every save creates a new version; older versions can be re-activated.
+            {tl("Prompts are assembled at runtime from layers:")} <strong>{tl("base → persona → department → task")}</strong>{tl(". Pick a layer on the left to edit it. Every save creates a new version; older versions can be re-activated.")}
           </p>
         </Card>
       )}
@@ -566,33 +569,33 @@ function PromptEditor({ layer, promptKey, versions, persona, onSaved }: { layer:
   return (
     <div>
       <Card title={`${persona?.name ?? promptKey} · ${layer}`} actions={<Saved at={saved} />}>
-        <p className="mb-2 text-xs text-ink-400">{LAYER_INFO[layer]}</p>
+        <p className="mb-2 text-xs text-ink-400">{tl(LAYER_INFO[layer])}</p>
         {persona && <PersonaFlags persona={persona} onChanged={onSaved} />}
         <textarea className={cx(inputCls, 'h-64 font-mono text-xs leading-relaxed')} value={text} onChange={(e) => setText(e.target.value)} />
         <div className="mt-2 flex items-center justify-between">
           <span className={cx('text-xs', tokens > 300 && layer === 'persona' ? 'text-amber-700' : 'text-ink-400')}>
-            ≈ {tokens} tokens{tokens > 300 && layer === 'persona' ? ' (longer than recommended for an 8B model)' : ''}
+            ≈ {tokens} {tl("tokens")}{tokens > 300 && layer === 'persona' ? ` (${tl('longer than recommended for an 8B model')})` : ''}
           </span>
           <Button variant="primary" size="sm" disabled={text === current?.content || !text.trim()} onClick={save}>
-            Save as new version
+            {tl("Save as new version")}
           </Button>
         </div>
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
       </Card>
       <PromptSandbox layer={layer} promptKey={promptKey} content={text} />
-      <Card title="Version history">
+      <Card title={tl("Version history")}>
         <ul className="divide-y divide-ink-100 text-sm">
           {versions.map((v) => (
             <li key={v.id} className="flex items-center gap-3 py-2">
               <span className="w-10 font-medium">v{v.version}</span>
               <span className="flex-1 text-xs text-ink-400">
-                {new Date(v.created_at).toLocaleString()} {v.created_by ? `· ${v.created_by}` : '· seed'}
+                {new Date(v.created_at).toLocaleString()} {v.created_by ? `· ${v.created_by}` : `· ${tl('seed')}`}
               </span>
               {v.is_active ? (
-                <Badge tone="green">active</Badge>
+                <Badge tone="green">{tl("active")}</Badge>
               ) : (
                 <>
-                  <Button size="sm" variant="ghost" onClick={() => setText(v.content)}>Load</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setText(v.content)}>{tl("Load")}</Button>
                   <Button
                     size="sm"
                     onClick={async () => {
@@ -600,7 +603,7 @@ function PromptEditor({ layer, promptKey, versions, persona, onSaved }: { layer:
                       onSaved();
                     }}
                   >
-                    Activate
+                    {tl("Activate")}
                   </Button>
                 </>
               )}
@@ -622,11 +625,11 @@ function PersonaFlags({ persona, onChanged }: { persona: any; onChanged(): void 
     <div className="mb-3 flex flex-wrap gap-4 text-sm">
       <label className="inline-flex items-center gap-1.5">
         <input type="checkbox" className="accent-accent-600" checked={persona.in_council} onChange={(e) => patch({ in_council: e.target.checked })} />
-        Sits on the council (stage 1)
+        {tl("Sits on the council (stage 1)")}
       </label>
       <label className="inline-flex items-center gap-1.5">
         <input type="checkbox" className="accent-accent-600" checked={persona.is_active} onChange={(e) => patch({ is_active: e.target.checked })} />
-        Active
+        {tl("Active")}
       </label>
     </div>
   );
@@ -639,22 +642,21 @@ function Models() {
   if (!data.data) return <Loading error={data.error} />;
   return (
     <>
-      <Card title="Model per role">
+      <Card title={tl("Model per role")}>
         <p className="mb-3 text-xs text-ink-400">
-          Keep <code>num_ctx</code> identical for every role that shares a model: Ollama reloads the model when it changes
-          between requests. Router and embedding must stay on a local provider.
+          {tl("Keep")} <code>num_ctx</code> {tl("identical for every role that shares a model: Ollama reloads the model when it changes between requests. Router and embedding must stay on a local provider.")}
         </p>
         <div className="-mx-4 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-ink-100">
-                <th className={th}>Role</th>
-                <th className={th}>Provider</th>
-                <th className={th}>Model</th>
-                <th className={th}>Temp</th>
-                <th className={th}>num_ctx</th>
-                <th className={th}>num_predict</th>
-                <th className={th}>keep_alive</th>
+                <th className={th}>{tl("Role")}</th>
+                <th className={th}>{tl("Provider")}</th>
+                <th className={th}>{tl("Model")}</th>
+                <th className={th}>{tl("Temp")}</th>
+                <th className={th}>{tl("num_ctx")}</th>
+                <th className={th}>{tl("num_predict")}</th>
+                <th className={th}>{tl("keep_alive")}</th>
                 <th className={th} />
               </tr>
             </thead>
@@ -666,11 +668,9 @@ function Models() {
           </table>
         </div>
       </Card>
-      <Card title="Providers">
+      <Card title={tl("Providers")}>
         <p className="mb-3 text-xs text-ink-400">
-          <code>{'${OLLAMA_BASE_URL}'}</code> is read from the server's <code>.env</code>. API keys are never stored here: set the
-          name of the environment variable that holds the key. Cloud providers only ever receive redacted text, and never
-          content the router flags as sensitive.
+          <code>{'${OLLAMA_BASE_URL}'}</code> {tl("is read from the server's")} <code>.env</code>{tl(". API keys are never stored here: set the name of the environment variable that holds the key. Cloud providers only ever receive redacted text, and never content the router flags as sensitive.")}
         </p>
         <ul className="divide-y divide-ink-100">
           {data.data.providers.map((p) => (
@@ -696,8 +696,8 @@ function RoleRow({ role, providers, onSaved }: { role: any; providers: any[]; on
           {providers.map((p) => (
             <option key={p.id} value={p.id} disabled={!p.enabled}>
               {p.id}
-              {p.is_cloud ? ' (cloud)' : ''}
-              {!p.enabled ? ' — disabled' : ''}
+              {p.is_cloud ? ` (${tl('cloud')})` : ''}
+              {!p.enabled ? ` — ${tl('disabled')}` : ''}
             </option>
           ))}
         </select>
@@ -733,10 +733,10 @@ function RoleRow({ role, providers, onSaved }: { role: any; providers: any[]; on
               }
             }}
           >
-            Save
+            {tl("Save")}
           </Button>
         )}
-        {state !== 'idle' && !dirty && <span className="text-xs text-accent-700">{state === 'saved' ? 'Saved' : ''}</span>}
+        {state !== 'idle' && !dirty && <span className="text-xs text-accent-700">{state === 'saved' ? tl('Saved') : ''}</span>}
         {state !== 'idle' && state !== 'saved' && <p className="text-xs text-red-700">{state}</p>}
       </td>
     </tr>
@@ -753,31 +753,31 @@ function ProviderRow({ provider, onSaved }: { provider: any; onSaved(): void }) 
         <p className="font-mono text-sm">{p.id}</p>
         <p className="text-xs text-ink-400">
           {p.kind}
-          {p.is_cloud && <Badge tone="amber">cloud</Badge>}
+          {p.is_cloud && <Badge tone="amber">{tl("cloud")}</Badge>}
         </p>
       </div>
       <input className="rounded border border-ink-200 px-2 py-1 text-sm" value={p.base_url} onChange={(e) => setP({ ...p, base_url: e.target.value })} />
       <input
         className="rounded border border-ink-200 px-2 py-1 font-mono text-xs"
-        placeholder="API key env var"
+        placeholder={tl("API key env var")}
         value={p.api_key_env ?? ''}
         onChange={(e) => setP({ ...p, api_key_env: e.target.value || null })}
       />
-      <label className="flex items-center gap-1 text-xs" title="Parallel requests (match OLLAMA_NUM_PARALLEL)">
-        slots
+      <label className="flex items-center gap-1 text-xs" title={tl("Parallel requests (match OLLAMA_NUM_PARALLEL)")}>
+        {tl("slots")}
         <input className="w-12 rounded border border-ink-200 px-1 py-1 text-sm" type="number" min={1} value={p.max_parallel} onChange={(e) => setP({ ...p, max_parallel: Number(e.target.value) })} />
       </label>
       <div className="flex items-center gap-2">
         <label className="inline-flex items-center gap-1 text-sm">
           <input type="checkbox" className="accent-accent-600" checked={p.enabled} onChange={(e) => setP({ ...p, enabled: e.target.checked })} />
-          Enabled
+          {tl("Enabled")}
         </label>
         {dirty && (
           <Button
             size="sm"
             variant="primary"
             onClick={async () => {
-              if (p.is_cloud && p.enabled && !provider.enabled && !confirm('Enable a cloud provider? Redacted content may leave the premises for roles routed to it.')) return;
+              if (p.is_cloud && p.enabled && !provider.enabled && !confirm(tl('Enable a cloud provider? Redacted content may leave the premises for roles routed to it.'))) return;
               try {
                 await api(`/api/admin/providers/${p.id}`, {
                   method: 'PATCH',
@@ -789,7 +789,7 @@ function ProviderRow({ provider, onSaved }: { provider: any; onSaved(): void }) 
               }
             }}
           >
-            Save
+            {tl("Save")}
           </Button>
         )}
       </div>
@@ -821,7 +821,7 @@ function Knowledge() {
     form.append('file', file);
     try {
       const r = await api('/api/knowledge/documents', { form });
-      setMsg({ ok: true, text: `Indexed into ${r.chunks} chunks.` });
+      setMsg({ ok: true, text: tl('Indexed into {n} chunks.', { n: r.chunks }) });
       setFile(null);
       setTitle('');
       docs.reload();
@@ -833,24 +833,23 @@ function Knowledge() {
   }
 
   const scopes: Array<{ value: string; label: string }> = isAdmin
-    ? [{ value: 'company', label: 'Company-wide (everyone)' }, ...departments.map((d: Department) => ({ value: d.id, label: `${d.name} only` }))]
-    : [{ value: me!.user.department_id, label: `${me!.department.name} only` }];
+    ? [{ value: 'company', label: tl('Company-wide (everyone)') }, ...departments.map((d: Department) => ({ value: d.id, label: tl('{name} only', { name: d.name }) }))]
+    : [{ value: me!.user.department_id, label: tl('{name} only', { name: me!.department.name }) }];
 
   return (
     <>
-      <Card title="Add a document">
+      <Card title={tl("Add a document")}>
         <p className="mb-3 text-xs text-ink-400">
-          Staff only retrieve documents from their own department and company-wide documents (plus any extra access an admin
-          grants). Accepts PDF (text PDFs, not scans), Word (.docx), Excel (.xlsx), .txt, .md and .csv. Answers cite the document and page / section / sheet. Requires the embedding model (<code>nomic-embed-text</code>) on Ollama.
+          {tl("Staff only retrieve documents from their own department and company-wide documents (plus any extra access an admin grants). Accepts PDF (text PDFs, not scans), Word (.docx), Excel (.xlsx), .txt, .md and .csv. Answers cite the document and page / section / sheet. Requires the embedding model (")}<code>nomic-embed-text</code>{tl(") on Ollama.")}
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="File">
+          <Field label={tl("File")}>
             <input type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.markdown,.csv" className="block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </Field>
-          <Field label="Title (optional)">
-            <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Defaults to file name" />
+          <Field label={tl("Title (optional)")}>
+            <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tl("Defaults to file name")} />
           </Field>
-          <Field label="Who can retrieve it">
+          <Field label={tl("Who can retrieve it")}>
             <select className={inputCls} value={scope} onChange={(e) => setScope(e.target.value)}>
               {scopes.map((s) => (
                 <option key={s.value} value={s.value}>{s.label}</option>
@@ -860,16 +859,16 @@ function Knowledge() {
         </div>
         <div className="mt-3 flex items-center gap-3">
           <Button variant="primary" size="sm" disabled={!file || busy} onClick={upload}>
-            {busy && <Spinner className="h-3.5 w-3.5" />} Upload & index
+            {busy && <Spinner className="h-3.5 w-3.5" />} {tl("Upload & index")}
           </Button>
           {msg && <span className={cx('text-sm', msg.ok ? 'text-accent-700' : 'text-red-700')}>{msg.text}</span>}
         </div>
       </Card>
-      <Card title="Documents">
+      <Card title={tl("Documents")}>
         {!docs.data ? (
           <Loading error={docs.error} />
         ) : docs.data.length === 0 ? (
-          <p className="text-sm text-ink-400">No documents yet.</p>
+          <p className="text-sm text-ink-400">{tl("No documents yet.")}</p>
         ) : (
           <ul className="divide-y divide-ink-100">
             {docs.data.map((d) => (
@@ -877,7 +876,7 @@ function Knowledge() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{d.title}</p>
                   <p className="text-xs text-ink-400">
-                    {d.company_wide ? 'Company-wide' : d.department_name} · {d.chunk_count} chunks · {d.uploaded_by ?? '—'} ·{' '}
+                    {d.company_wide ? tl('Company-wide') : d.department_name} · {d.chunk_count} {tl("chunks ·")} {d.uploaded_by ?? '—'} ·{' '}
                     {new Date(d.created_at).toLocaleDateString()}
                   </p>
                 </div>
@@ -885,7 +884,7 @@ function Knowledge() {
                   size="sm"
                   variant="danger"
                   onClick={async () => {
-                    if (!confirm(`Delete "${d.title}" from the knowledge base?`)) return;
+                    if (!confirm(tl('Delete "{title}" from the knowledge base?', { title: d.title }))) return;
                     await api(`/api/knowledge/documents/${d.id}`, { method: 'DELETE' });
                     docs.reload();
                   }}
@@ -928,24 +927,24 @@ function Audit() {
 
   return (
     <Card
-      title="Audit log"
+      title={tl("Audit log")}
       actions={
         <select className="rounded border border-ink-200 px-2 py-1 text-sm" value={action} onChange={(e) => setAction(e.target.value)}>
           {ACTIONS.map((a) => (
-            <option key={a} value={a}>{a || 'All actions'}</option>
+            <option key={a} value={a}>{a || tl('All actions')}</option>
           ))}
         </select>
       }
     >
-      <p className="mb-3 text-xs text-ink-400">Append-only. Rows cannot be edited or deleted except by the retention job.</p>
+      <p className="mb-3 text-xs text-ink-400">{tl("Append-only. Rows cannot be edited or deleted except by the retention job.")}</p>
       <div className="-mx-4 overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-ink-100">
-              <th className={th}>Time</th>
-              <th className={th}>Who</th>
-              <th className={th}>Action</th>
-              <th className={th}>Detail</th>
+              <th className={th}>{tl("Time")}</th>
+              <th className={th}>{tl("Who")}</th>
+              <th className={th}>{tl("Action")}</th>
+              <th className={th}>{tl("Detail")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
@@ -963,7 +962,7 @@ function Audit() {
         </table>
       </div>
       <div className="mt-3">
-        {loading ? <Spinner /> : more && rows.length > 0 && <Button size="sm" onClick={() => load(rows[rows.length - 1].id)}>Load older</Button>}
+        {loading ? <Spinner /> : more && rows.length > 0 && <Button size="sm" onClick={() => load(rows[rows.length - 1].id)}>{tl("Load older")}</Button>}
       </div>
     </Card>
   );
@@ -997,35 +996,35 @@ function Settings() {
   if (!f) return <Loading error={data.error} />;
   const set = (k: string, v: any) => setF((x) => ({ ...x!, [k]: v }));
   return (
-    <Card title="Settings" actions={<Saved at={saved} />}>
+    <Card title={tl("Settings")} actions={<Saved at={saved} />}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Who can use Council mode">
+        <Field label={tl("Who can use Council mode")}>
           <select className={inputCls} value={f.council_min_role} onChange={(e) => set('council_min_role', e.target.value)}>
-            <option value="employee">All employees</option>
-            <option value="dept_lead">Department leads and admins</option>
-            <option value="admin">Admins only</option>
+            <option value="employee">{tl("All employees")}</option>
+            <option value="dept_lead">{tl("Department leads and admins")}</option>
+            <option value="admin">{tl("Admins only")}</option>
           </select>
         </Field>
-        <Field label="Retention (months)" hint="Conversations and audit rows older than this are deleted nightly (PDPA).">
+        <Field label={tl("Retention (months)")} hint={tl("Conversations and audit rows older than this are deleted nightly (PDPA).")}>
           <input className={inputCls} type="number" min={1} max={120} value={f.retention_months} onChange={(e) => set('retention_months', Number(e.target.value))} />
         </Field>
-        <Field label="Conversation turns sent as context">
+        <Field label={tl("Conversation turns sent as context")}>
           <input className={inputCls} type="number" min={0} max={20} value={f.history_turns} onChange={(e) => set('history_turns', Number(e.target.value))} />
         </Field>
-        <Field label="Knowledge snippets per answer">
+        <Field label={tl("Knowledge snippets per answer")}>
           <input className={inputCls} type="number" min={1} max={20} value={f.rag_top_k} onChange={(e) => set('rag_top_k', Number(e.target.value))} />
         </Field>
         <label className="inline-flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-accent-600" checked={f.rag_enabled} onChange={(e) => set('rag_enabled', e.target.checked)} />
-          Use the knowledge base in answers
+          {tl("Use the knowledge base in answers")}
         </label>
         <label className="inline-flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-accent-600" checked={f.peer_review_default} onChange={(e) => set('peer_review_default', e.target.checked)} />
-          Peer review on by default (Auto mode)
+          {tl("Peer review on by default (Auto mode)")}
         </label>
-        <label className="inline-flex items-center gap-2 text-sm" title="Before a council run, ask the user up to 3 questions when essential details are missing">
+        <label className="inline-flex items-center gap-2 text-sm" title={tl("Before a council run, ask the user up to 3 questions when essential details are missing")}>
           <input type="checkbox" className="accent-accent-600" checked={f.clarify_enabled ?? true} onChange={(e) => set('clarify_enabled', e.target.checked)} />
-          Council asks clarifying questions when details are missing
+          {tl("Council asks clarifying questions when details are missing")}
         </label>
       </div>
       <div className="mt-4">
@@ -1039,7 +1038,7 @@ function Settings() {
             void refresh();
           }}
         >
-          Save settings
+          {tl("Save settings")}
         </Button>
       </div>
     </Card>
@@ -1072,15 +1071,15 @@ function PromptSandbox({ layer, promptKey, content }: { layer: string; promptKey
   }
 
   return (
-    <Card title="Test this prompt">
+    <Card title={tl("Test this prompt")}>
       <p className="mb-2 text-xs text-ink-400">
-        Runs the text above (saved or not) the way the real step uses it: same layers, same model and settings, same JSON schema. Nothing is saved or shown to staff.
+        {tl("Runs the text above (saved or not) the way the real step uses it: same layers, same model and settings, same JSON schema. Nothing is saved or shown to staff.")}
       </p>
       <div className="flex flex-wrap gap-2">
         <textarea
           className={cx(inputCls, 'min-w-0 flex-1')}
           rows={2}
-          placeholder="A sample question, e.g. Should we move reminder SMS from day 5 to day 2?"
+          placeholder={tl("A sample question, e.g. Should we move reminder SMS from day 5 to day 2?")}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
@@ -1093,7 +1092,7 @@ function PromptSandbox({ layer, promptKey, content }: { layer: string; promptKey
             ))}
           </select>
           <Button size="sm" variant="primary" disabled={!question.trim() || !content.trim() || busy} onClick={run}>
-            {busy && <Spinner className="h-3.5 w-3.5" />} Run test
+            {busy && <Spinner className="h-3.5 w-3.5" />} {tl("Run test")}
           </Button>
         </div>
       </div>
@@ -1106,11 +1105,11 @@ function PromptSandbox({ layer, promptKey, content }: { layer: string; promptKey
             {result.latencyMs != null && <Badge>{(result.latencyMs / 1000).toFixed(1)} s</Badge>}
             {result.structured && (
               <Badge tone={result.structured.valid ? 'green' : 'red'}>
-                {result.structured.valid ? `valid JSON (attempt ${result.structured.attempts})` : `failed schema: ${result.structured.error}`}
+                {result.structured.valid ? tl('valid JSON (attempt {n})', { n: result.structured.attempts }) : tl('failed schema: {e}', { e: result.structured.error })}
               </Badge>
             )}
             <button className="ml-auto text-accent-700 hover:underline" onClick={() => setShowSystem((s) => !s)}>
-              {showSystem ? 'Hide' : 'Show'} full system prompt
+              {showSystem ? tl('Hide') : tl('Show')} {tl("full system prompt")}
             </button>
           </div>
           {showSystem && <pre className="max-h-60 overflow-y-auto rounded-lg bg-ink-50 p-3 text-xs whitespace-pre-wrap">{result.system}</pre>}

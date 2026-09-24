@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from './components/ui';
+import { tl } from './i18n';
 
 interface Toast {
   id: number;
@@ -43,11 +44,11 @@ export function Toaster() {
                 onClick={() => setItems((all) => all.filter((x) => x.id !== t.id))}
                 className="mt-1 inline-block text-xs font-medium text-accent-100 underline"
               >
-                Open
+                {tl("Open")}
               </Link>
             )}
           </div>
-          <button onClick={() => setItems((all) => all.filter((x) => x.id !== t.id))} aria-label="Dismiss" className="text-ink-400 hover:text-white">
+          <button onClick={() => setItems((all) => all.filter((x) => x.id !== t.id))} aria-label={tl("Dismiss")} className="text-ink-400 hover:text-white">
             <Icon name="close" className="h-3.5 w-3.5" />
           </button>
         </div>
