@@ -93,12 +93,15 @@ def table(rows, widths):
 def shot(name, caption, crop=None, width=W, max_h=150 * mm):
     """A screenshot (optionally cropped, in source pixels), framed, with a caption."""
     src = IMG / f"{name}.jpg"
+    if not src.exists():
+        print(f"missing screenshot: {name}")
+        return Spacer(1, 0)
     im = PILImage.open(src)
     if crop:
         # Never crop past the image (full-page screenshots vary in height).
         crop = (crop[0], crop[1], min(crop[2], im.width), min(crop[3], im.height))
         im = im.crop(crop)
-        src = IMG / f"_{name}-crop.jpg"
+        src = IMG / f"_{name}-{crop[1]}-crop.jpg"
         im.convert("RGB").save(src, quality=85)
     w, h = im.size
     dw = width
@@ -195,6 +198,27 @@ def architecture_diagram():
     return d
 
 
+# Crops for the Part 4 / 5 screenshots (source pixels, 1920 x 1200 captures).
+TEMPLATES_CROP = (580, 200, 1780, 960)
+DIALOG_CROP = (452, 156, 1468, 1046)
+SCRIPT_CROP = (600, 0, 1760, 1090)
+WHATIF_FORM_CROP = (600, 330, 1760, 600)
+WHATIF_CROP = (600, 0, 1760, 980)
+DRAFT_PICKER_CROP = (600, 420, 1760, 960)
+DRAFT_CROP = (600, 0, 1760, 960)
+DECISIONS_CROP = (60, 80, 1860, 400)
+DECISION_DETAIL_CROP = (260, 90, 1660, 1200)
+BRIEF_CROP = (80, 190, 1840, 1200)
+CALC_CROP = (60, 100, 1860, 640)
+ARREARS_CROP = (100, 180, 1820, 1200)
+VOICE_CROP = (580, 990, 1780, 1200)
+BM_CROP = (60, 80, 1860, 640)
+KNOWLEDGE_CROP = (330, 90, 1900, 830)
+HEATMAP_CROP = (350, 60, 1890, 500)
+DIGEST_CROP = (350, 510, 1890, 1200)
+REDFLAG_CROP = (560, 20, 1760, 520)
+
+
 # ── Page furniture ───────────────────────────────────────────────────────────
 
 def cover(c, doc):
@@ -244,8 +268,9 @@ def build(out):
                   ["1. What it is", "Everyone", "The three things it does, how a question flows, where it runs"],
                   ["2. Features at a glance", "Everyone", "Every feature on one page"],
                   ["3. Using it", "All staff", "Asking, the council, reading a verdict, the report, sharing, putting a plan into action, tasks you receive"],
-                  ["4. Running it", "Admins, department leads", "Staff directory, Action Crew and email, knowledge base, prompts and the test sandbox, models, audit log, go-live checklist"],
-                  ["5. Privacy, safety and tips", "Everyone", "What stays on-premises, what needs approval, good questions, timing, FAQ"]],
+                  ["4. Doing more", "All staff", "Templates, script checker, what-if, drafting documents and Word, the decision register, calculators, arrears files, Telegram, voice, Bahasa Malaysia screens"],
+                  ["5. Running it", "Admins, department leads", "Users and invites, staff directory, Action Crew and email, knowledge and freshness, prompts, models, heatmap, weekly digest, red flags, go-live checklist"],
+                  ["6. Privacy, safety and tips", "Everyone", "What stays on-premises, what needs approval, good questions, timing, FAQ"]],
                  [42, 38, 90]),
            Spacer(1, 6),
            tip("Everything the Council says is <b>advice</b>. Final decisions sit with the responsible staff and management. Legal and finance answers must be reviewed before acting.", "Remember"),
@@ -282,10 +307,19 @@ def build(out):
                   ["Put into action", "The Action Crew: Dispatcher, Herald, Tracker and Runner (see 3.7\u20133.9)."],
                   ["Tasks and notifications", "Your assigned tasks, the plans you started, and a bell for updates, nudges and approvals."],
                   ["History", "Search, pin, rename and delete conversations. You can delete your whole history at any time."],
-                  ["Bahasa Malaysia", "Ask in BM and the answer comes back in BM (the advisors reason in English internally)."],
-                  ["Admin", "Users and roles, departments, prompts with versions and a test sandbox, model settings, knowledge base, staff directory, Action Crew settings, email outbox, audit log, usage."]],
+                  ["Council templates <font color='#0d9488'>new</font>", "Guided starters (new product, collections change, vendor selection, hiring plan, policy draft) that ask for the facts the council needs."],
+                  ["Customer script checker <font color='#0d9488'>new</font>", "Paste an SMS, letter or call script: tone, clarity, fair treatment and PDPA check, with a rewrite in English and BM."],
+                  ["What-if <font color='#0d9488'>new</font>", "Change one assumption under a verdict. Two advisors re-run and the Chairman updates the verdict, in about half the time."],
+                  ["Draft a document, Word <font color='#0d9488'>new</font>", "Turn an answer into an SOP, policy, customer letter or staff memo. Download any answer as an editable Word file."],
+                  ["Decision register <font color='#0d9488'>new</font>", "Record verdicts as decisions. At 30 and 60 days you're asked whether it worked. One-page meeting brief for any period."],
+                  ["Calculators <font color='#0d9488'>new</font>", "Instalment and EIR, early settlement rebate, roll rates, cost to collect, each with “Ask the council about this”."],
+                  ["Arrears file analysis <font color='#0d9488'>new</font>", "Upload a collections export: DPD buckets by branch and product, then ask the council. The file isn't stored."],
+                  ["Telegram and voice <font color='#0d9488'>new</font>", "Ask from Telegram, or speak your question in BM or English. Speech is transcribed on our own server."],
+                  ["Bahasa Malaysia", "Ask in BM and the answer comes back in BM. The whole app can also be switched to BM (EN / BM toggle)."],
+                  ["Compliance seat, red flags <font color='#0d9488'>new</font>", "A Compliance Officer joins the council for sensitive departments. Requests that look like harassment, fraud, data misuse or discrimination are flagged to Compliance."],
+                  ["Admin", "Users, invites, departments, prompts with versions and a test sandbox, model settings, knowledge base with review dates, staff directory, Action Crew, email outbox, audit log, heatmap, weekly digest."]],
                  [44, 126]),
-           PageBreak()]
+           CondPageBreak(150 * mm)]
 
     # Part 3
     st += [P("3 · Using it", "h1"),
@@ -354,31 +388,109 @@ def build(out):
            PageBreak()]
 
     # Part 4
-    st += [P("4 · Running it (admins and department leads)", "h1"),
+    st += [P("4 · Doing more with the council", "h1"),
+           P("Shortcuts for common jobs, ways to test and record decisions, working tools for collections and finance, and other ways to ask.", "lead"),
+           P("4.1 Start from a template", "h2"),
+           P("Press <b>Templates</b> in the question box, or pick one on the home screen. A template asks for the facts the council needs (goal, numbers, constraints, deadline), so it goes straight to work without clarifying questions."),
+           shot("22-templates", "Templates on the home screen: council templates for decisions, a Quick one for drafting, and the script checker.", crop=TEMPLATES_CROP),
+           shot("23-template-dialog", "A template form. Fill in what you know; empty fields are left out.", crop=DIALOG_CROP, width=120 * mm),
+           P("4.2 Check a customer script before it goes out", "h2"),
+           P("Use the <b>Check a customer script</b> template for SMS, WhatsApp, letters or call scripts, especially collections messages. The Customer Advocate checks tone, clarity, fair treatment (no threats or misleading statements), and PDPA (no personal data a third party could see). It returns <b>OK to send</b>, <b>Needs changes</b> or <b>Do not send</b>, a table of issues, and a rewrite in English and BM."),
+           shot("24-script-check", "Script check result: the verdict, each issue with the reason, and a compliant rewrite.", crop=SCRIPT_CROP),
+           CondPageBreak(90 * mm),
+           P("4.3 Ask “what if…”", "h2"),
+           P("Under a council verdict, press <b>What if…</b> and change one assumption (“only 40% accept”, “the budget is halved”, “we launch in Q3 instead”). The <b>Contrarian</b> and the <b>Executor</b> re-run on the new assumption, the other advisors' opinions carry over, and the Chairman updates the verdict and says what changed. It takes about half as long as a full council."),
+           shot("27-whatif-form", "What if…: type the changed assumption and press Re-run.", crop=WHATIF_FORM_CROP),
+           shot("26-whatif", "The updated verdict appears as a new answer in the same conversation, so you can compare it with the original.", crop=WHATIF_CROP),
+           CondPageBreak(90 * mm),
+           P("4.4 Draft a document, and download Word", "h2"),
+           *steps(["Under any answer, press <b>Draft a document</b> and pick <b>SOP</b>, <b>Policy</b>, <b>Customer letter</b> or <b>Staff memo</b>.",
+                   "The draft is written from the answer, with anything you must confirm marked <b>[TO CONFIRM]</b>.",
+                   "Press <b>Word</b> under the draft (or any answer) to download an editable .docx with headings, lists and tables."]),
+           shot("28-draft-picker", "Draft a document: choose the type.", crop=DRAFT_PICKER_CROP),
+           shot("29-draft-memo", "A staff memo drafted from a council verdict, ready to download as Word.", crop=DRAFT_CROP),
+           CondPageBreak(90 * mm),
+           P("4.5 The decision register", "h2"),
+           P("When you act on a verdict, press <b>Record as decision</b> under it. Choose whether your department or the whole company can see it. The register (sidebar → <b>Decisions</b>) lists who decided what and when, the action-plan progress, and the latest outcome."),
+           shot("30-decisions", "Decisions: search and filter by department and status.", crop=DECISIONS_CROP),
+           *bullets(["<b>Outcome check-ins:</b> 30 and 60 days after a decision, whoever recorded it gets a notification and email: <i>did it work?</i> Record <b>Worked</b>, <b>Partly</b>, <b>Did not work</b> or <b>Too early to tell</b>, with a note. Numbers help (“roll rate fell from 8% to 6%”).",
+                     "<b>Meeting brief:</b> pick a date range and press <b>Write brief</b> for a one-page summary of the decisions in that period, including progress and outcomes, ready for a management meeting."]),
+           shot("31-decision-detail", "A decision: the verdict it came from, its status, and the outcomes recorded so far.", crop=DECISION_DETAIL_CROP),
+           shot("32-meeting-brief", "A meeting brief written from the register.", crop=BRIEF_CROP),
+           CondPageBreak(90 * mm),
+           P("4.6 Calculators", "h2"),
+           P("Sidebar → <b>Tools</b>. The calculations run in your browser; nothing is sent until you press <b>Ask the council about this</b>, which puts the figures into a new question for you to finish."),
+           table([["Calculator", "What it gives you"],
+                  ["Instalment", "Monthly instalment, total interest and total payable, flat rate or reducing balance, and the effective interest rate (EIR) of a flat-rate loan."],
+                  ["Early settlement rebate", "The rebate of unearned interest under Rule of 78 and straight-line, the settlement amount, and the difference to the customer. Check which method the agreement requires."],
+                  ["Roll rates", "Enter bucket balances at two month-ends; see the share that rolled one bucket worse (Current → 1–30 → … → 91+). Rolls above 30% are shown in red."],
+                  ["Cost to collect", "Cost per RM 1 collected, cost as a % of collections, and cost per account resolved."]],
+                 [38, 132]),
+           Spacer(1, 6),
+           shot("33-calculator", "The instalment calculator. RM 20,000 at 8% flat over 60 months is an EIR of about 14%.", crop=CALC_CROP),
+           CondPageBreak(90 * mm),
+           P("4.7 Analyse an arrears file", "h2"),
+           P("<b>Tools → Arrears file.</b> Upload a collections export (.csv or .xlsx, one row per account) with a days-past-due column. Balance, branch and product columns are used if present; English and BM column names are recognised (“DPD”, “Hari tertunggak”, “Baki”, “Cawangan”). You get the balance in each DPD bucket, and each branch and product with its bucket mix and 91+ share. <b>Ask the council about this file</b> sends only these totals, never customer rows. The file itself is not stored."),
+           shot("35-arrears", "Arrears file analysis (sample data). One branch stands out with 28% of its balance 91+ days past due.", crop=ARREARS_CROP),
+           CondPageBreak(80 * mm),
+           P("4.8 Ask from Telegram", "h2"),
+           P("If IT has switched the bot on, click <b>Telegram</b> in the sidebar, press <b>Connect Telegram</b>, and open the link on your phone. It works once and expires in 15 minutes. Then message the bot like the Council itself:"),
+           table([["You send", "What happens"],
+                  ["A question", "Auto mode: a quick answer, or the full council for plans and decisions. The answer comes back in the chat, with a link to the full report."],
+                  ["/quick … or /council …", "Force Quick or Council. A council verdict takes 1–3 minutes; the bot tells you it has started."],
+                  ["A voice note", "Transcribed on our own server, then answered (if voice is enabled)."],
+                  ["/new, /help, /unlink", "Start a new conversation (follow-ups within 6 hours continue the last one), show help, or disconnect."]],
+                 [40, 130]),
+           Spacer(1, 4),
+           tip("Telegram is an outside service. Messages pass through Telegram's servers, so <b>never send customer personal data</b> (IC, account or phone numbers) through the bot. Everything asked from Telegram also appears in your Council history, marked [Telegram].", "Important"),
+           P("4.9 Ask by voice", "h2"),
+           P("Press the <b>microphone</b> in the question box, speak in English or Bahasa Malaysia, and press it again. The words appear in the box for you to check and send. Transcription runs on Xanderia's own server (Whisper); the recording is not stored."),
+           shot("39-voice", "The microphone button next to Send (shown when voice is enabled).", crop=VOICE_CROP, width=130 * mm),
+           P("4.10 Bahasa Malaysia screens", "h2"),
+           P("Switch the whole app between English and BM with the <b>EN / BM</b> toggle (on the sign-in page, in the sidebar and at the top of each page). Your choice is saved to your account. Answers follow the language of your question, whichever screen language you use."),
+           shot("40-bm-tools", "The Tools page in Bahasa Malaysia.", crop=BM_CROP),
+           PageBreak()]
+
+    # Part 5
+    st += [P("5 · Running it (admins and department leads)", "h1"),
            P("Department leads see <b>Knowledge</b> for their own department. Admins see everything below under <b>Admin</b>.", "lead"),
-           P("4.1 Staff directory", "h2"),
+           P("5.1 Users and invites", "h2"),
+           P("<b>Admin → Users → Add user.</b> Leave the password empty and the new colleague gets an email (English and BM) with a link to set their own password, valid for 7 days. <b>Resend invite</b> issues a new link. Anyone can use <b>Forgot password?</b> on the sign-in page for a 1-hour reset link. Until email is connected, the invite link is shown on screen for you to pass on."),
+           side_by_side(["41-invite-admin", "42-invite-set"], "Left: a new user with an invite link. Right: the page where they set their password."),
+           P("5.2 Staff directory", "h2"),
            P("The Action Crew only assigns tasks and sends emails to people in this directory. Import the HR export as CSV with the columns <b>name, position, department, email, manager_email</b>. Re-importing updates people by email. Add or edit people one by one as needed."),
            shot("15-directory", "Admin \u2192 Staff directory. (The people shown are test entries.)"),
-           P("4.2 Action Crew and email", "h2"),
+           P("5.3 Action Crew and email", "h2"),
            *bullets(["<b>Allowed email domains:</b> emails to any other domain are blocked.",
                      "<b>Business hours and weekend:</b> Kedah, Kelantan and Terengganu can use a Friday\u2013Saturday weekend.",
                      "<b>Reminder and escalation timings.</b> Escalation can be switched off.",
                      "<b>Public holidays:</b> add national and state holidays each year; no emails are sent and no working days are counted on them.",
                      "<b>Email outbox:</b> every email the Crew produced, with its status. By default emails are <b>only recorded, not sent</b>, until IT connects SMTP or n8n."]),
            shot("16-crew-admin", "Admin \u2192 Action Crew & email."),
-           P("4.3 Knowledge base", "h2"),
+           P("5.4 Knowledge base and review dates", "h2"),
            P("Upload SOPs, policies, product sheets and FAQs (PDF, Word, Excel, text). Choose who can retrieve each document: one department or company-wide. Staff only get answers from their own department's documents and company-wide ones, unless an admin grants extra access. Scanned PDFs without a text layer are rejected."),
-           shot("17-knowledge", "Admin \u2192 Knowledge: upload and manage documents."),
-           P("4.4 Personas, prompts and the test sandbox", "h2"),
+           P("Every document has a <b>review interval</b> (30, 90, 180 or 365 days; 180 by default). When it passes, the document shows <b>Review due</b>, and the uploader and the department lead (or admins, for company-wide documents) get a notification. Check the document, then press <b>Mark reviewed</b>, upload a new version, or delete it. The council keeps quoting a stale document until you do."),
+           shot("38-knowledge-fresh", "Admin \u2192 Knowledge: upload, review dates, and a document due for review.", crop=KNOWLEDGE_CROP),
+           P("5.5 Personas, prompts and the test sandbox", "h2"),
            P("Each advisor's behaviour comes from short prompt layers (base \u2192 persona \u2192 department \u2192 task). Edit a layer and save it as a new version; any older version can be re-activated. Before saving, use <b>Test this prompt</b> to run your draft with a sample question and see the output and whether it still produces a valid verdict."),
            shot("18-prompts", "Admin \u2192 Personas & prompts, with version history and the test sandbox.", crop=(0, 0, 1920, 1300)),
-           P("4.5 Models, audit and settings", "h2"),
+           P("5.6 Models, audit and settings", "h2"),
            *bullets(["<b>Model routing:</b> the model and settings per role (Hermes 3 by default). Upgrading the model is a setting, not a redeploy.",
                      "<b>Audit log:</b> every login, question (by reference, not text), model call, document retrieval, email and status change. It cannot be edited.",
-                     "<b>Settings:</b> who can use Council mode, retention (default 12 months), peer review default, clarifying questions on or off, knowledge base on or off."]),
+                     "<b>Settings:</b> who can use Council mode, retention (default 12 months), peer review default, clarifying questions on or off, knowledge base on or off, the weekly digest on or off, and which departments get the Compliance seat."]),
            side_by_side(["19-models", "20-audit"], "Left: model routing per role. Right: the audit log."),
+           CondPageBreak(90 * mm),
+           P("5.7 Ask-the-org heatmap and the weekly digest", "h2"),
+           P("<b>Admin \u2192 Overview</b> shows which departments ask about which areas over the last 30 to 365 days. A heavy cell outside a department's own area (for example HR asking Finance questions) can point to a training need or an unclear policy. A red ring marks cells with red flags. Only counts are shown, never what anyone asked."),
+           shot("37-digest", "The ask-the-org heatmap and questions per week.", crop=HEATMAP_CROP),
+           P("Every Monday at 08:00, each <b>department lead</b> gets a digest email for their department: questions asked (and the trend), the areas asked about, decisions and outcomes recorded, overdue action tasks with owners, and documents due for review. Like the heatmap, it holds counts only, never question text. <b>Preview</b> shows what a department will receive; <b>Send now</b> sends this week's digests immediately. A lead can be taken off the list in Admin \u2192 Users."),
+           shot("37-digest", "Digest preview for one department.", crop=DIGEST_CROP),
+           P("5.8 Compliance seat and red flags", "h2"),
+           *bullets(["<b>Compliance seat:</b> for the departments set in Admin \u2192 Settings (default Credit &amp; Collections, Legal &amp; Compliance, Finance and HR), a <b>Compliance Officer</b> joins the council. It checks the plan against the law, BNM guidance and internal policy, using the knowledge base.",
+                     "<b>Red flags:</b> if a request looks like harassment, fraud, misuse of personal data or discrimination, the answer still comes, but with a warning, and admins and Legal &amp; Compliance leads get a notification. The flag is written to the audit log. Blocking the answer would only teach people to rephrase."]),
+           shot("25-red-flag", "A flagged request: the warning above the answer. Compliance has been notified.", crop=REDFLAG_CROP),
            CondPageBreak(80 * mm),
-           P("4.6 Go-live checklist", "h2"),
+           P("5.9 Go-live checklist", "h2"),
            table([["", "Step", "Where"],
                   ["\u2610", "Replace the test staff directory with the HR export", "Admin \u2192 Staff directory \u2192 Import CSV"],
                   ["\u2610", "Add this year's public holidays (national and state)", "Admin \u2192 Action Crew & email"],
@@ -387,12 +499,15 @@ def build(out):
                   ["\u2610", "Create user accounts and set department leads", "Admin \u2192 Users"],
                   ["\u2610", "Upload each department's SOPs and policies", "Admin \u2192 Knowledge (leads can upload)"],
                   ["\u2610", "Decide who can use Council mode at first", "Admin \u2192 Settings"],
+                  ["\u2610", "Set department leads (they receive the weekly digest)", "Admin \u2192 Users"],
+                  ["\u2610", "Optional: Telegram bot. Create it with @BotFather and set TELEGRAM_BOT_TOKEN", "Server .env (IT)"],
+                  ["\u2610", "Optional: voice. Start the voice profile and set WHISPER_URL", "Server (IT)"],
                   ["\u2610", "Check System health shows Database, Redis and Ollama green", "Admin \u2192 Overview"]],
                  [8, 102, 60]),
            PageBreak()]
 
     # Part 5
-    st += [P("5 · Privacy, safety and tips", "h1"),
+    st += [P("6 · Privacy, safety and tips", "h1"),
            P("Built-in protections", "h2"),
            table([["Protection", "What it means for you"],
                   ["On-premises AI", "The model runs on Xanderia's GPU server. Your questions and documents are not sent to outside AI services."],
@@ -401,7 +516,11 @@ def build(out):
                   ["Internal only", "Emails go only to addresses in the staff directory on allowed internal domains."],
                   ["Access control", "You only retrieve documents from your department and company-wide libraries, unless granted more."],
                   ["Audit trail", "Every model call, retrieval, email and status change is logged and cannot be altered."],
-                  ["Your history, your choice", "Delete a conversation or your whole history at any time. Conversations older than the retention period (default 12 months) are deleted automatically."]],
+                  ["Your history, your choice", "Delete a conversation or your whole history at any time. Conversations older than the retention period (default 12 months) are deleted automatically."],
+                  ["Counts, not content", "The heatmap and the weekly digest show numbers only. Your department lead can't read what you asked."],
+                  ["Files and voice not kept", "Arrears files are analysed in memory and never stored; only totals reach the AI. Voice recordings are transcribed on our own server and discarded."],
+                  ["Red flags", "Requests that look like harassment, fraud, data misuse or discrimination are flagged to Compliance and logged."],
+                  ["Telegram is outside", "Messages to the bot pass through Telegram's servers. Don't send customer personal data there; use the web app."]],
                  [40, 130]),
            P("Getting good answers", "h2"),
            *bullets(["<b>Give the numbers:</b> amounts, volumes, headcount, budget, deadlines. The advisors can't know Xanderia's figures unless you say them.",
@@ -417,6 +536,9 @@ def build(out):
                   ["Is the verdict a decision?", "No. It is advice. The responsible staff and management decide. Legal and finance answers must be reviewed before acting."],
                   ["Why is a task \u201cUnassigned\u201d?", "No one in the staff directory holds that position. Choose the owner yourself; the system never guesses people."],
                   ["My email says \u201clink expired\u201d.", "Task links last 45 days. Open the Council and use Tasks instead."],
+                  ["Can I change one thing and re-ask?", "Yes: press What if\u2026 under the verdict. It re-runs two advisors and updates the verdict in about half the time."],
+                  ["Can I get the answer in Word?", "Yes: press Word under any answer. Draft a document turns it into an SOP, policy, letter or memo first."],
+                  ["Does the council remember what we decided?", "Only if you press Record as decision. Then it asks you after 30 and 60 days whether it worked."],
                   ["Who do I contact?", "Your department lead for access or knowledge documents; the AI Systems team for anything else."]],
                  [48, 122])]
 

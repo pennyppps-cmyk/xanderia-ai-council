@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../auth';
 import { getLang, tl } from '../i18n';
 import { Button, cx, Field, Icon, inputCls, Spinner } from './ui';
@@ -83,7 +84,8 @@ export function TemplateDialog({
     }
   }
 
-  return (
+  // Portal: the composer bar uses backdrop-blur, which would trap a fixed overlay inside it.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3">
@@ -134,6 +136,7 @@ export function TemplateDialog({
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

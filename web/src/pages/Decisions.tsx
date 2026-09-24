@@ -188,7 +188,7 @@ function DecisionDetail({ id }: { id: string }) {
           <span>
             {d.department_name ?? '—'} · {tl('decided')} {new Date(d.decided_at).toLocaleDateString()} · {d.recorded_by_name}
           </span>
-          {d.next_check_in && <Badge>{tl('next check-in {date}', { date: d.next_check_in })}</Badge>}
+          {d.next_check_in && <Badge>{tl('next check-in {date}', { date: new Date(d.next_check_in).toLocaleDateString() })}</Badge>}
           {d.plan && (
             <Link to={`/plans/${d.plan.id}`} className="text-accent-700 hover:underline">
               {tl('Action plan: {done}/{total} done', { done: d.plan.done, total: d.plan.total })}

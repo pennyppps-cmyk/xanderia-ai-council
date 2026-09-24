@@ -93,6 +93,8 @@ export function Icon({ name, className }: { name: string; className?: string }) 
     down: <path d="M17 13V4h3v9h-3Zm0 0-4 8a2 2 0 0 1-2-2v-4H5.5a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 6.7 4H17" />,
     reply: <path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 6 6v5" />,
     send: <path d="m5 12 14-7-5 16-3-7-6-2Z" />,
+    mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
+    stop: <rect x="7" y="7" width="10" height="10" rx="1.5" />,
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     close: <path d="M6 6l12 12M18 6 6 18" />,
     chevron: <path d="m9 6 6 6-6 6" />,

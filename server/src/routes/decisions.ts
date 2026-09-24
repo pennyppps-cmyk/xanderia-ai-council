@@ -173,6 +173,8 @@ export default async function decisionRoutes(app: FastifyInstance) {
       { userId: req.user.id, sensitivity: 'high', priority: PRIORITY.quick, purpose: 'meeting_brief' },
     );
     await writeAudit({ actorUserId: req.user.id, action: 'meeting_brief', detail: { from: body.from, to: body.to, decisions: rows.length } });
-    return { markdown: out.content.trim(), count: rows.length };
+    // The title (with the period) is ours: a small model sometimes gets the dates wrong.
+    const bodyMd = out.content.trim().replace(/^#{1,2}\s+[^\n]*(brief|ringkasan|taklimat)[^\n]*\n+/i, '');
+    return { markdown: `# Management meeting brief: ${body.from} to ${body.to}\n\n${bodyMd}`, count: rows.length };
   });
 }

@@ -37,6 +37,11 @@ const Env = z.object({
   SMTP_SECURE: bool,
   N8N_MAIL_WEBHOOK_URL: z.string().optional(),
   N8N_MAIL_SECRET: z.string().optional(),
+  // Telegram bot (optional). Long polling from the worker: no inbound port or public URL needed.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  // On-premises speech-to-text (OpenAI-compatible /v1/audio/transcriptions, e.g. the `voice` compose profile).
+  WHISPER_URL: z.string().optional(),
+  WHISPER_MODEL: z.string().default('Systran/faster-whisper-small'),
   LOG_LEVEL: z.string().default('info'),
 });
 

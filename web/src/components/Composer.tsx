@@ -3,6 +3,7 @@ import { useAuth } from '../auth';
 import type { Mode } from '../types';
 import { cx, Icon, Spinner } from './ui';
 import { getLang, tl } from '../i18n';
+import { MicButton } from './Channels';
 
 
 export interface ComposerHandle {
@@ -149,10 +150,17 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
           </label>
         )}
 
+        <span className="ml-auto" />
+        <MicButton
+          onText={(t) => {
+            setText((cur) => (cur.trim() ? `${cur.trimEnd()} ${t}` : t));
+            requestAnimationFrame(() => area.current?.focus());
+          }}
+        />
         <button
           onClick={submit}
           disabled={!text.trim() || busy}
-          className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg bg-ink-900 text-white hover:bg-ink-800 disabled:opacity-30"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-ink-900 text-white hover:bg-ink-800 disabled:opacity-30"
           aria-label={tl("Send")}
         >
           {busy ? <Spinner /> : <Icon name="send" />}

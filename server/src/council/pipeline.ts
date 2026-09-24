@@ -11,6 +11,7 @@ import { runCouncil, type Advisor } from './council.js';
 import { toCitations, userTurn, verdictToMarkdown } from './format.js';
 import { routeMessage, type RouterResult } from './router.js';
 import { notify } from '../crew/service.js';
+import { deliverToTelegram } from '../telegram/bot.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 
 interface LoadedJob {
@@ -28,6 +29,8 @@ interface LoadedJob {
       persona?: string;
       whatIf?: { base: string; change: string };
       effectiveQuestion?: string;
+      /** Asked from another channel: send the result back there when done. */
+      channel?: 'telegram';
     };
     status: string;
   };
@@ -422,5 +425,8 @@ export async function processMessage(messageId: string, events: Publisher) {
     await events.notifyUser(user.id, { type: 'job_failed', conversationId: message.conversation_id, messageId });
   } finally {
     await events.clearPartials(messageId).catch(() => {});
+    if (message.options.channel === 'telegram') {
+      await deliverToTelegram(messageId).catch((err) => console.error('[telegram] delivery failed:', err));
+    }
   }
 }

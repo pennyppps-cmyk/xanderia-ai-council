@@ -12,6 +12,7 @@ import { createRedis, redis } from './redis.js';
 import { runRetention } from './retention.js';
 import { decisionCheckIns, knowledgeFreshness, weeklyDigests } from './jobs.js';
 import { getSetting } from './settings.js';
+import { startTelegramPolling } from './telegram/bot.js';
 
 await migrate();
 await seed();
@@ -54,6 +55,9 @@ await maintenance.upsertJobScheduler('checkins', { pattern: '5 1 * * *' }, { nam
 // Knowledge freshness daily at 09:15 KL; the department heads' digest on Mondays at 08:00 KL.
 await maintenance.upsertJobScheduler('freshness', { pattern: '15 1 * * *' }, { name: 'freshness' });
 await maintenance.upsertJobScheduler('digest', { pattern: '0 0 * * 1' }, { name: 'digest' });
+// Telegram bot (when TELEGRAM_BOT_TOKEN is set): long polling, one poller across workers.
+void startTelegramPolling();
+
 const maintenanceWorker = new Worker(
   'maintenance',
   async (job) => {

@@ -72,6 +72,10 @@ or replace `tls internal` in [web/Caddyfile](web/Caddyfile) with your company ce
 | `WORKER_CONCURRENCY` | `6` | Jobs the worker holds at once. GPU concurrency is limited separately by the provider's slots. |
 | `RATE_LIMIT_PER_MIN` | `20` | Questions per user per minute. |
 | `CLOUD_API_KEY` | — | Only if the optional cloud provider is enabled. |
+| `APP_BASE_URL` | `https://localhost` | Address staff use. Links in emails and Telegram replies point here. |
+| `MAIL_PROVIDER` | `outbox` | `outbox`, `smtp` or `n8n` (see §7). |
+| `TELEGRAM_BOT_TOKEN` | empty | Enables the Telegram bot (§8). |
+| `WHISPER_URL` / `WHISPER_MODEL` | empty / `Systran/faster-whisper-small` | On-premises speech-to-text for voice questions (§8). |
 
 Everything else (personas, prompts, departments, model routing, retention, who may use Council) lives in the database and is edited in the admin panel.
 
@@ -170,7 +174,26 @@ Setup:
 
 Staff see their tasks under **Tasks**. Everyone gets live notifications through the bell.
 
-## 8. Development
+## 8. More ways to work with the council
+
+| Feature | Where | Notes |
+|---|---|---|
+| **Council templates** | "Templates" in the composer | New product, collections change, vendor selection, hiring plan, policy draft, customer script check. They collect the facts up front, so the council doesn't need to ask. |
+| **Customer script checker** | Template "Check a customer script" | Checks tone, clarity, fair treatment and PDPA. Returns a verdict, a table of issues and a rewrite in EN and BM. |
+| **Compliance seat** | Automatic | The Compliance Officer joins the council for the departments in Admin → Settings (default: Credit & Collections, Legal & Compliance, Finance, HR). |
+| **Red-flag detector** | Automatic | The router flags harassment, data misuse, fraud or discrimination. The answer still comes, with a warning; admins and Legal & Compliance leads get a notification, and the flag is in the audit log. |
+| **What-if** | "What if…" under a verdict | Changes one assumption. The Contrarian and the Executor re-run, the other opinions carry over, and the Chairman updates the verdict (about half the time of a full run). |
+| **Document drafting and Word export** | "Draft a document" / "Word" under an answer | SOP, policy, customer letter or staff memo from an answer. Every answer downloads as an editable .docx. |
+| **Decision register** | Sidebar → Decisions | Record a verdict as a decision. At 30 and 60 days the person who recorded it is asked whether it worked. "Meeting brief" writes a one-page summary of a date range. |
+| **Calculators** | Sidebar → Tools | Instalment (flat / reducing, EIR), early settlement rebate (Rule of 78 vs straight-line), roll rates, cost to collect. "Ask the council about this" pre-fills a question. |
+| **Arrears file analysis** | Tools → Arrears file | CSV/XLSX export, one row per account, with a DPD column (optionally balance, branch, product). The server parses it in memory and doesn't store it; only totals go to the council. |
+| **Weekly digest** | Email, Mondays 08:00 | To each department head: question counts, decisions, outcomes, overdue tasks, knowledge due for review. Counts only, never question text. Preview and "Send now" are in Admin → Overview. |
+| **Ask-the-org heatmap** | Admin → Overview | Which departments ask about which areas (counts only). |
+| **Knowledge freshness** | Admin → Knowledge | Each document has a review interval (default 180 days). Stale documents are flagged to the uploader and the managing leads. |
+| **Telegram bot** | Sidebar → Telegram | Set `TELEGRAM_BOT_TOKEN` (from @BotFather). The worker long-polls Telegram, so it needs outbound HTTPS only, with no inbound port. Staff link their own chat with a one-time link. `/quick`, `/council`, `/new`, `/unlink`. Messages pass through Telegram's servers: tell staff not to send customer data. |
+| **Voice questions (on-premises)** | Mic button in the composer; Telegram voice notes | `docker compose --profile voice up -d` and `WHISPER_URL=http://whisper:8000`. Whisper runs inside the stack; audio never leaves the network, and nothing is stored. The model downloads once on first start. |
+
+## 9. Development
 
 ```bash
 npm install
@@ -208,7 +231,7 @@ server/
 web/                   React + Vite + Tailwind SPA, Caddyfile
 ```
 
-## 9. Operations notes
+## 10. Operations notes
 
 - **Latency** (measured on an RTX 4060 laptop, `hermes3:8b`, 2 slots): Quick mode shows its first token in about 4.5 s. Council takes about 75–90 s, or about 3 min with peer review. The UI shows live progress, and users can leave and come back. A browser notification and an in-app toast announce finished verdicts.
 - **Queue:** Quick questions jump ahead of council work at the GPU. Users see "Queued · position N" when the model is busy.

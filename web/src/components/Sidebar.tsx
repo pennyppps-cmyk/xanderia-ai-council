@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import type { ConversationSummary } from '../types';
 import { LanguageToggle } from './LanguageToggle';
+import { TelegramButton } from './Channels';
 import { NotificationBell } from './Notifications';
 import { cx, Icon, Spinner } from './ui';
 import { tl } from '../i18n';
@@ -94,6 +95,7 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
           >
             <Icon name="edit" className="h-3.5 w-3.5" /> {tl('Tools')}
           </Link>
+          <TelegramButton />
           {me && me.user.role !== 'employee' && (
             <Link
               to="/admin"

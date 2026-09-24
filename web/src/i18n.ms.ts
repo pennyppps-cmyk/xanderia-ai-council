@@ -675,5 +675,19 @@ export const ms: Record<string, string> = {
   'every {n} days': 'setiap {n} hari',
   'Confirm this document is still current': 'Sahkan dokumen ini masih terkini',
   'Mark reviewed': 'Tanda sudah disemak',
+  'Could not hear anything. Try again closer to the mic.': 'Tiada suara dikesan. Cuba lagi lebih dekat dengan mikrofon.',
+  'Microphone access was blocked. Allow it in the browser to ask by voice.': 'Akses mikrofon disekat. Benarkan dalam pelayar untuk bertanya melalui suara.',
+  'Stop and transcribe': 'Henti dan tukar ke teks',
+  'Ask by voice (English or Bahasa Malaysia; transcribed on our own server)': 'Tanya melalui suara (Bahasa Inggeris atau Bahasa Malaysia; ditranskrip di pelayan kita sendiri)',
+  'Ask the council from Telegram': 'Tanya majlis dari Telegram',
+  'Link your Telegram so you can message the council bot. Answers come back in the chat, with a link to the full report here.':
+    'Pautkan Telegram anda untuk menghantar mesej kepada bot majlis. Jawapan dihantar semula dalam sembang, dengan pautan ke laporan penuh di sini.',
+  'Telegram is an outside service: do not send customer personal data (IC, account or phone numbers) through it.':
+    'Telegram ialah perkhidmatan luar: jangan hantar data peribadi pelanggan (nombor IC, akaun atau telefon) melaluinya.',
+  Connected: 'Disambungkan',
+  Disconnect: 'Putuskan',
+  'Open @{bot} and press Start': 'Buka @{bot} dan tekan Start',
+  'The link works once and expires in 15 minutes. Then close this window.': 'Pautan ini hanya sekali guna dan tamat dalam 15 minit. Kemudian tutup tetingkap ini.',
+  'Connect Telegram': 'Sambung Telegram',
   Product: 'Produk',
 };

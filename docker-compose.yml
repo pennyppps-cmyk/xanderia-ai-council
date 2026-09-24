@@ -106,8 +106,19 @@ services:
               capabilities: [gpu]
     restart: unless-stopped
 
+  # Optional: on-premises speech-to-text for voice questions (web mic button, Telegram voice notes).
+  #   docker compose --profile voice up -d   and set WHISPER_URL=http://whisper:8000
+  whisper:
+    profiles: ["voice"]
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    # The API installs WHISPER_MODEL on first use (one download into the volume, then offline).
+    volumes:
+      - whisper:/home/ubuntu/.cache/huggingface/hub
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
   caddydata:
   ollama:
+  whisper:

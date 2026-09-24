@@ -119,3 +119,21 @@ Defaults chosen for the open decisions in §12:
 - **Only a SHA-256 of each link token is stored.** Issuing a new link cancels older ones, and setting a password uses up all open links.
 - **Account emails are bilingual** (English, then BM). They go through the same outbox and domain allowlist, but are sent **immediately**, not held for business hours.
 - **While email isn't connected** (`MAIL_PROVIDER=outbox`) or the address is outside the allowed domains, the admin screen shows the link so the admin can pass it on. Admins can already set passwords, so this doesn't widen their access.
+
+## Templates, decisions and safety seats (2026-09-24)
+
+- **Templates are stored in the database** (`council_templates`), so admins can add more without a release. The client sends only the key. The server looks up the mode, task and persona, so a template can't be used to pick an arbitrary prompt.
+- **The Compliance Officer is a seat, not a seventh advisor for everyone.** It joins only for the departments listed in `compliance_seat_departments`, to keep council time down elsewhere.
+- **Red flags never block the answer.** Blocking would teach people to rephrase. The answer comes with a visible warning, and Compliance is told.
+- **Outcome check-ins go to the person who recorded the decision**, at 30 and 60 days (per decision, `check_in_days`). Marking a decision dropped stops them.
+
+## What-if, tools, digest and channels (2026-09-24)
+
+- **What-if re-runs only the Contrarian and the Executor.** They're the two whose views move most with an assumption; the others' opinions are reused, marked "(original run)". This takes about 70 s against about 90–130 s for a full council on the dev laptop.
+- **Word export is built with the `docx` library from the answer's Markdown.** It covers headings, lists, tables and bold/italic. It's meant for editing, not typesetting.
+- **Calculators run in the browser.** Nothing is sent until the user chooses "Ask the council". The rebate calculator shows both Rule of 78 and straight-line and doesn't say which is legally required, because that depends on the product and regulator.
+- **Arrears files are never stored.** They're parsed in memory, the audit log records only the file name, row count and the columns used, and only bucket/branch/product totals reach the model.
+- **Digest emails contain counts only**, never question text. A head of department shouldn't be able to read what their team asked. Decisions and outcomes are named because they're already visible to the department in the register.
+- **The heatmap uses the router's department as the "area".** No topic model is added, which keeps it cheap and explainable.
+- **Telegram uses long polling from the worker**, not a webhook, so the server needs no public URL or open port. A Redis lock ensures one poller when several workers run. Telegram is a third-party cloud: the bot's help text and the link dialog both warn against sending customer data. The normal PII guard and audit still apply. Group chats are ignored.
+- **Voice uses an OpenAI-compatible Whisper server inside the stack** (speaches, CPU image, `faster-whisper-small` by default). It handles BM and English with language auto-detection, because staff mix the two. Audio is not stored. A GPU image and a larger model (`medium`) improve BM accuracy if the RDP GPU box is used.
