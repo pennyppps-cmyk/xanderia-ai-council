@@ -130,6 +130,17 @@ export const PERSONAS = [
       "Role: Department Expert. Answer as a senior practitioner of the department described below. Ground your answer in the department's practice and any reference documents provided, and cite them as [S1], [S2] when used.",
   },
   {
+    key: 'compliance',
+    name: 'Compliance Officer',
+    name_ms: 'Pegawai Pematuhan',
+    // Not a permanent seat: joins automatically for the departments in the
+    // `compliance_seat_departments` setting, and whenever the router raises a red flag.
+    in_council: false,
+    description: 'Checks the plan against PDPA, BNM rules, AMLA and fair collection conduct.',
+    prompt:
+      "Role: Compliance Officer for a licensed Malaysian financing company. Check the request against PDPA 2010, BNM policy documents (Fair Treatment of Financial Consumers, Responsible Financing, complaints handling), AMLA, and fair debt-collection conduct; for HR matters, the Employment Act. For each relevant requirement say: the rule, whether the plan meets it (Yes / Unclear / No), and what must change. Say plainly when Legal must review. You do not give legal advice.",
+  },
+  {
     key: 'chairman',
     name: 'The Chairman',
     name_ms: 'Pengerusi',
@@ -149,6 +160,8 @@ Classify the user's message. Return JSON only.
 - sensitivity: "high" if contains_pii is true or it discusses a specific named customer, staff disciplinary matter, or confidential financials; otherwise "low".
 - suggested_mode: "council" for plans, decisions, strategy or anything with trade-offs; "quick" for factual or how-to questions.
 - language: "ms" if the message is mainly Bahasa Malaysia, otherwise "en".
+- red_flag: "none" unless the request asks for something unlawful or unethical: "harassment" (threatening, shaming or pressuring debtors, contacting their employer/family about the debt), "data_misuse" (sharing or using personal data without a lawful basis), "fraud" (deceiving customers, falsifying records, evading controls), "discrimination" (treating people unfairly by race, religion, gender, age or disability), or "other".
+- red_flag_reason: one short sentence if red_flag is not "none", otherwise "".
 - reason: one short sentence.`,
 
   quick: `Task: answer the user's request directly and helpfully.
@@ -207,6 +220,7 @@ export const MODEL_ROLES = [
   { role: 'advisor:customer_advocate', temperature: 0.5, num_predict: 600 },
   { role: 'advisor:executor', temperature: 0.5, num_predict: 600 },
   { role: 'advisor:dept_expert', temperature: 0.5, num_predict: 600 },
+  { role: 'advisor:compliance', temperature: 0.3, num_predict: 600 },
   { role: 'peer_review', temperature: 0.3, num_predict: 700 },
   { role: 'chairman', temperature: 0.2, num_predict: 1600 },
   { role: 'clarifier', temperature: 0.0, num_predict: 300 },
@@ -214,6 +228,7 @@ export const MODEL_ROLES = [
   { role: 'crew:dispatcher', temperature: 0.2, num_predict: 1400 },
   { role: 'crew:herald', temperature: 0.4, num_predict: 300 },
   { role: 'crew:runner', temperature: 0.4, num_predict: 1400 },
+  { role: 'document', temperature: 0.4, num_predict: 1800 },
 ] as const;
 
 export const SETTINGS: Record<string, unknown> = {
@@ -224,10 +239,123 @@ export const SETTINGS: Record<string, unknown> = {
   rag_top_k: 5,
   history_turns: 6,
   clarify_enabled: true,
+  compliance_seat_departments: ['credit-collections', 'legal-compliance', 'finance', 'hr'],
   // Action Crew
   crew_names: { dispatcher: 'Dispatcher', herald: 'Herald', tracker: 'Tracker', runner: 'Runner' },
   crew_email_domains: ['xanderia.com.my'],
   crew_business_hours: { start: 9, end: 18 },
   crew_weekend: [0, 6],
   crew_timings: { ackReminderDays: 1, dueReminderDaysBefore: 1, escalateAfterDays: 3, escalationEnabled: true },
+};
+
+/** Council templates (guided starters). Seed inserts missing keys only; admins edit them afterwards. */
+export const TEMPLATES = [
+  {
+    key: 'new_product',
+    title: 'New product launch',
+    title_ms: 'Pelancaran produk baharu',
+    description: 'Should we launch it, and how?',
+    description_ms: 'Patutkah kami melancarkannya, dan bagaimana?',
+    mode: 'council',
+    fields: [
+      { key: 'product', label: 'Product', label_ms: 'Produk', placeholder: 'e.g. salary-deduction personal financing', required: true },
+      { key: 'customers', label: 'Target customers', label_ms: 'Pelanggan sasaran', placeholder: 'segment, region, size of market' },
+      { key: 'terms', label: 'Amounts and pricing', label_ms: 'Jumlah dan harga', placeholder: 'e.g. RM 5k–50k, 7% flat, 5 years' },
+      { key: 'budget', label: 'Budget and timeline', label_ms: 'Bajet dan garis masa', placeholder: 'e.g. RM 300k over 6 months' },
+      { key: 'decision', label: 'What do you need decided?', label_ms: 'Apa yang perlu diputuskan?', multiline: true, required: true },
+    ],
+  },
+  {
+    key: 'collections_change',
+    title: 'Collections strategy change',
+    title_ms: 'Perubahan strategi kutipan',
+    description: 'Test a change to reminders, restructuring or field collection.',
+    description_ms: 'Uji perubahan pada peringatan, penstrukturan semula atau kutipan lapangan.',
+    mode: 'council',
+    department_slug: 'credit-collections',
+    fields: [
+      { key: 'current', label: 'How it works today', label_ms: 'Cara semasa', multiline: true, required: true },
+      { key: 'change', label: 'The change you are considering', label_ms: 'Perubahan yang dipertimbangkan', multiline: true, required: true },
+      { key: 'accounts', label: 'Accounts affected', label_ms: 'Akaun terlibat', placeholder: 'number of accounts, DPD buckets, balances' },
+      { key: 'resources', label: 'People and systems', label_ms: 'Kakitangan dan sistem', placeholder: 'e.g. 6 collection officers, auto-dialler' },
+      { key: 'goal', label: 'Goal / KPI', label_ms: 'Matlamat / KPI', placeholder: 'e.g. cut 60+ DPD roll rate by 2 points' },
+    ],
+  },
+  {
+    key: 'vendor_selection',
+    title: 'Vendor selection',
+    title_ms: 'Pemilihan vendor',
+    description: 'Compare options and choose.',
+    description_ms: 'Bandingkan pilihan dan buat keputusan.',
+    mode: 'council',
+    fields: [
+      { key: 'need', label: 'What we need', label_ms: 'Apa yang diperlukan', required: true },
+      { key: 'options', label: 'Options and their costs', label_ms: 'Pilihan dan kosnya', multiline: true, required: true },
+      { key: 'criteria', label: 'What matters most', label_ms: 'Paling penting', placeholder: 'e.g. cost, uptime, PDPA, support in BM' },
+      { key: 'contract', label: 'Contract length / deadline', label_ms: 'Tempoh kontrak / tarikh akhir' },
+    ],
+  },
+  {
+    key: 'hiring_plan',
+    title: 'Hiring plan',
+    title_ms: 'Pelan pengambilan',
+    description: 'Plan roles, budget, sourcing and onboarding.',
+    description_ms: 'Rancang jawatan, bajet, sumber calon dan orientasi.',
+    mode: 'council',
+    department_slug: 'hr',
+    fields: [
+      { key: 'roles', label: 'Roles and how many', label_ms: 'Jawatan dan bilangan', required: true },
+      { key: 'budget', label: 'Budget (salary range, total)', label_ms: 'Bajet (julat gaji, jumlah)' },
+      { key: 'when', label: 'Needed by', label_ms: 'Diperlukan menjelang' },
+      { key: 'context', label: 'Why now / context', label_ms: 'Mengapa sekarang / konteks', multiline: true },
+    ],
+  },
+  {
+    key: 'policy_draft',
+    title: 'Draft a policy or SOP',
+    title_ms: 'Draf polisi atau SOP',
+    description: 'A ready-to-edit first draft.',
+    description_ms: 'Draf pertama yang sedia disunting.',
+    mode: 'quick',
+    task: 'document',
+    fields: [
+      { key: 'topic', label: 'Policy / SOP topic', label_ms: 'Topik polisi / SOP', required: true },
+      { key: 'audience', label: 'Who it applies to', label_ms: 'Terpakai kepada siapa' },
+      { key: 'must', label: 'Must cover', label_ms: 'Mesti meliputi', multiline: true },
+      { key: 'language', label: 'Language', label_ms: 'Bahasa', placeholder: 'English / Bahasa Malaysia / both' },
+    ],
+  },
+  {
+    key: 'script_check',
+    title: 'Check a customer script',
+    title_ms: 'Semak skrip pelanggan',
+    description: 'Tone, clarity, fair treatment and PDPA check before it goes out.',
+    description_ms: 'Semakan nada, kejelasan, layanan adil dan PDPA sebelum dihantar.',
+    mode: 'check',
+    task: 'script_check',
+    persona: 'customer_advocate',
+    fields: [
+      { key: 'channel', label: 'Channel', label_ms: 'Saluran', placeholder: 'SMS / WhatsApp / call script / letter' },
+      { key: 'situation', label: 'Customer situation', label_ms: 'Situasi pelanggan', placeholder: 'e.g. 35 days past due, first reminder' },
+      { key: 'script', label: 'The script', label_ms: 'Skrip', multiline: true, required: true },
+    ],
+  },
+] as const;
+
+/** Extra task prompts used by templates and tools. */
+export const EXTRA_TASKS: Record<string, string> = {
+  script_check: `Task: review a customer-facing script (SMS, WhatsApp, call script or letter) from a Malaysian financing company before it is sent.
+Check: tone (respectful, no threats, shaming or pressure), clarity (simple, unambiguous; correct Bahasa Malaysia if in BM), fair treatment of financial consumers (BNM), lawful and fair debt collection (no harassment, no false statements, no contact with third parties about the debt), PDPA (no personal data that should not be there), accuracy (amounts, dates, next steps), and a clear way to contact Xanderia.
+Answer in Markdown:
+## Verdict
+OK to send / Needs changes / Do not send, with one sentence why.
+## Issues
+A table: Issue | Why it matters | Fix. Write "None" if there are none.
+## Suggested version (English)
+## Suggested version (Bahasa Malaysia)
+Keep the suggested versions about as short as the original.`,
+
+  document: `Task: write a complete, ready-to-edit first draft of the requested document (policy, SOP, procedure, letter or template) for Xanderia Services Sdn Bhd.
+Use Markdown with a title, purpose, scope, definitions if needed, numbered sections, responsibilities (by job role), and a short review/approval block. Follow Malaysian law and practice (PDPA 2010, Employment Act, BNM guidelines where relevant).
+Mark anything you had to assume as [ASSUMPTION: ...] and anything a person must fill in as [TO FILL: ...]. Write in the language requested (both = English first, then Bahasa Malaysia).`,
 };

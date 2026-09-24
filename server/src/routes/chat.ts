@@ -23,6 +23,8 @@ const SendMessage = z.object({
   peerReview: z.boolean().optional(),
   /** Answering the council's clarifying questions with "skip": proceed on its assumptions. */
   skipClarify: z.boolean().optional(),
+  /** Council template key; the server looks up its mode / task / persona (never trusted from the client). */
+  template: z.string().max(60).optional(),
 });
 
 const MESSAGE_COLUMNS = `m.id, m.conversation_id, m.role, m.content, m.reply_to, m.requested_mode, m.mode,
@@ -68,6 +70,14 @@ export default async function chatRoutes(app: FastifyInstance) {
   app.get('/api/departments', auth, async () => {
     const { rows } = await query(
       `SELECT id, slug, name, name_ms, description, review_before_acting FROM departments WHERE is_active ORDER BY name`,
+    );
+    return rows;
+  });
+
+  app.get('/api/templates', auth, async () => {
+    const { rows } = await query(
+      `SELECT key, title, title_ms, description, description_ms, mode, department_slug, fields
+         FROM council_templates WHERE is_active ORDER BY sort_order, title`,
     );
     return rows;
   });
@@ -158,6 +168,14 @@ export default async function chatRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const body = SendMessage.parse(req.body);
+      let templateOpts: Record<string, unknown> = {};
+      if (body.template) {
+        const { rows: tpl } = await query(`SELECT key, mode, task, persona FROM council_templates WHERE key = $1 AND is_active`, [body.template]);
+        if (!tpl[0]) return reply.code(400).send({ error: 'Unknown template' });
+        // A template collects the facts up front, so the council does not need to ask again.
+        templateOpts = { template: tpl[0].key, task: tpl[0].task ?? undefined, persona: tpl[0].persona ?? undefined, skipClarify: true };
+        body.mode = tpl[0].mode === 'council' ? 'council' : 'quick';
+      }
       if (body.mode === 'council' && !(await canUseCouncil(req.user.role))) {
         return reply.code(403).send({ error: 'Council mode is not enabled for your role yet.' });
       }
@@ -193,7 +211,7 @@ export default async function chatRoutes(app: FastifyInstance) {
           await c.query(
             `INSERT INTO messages (conversation_id, role, reply_to, requested_mode, department_id, status, options)
              VALUES ($1, 'assistant', $2, $3, $4, 'queued', $5) RETURNING *`,
-            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, skipClarify: body.skipClarify })],
+            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, skipClarify: body.skipClarify, ...templateOpts })],
           )
         ).rows[0];
         await c.query('UPDATE conversations SET updated_at = now() WHERE id = $1', [conversation.id]);

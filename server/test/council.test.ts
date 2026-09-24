@@ -292,3 +292,25 @@ describe('clarifying questions', () => {
     expect(skipped).not.toContain('The asker answered');
   });
 });
+
+describe('red-flag detection', () => {
+  const departments = [{ slug: 'credit-collections', name: 'Credit & Collections' }];
+  it('passes the router red flag through, and defaults to none', async () => {
+    const flagged = new FakeProvider('local', false, () =>
+      JSON.stringify({
+        department: 'credit-collections', intent: 'plan', contains_pii: false, sensitivity: 'low', suggested_mode: 'quick',
+        language: 'en', red_flag: 'harassment', red_flag_reason: 'Threatens to tell employer', reason: 'x',
+      }),
+    );
+    const g1 = makeGateway({ providers: [flagged], roles: { '*': 'local' } });
+    const r1 = await routeMessage({ gateway: g1.gateway, assemble }, { question: 'Tell their boss', departments, defaultDepartment: 'credit-collections' });
+    expect(r1).toMatchObject({ red_flag: 'harassment', red_flag_reason: 'Threatens to tell employer' });
+
+    const plain = new FakeProvider('local', false, () =>
+      JSON.stringify({ department: 'credit-collections', intent: 'question', contains_pii: false, sensitivity: 'low', suggested_mode: 'quick', language: 'en', reason: 'x' }),
+    );
+    const g2 = makeGateway({ providers: [plain], roles: { '*': 'local' } });
+    const r2 = await routeMessage({ gateway: g2.gateway, assemble }, { question: 'Normal', departments, defaultDepartment: 'credit-collections' });
+    expect(r2.red_flag).toBe('none');
+  });
+});

@@ -90,6 +90,11 @@ function Header({ live, mode, message, reviewFlag }: { live: LiveState; mode: st
         </Badge>
       )}
       {live.router?.sensitivity === 'high' && <Badge tone="amber">{tl("Sensitive: kept local")}</Badge>}
+      {live.router?.red_flag && live.router.red_flag !== 'none' && (
+        <Badge tone="red" title={live.router.red_flag_reason || undefined}>
+          {tl('Flagged for compliance review')}
+        </Badge>
+      )}
       {reviewFlag && <Badge tone="red">{tl("Review before acting")}</Badge>}
     </div>
   );

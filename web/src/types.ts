@@ -75,6 +75,8 @@ export interface RouterInfo {
   suggested_mode: 'quick' | 'council';
   language: 'en' | 'ms';
   reason: string;
+  red_flag?: 'none' | 'harassment' | 'data_misuse' | 'fraud' | 'discrimination' | 'other';
+  red_flag_reason?: string;
   source: 'model' | 'fallback';
 }
 

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { config } from '../config.js';
 import { invalidatePrompts } from '../prompts/assembler.js';
 import { pool, tx } from './pool.js';
-import { BASE_PROMPT, DEPARTMENTS, MODEL_ROLES, PERSONAS, SETTINGS, TASKS } from './seedData.js';
+import { BASE_PROMPT, DEPARTMENTS, EXTRA_TASKS, MODEL_ROLES, PERSONAS, SETTINGS, TASKS, TEMPLATES } from './seedData.js';
 
 /** Idempotent: only inserts rows that do not exist yet, never overwrites admin edits. */
 export async function seed(log = console.log) {
@@ -32,6 +32,7 @@ export async function seed(log = console.log) {
       ...PERSONAS.map((p) => ['persona', p.key, p.prompt] as [string, string, string]),
       ...DEPARTMENTS.map((d) => ['department', d.slug, d.prompt] as [string, string, string]),
       ...Object.entries(TASKS).map(([k, v]) => ['task', k, v] as [string, string, string]),
+      ...Object.entries(EXTRA_TASKS).map(([k, v]) => ['task', k, v] as [string, string, string]),
     ];
     let promptsChanged = false;
     for (const [layer, key, content] of prompts) {
@@ -98,6 +99,15 @@ export async function seed(log = console.log) {
       await c.query(
         `INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`,
         [key, JSON.stringify(value)],
+      );
+    }
+
+    for (const [i, t] of TEMPLATES.entries()) {
+      const tt = t as any;
+      await c.query(
+        `INSERT INTO council_templates (key, title, title_ms, description, description_ms, mode, department_slug, fields, task, persona, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (key) DO NOTHING`,
+        [t.key, t.title, t.title_ms, t.description, t.description_ms, t.mode, tt.department_slug ?? null, JSON.stringify(t.fields), tt.task ?? null, tt.persona ?? null, i],
       );
     }
 

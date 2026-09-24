@@ -8,6 +8,7 @@ import { Sidebar } from '../components/Sidebar';
 import { cx, Icon, Spinner } from '../components/ui';
 import type { ConversationSummary, Message, Mode } from '../types';
 import { useUserEvents } from '../useUserEvents';
+import { TemplateDialog, TemplateGrid, type CouncilTemplate } from '../components/Templates';
 import { tl } from '../i18n';
 
 
@@ -31,6 +32,12 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [pulse, setPulse] = useState(0);
+  const [templates, setTemplates] = useState<CouncilTemplate[]>([]);
+  const [templateDialog, setTemplateDialog] = useState<{ open: boolean; initial: CouncilTemplate | null }>({ open: false, initial: null });
+
+  useEffect(() => {
+    api<CouncilTemplate[]>('/api/templates').then(setTemplates).catch(() => {});
+  }, []);
   const composer = useRef<ComposerHandle>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -72,7 +79,7 @@ export default function Chat() {
     setPulse((n) => n + 1);
   });
 
-  async function send(input: { content: string; mode: Mode; departmentId?: string; peerReview?: boolean; skipClarify?: boolean }) {
+  async function send(input: { content: string; mode: Mode; departmentId?: string; peerReview?: boolean; skipClarify?: boolean; template?: string }) {
     setSending(true);
     setError(null);
     try {
@@ -129,7 +136,14 @@ export default function Chat() {
                 <p className="mx-auto mt-2 max-w-lg text-sm text-ink-600">
                   {tl("Ask a quick question, or bring a plan or decision to the council: six advisors with different mandates weigh in, and the Chairman returns one verdict with an action plan.")}
                 </p>
-                <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
+                {templates.length > 0 && (
+                  <div className="mt-6">
+                    <p className="mb-2 text-left text-xs font-semibold tracking-wide text-ink-400 uppercase">{tl('Start from a template')}</p>
+                    <TemplateGrid templates={templates} onPick={(t) => setTemplateDialog({ open: true, initial: t })} />
+                  </div>
+                )}
+                <p className="mt-6 mb-2 text-left text-xs font-semibold tracking-wide text-ink-400 uppercase">{tl('Or try an example')}</p>
+                <div className="grid gap-2 text-left sm:grid-cols-2">
                   {EXAMPLES.map((e) => (
                     <button
                       key={e.text}
@@ -196,7 +210,18 @@ export default function Chat() {
               defaultDepartmentId={convDept}
               placeholder={awaitingAnswers ? tl("Answer the council's questions here (all in one message), or press Skip above…") : undefined}
               onSend={send}
+              onTemplates={templates.length ? () => setTemplateDialog({ open: true, initial: null }) : undefined}
             />
+            {templateDialog.open && (
+              <TemplateDialog
+                templates={templates}
+                initial={templateDialog.initial}
+                onClose={() => setTemplateDialog({ open: false, initial: null })}
+                onSubmit={(t, content, departmentId) =>
+                  send({ content, mode: t.mode === 'council' ? 'council' : 'quick', departmentId, template: t.key })
+                }
+              />
+            )}
             <p className="mt-2 text-center text-[11px] text-ink-400">
               {tl("Advisory output only. Final decisions sit with the responsible staff and management. Legal and finance answers must be reviewed before acting.")}
             </p>

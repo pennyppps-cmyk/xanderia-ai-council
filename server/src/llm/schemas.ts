@@ -9,6 +9,9 @@ export function routerSchema(departmentSlugs: [string, ...string[]]) {
     sensitivity: z.enum(['low', 'high']),
     suggested_mode: z.enum(['quick', 'council']),
     language: z.enum(['en', 'ms']),
+    // Requests that look unlawful/unethical are flagged for Compliance (the answer still comes, with a warning).
+    red_flag: z.enum(['none', 'harassment', 'data_misuse', 'fraud', 'discrimination', 'other']).default('none'),
+    red_flag_reason: z.string().default(''),
     reason: z.string(),
   });
 }

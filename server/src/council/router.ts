@@ -41,6 +41,8 @@ export async function routeMessage(
       ? 'council'
       : 'quick',
     language: guessLanguage(input.question),
+    red_flag: 'none',
+    red_flag_reason: '',
     reason: 'Router unavailable; heuristic classification.',
     source: 'fallback',
   });

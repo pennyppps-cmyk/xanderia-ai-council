@@ -16,6 +16,8 @@ interface Props {
   /** Shown instead of the default placeholder, e.g. while the council waits for answers. */
   placeholder?: string;
   onSend(input: { content: string; mode: Mode; departmentId: string; peerReview: boolean }): Promise<void>;
+  /** Opens the template picker. */
+  onTemplates?(): void;
 }
 
 const MODES: Array<{ key: Mode; label: string; hint: string }> = [
@@ -24,7 +26,7 @@ const MODES: Array<{ key: Mode; label: string; hint: string }> = [
   { key: 'council', label: 'Council', hint: 'Six advisors debate, the Chairman decides (≈1–2 min)' },
 ];
 
-export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ busy, defaultDepartmentId, placeholder, onSend }, ref) {
+export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ busy, defaultDepartmentId, placeholder, onSend, onTemplates }, ref) {
   const { me, departments } = useAuth();
   const [text, setText] = useState('');
   const [mode, setMode] = useState<Mode>(() => (localStorage.getItem('xc:mode') as Mode) || 'auto');
@@ -120,6 +122,17 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
             </option>
           ))}
         </select>
+
+        {onTemplates && (
+          <button
+            type="button"
+            onClick={onTemplates}
+            className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-2 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50"
+            title={tl('Guided starters that ask for the facts the council needs')}
+          >
+            <Icon name="plus" className="h-3 w-3" /> {tl('Templates')}
+          </button>
+        )}
 
         {effectiveMode !== 'quick' && (
           <label

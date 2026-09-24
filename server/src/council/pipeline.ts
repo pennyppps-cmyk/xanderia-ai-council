@@ -10,6 +10,7 @@ import { canUseCouncil, getSetting, type UserRole } from '../settings.js';
 import { runCouncil, type Advisor } from './council.js';
 import { toCitations, userTurn, verdictToMarkdown } from './format.js';
 import { routeMessage, type RouterResult } from './router.js';
+import { notify } from '../crew/service.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 
 interface LoadedJob {
@@ -19,7 +20,7 @@ interface LoadedJob {
     reply_to: string;
     requested_mode: 'auto' | 'quick' | 'council';
     department_id: string;
-    options: { peerReview?: boolean; skipClarify?: boolean };
+    options: { peerReview?: boolean; skipClarify?: boolean; template?: string; task?: string; persona?: string };
     status: string;
   };
   question: string;
@@ -79,6 +80,33 @@ async function previousAssistant(conversationId: string, userMessageId: string) 
     [conversationId, userMessageId],
   );
   return rows[0] ?? null;
+}
+
+/** Quick-mode tasks and the model role each runs on (documents need a larger output budget). */
+const QUICK_TASKS: Record<string, string> = { quick: 'quick', script_check: 'quick', document: 'document' };
+
+/** Log a red-flagged request and alert Compliance (admins and Legal & Compliance leads). */
+async function raiseRedFlag(messageId: string, userId: string, router: RouterResult) {
+  await writeAudit({
+    actorUserId: userId,
+    action: 'red_flag',
+    targetType: 'message',
+    targetId: messageId,
+    detail: { flag: router.red_flag, reason: router.red_flag_reason },
+  });
+  const { rows } = await query(
+    `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id
+      WHERE u.is_active AND u.id <> $1 AND (u.role = 'admin' OR (u.role = 'dept_lead' AND d.slug = 'legal-compliance'))`,
+    [userId],
+  );
+  for (const r of rows) {
+    await notify(r.id, {
+      kind: 'red_flag',
+      title: `Compliance flag (${router.red_flag.replace('_', ' ')}): a request needs review`,
+      body: router.red_flag_reason || undefined,
+      link: '/admin/audit',
+    });
+  }
 }
 
 async function isCloudRole(role: string) {
@@ -164,6 +192,7 @@ export async function processMessage(messageId: string, events: Publisher) {
       await events.emit(messageId, { type: 'router', router: r, mode });
     };
     if (router) await saveRouter(router);
+    if (router?.red_flag && router.red_flag !== 'none') await raiseRedFlag(messageId, user.id, router);
     else await query('UPDATE messages SET mode = $2 WHERE id = $1', [messageId, mode]);
 
     // Before convening the council, ask the asker for anything essential that is missing.
@@ -232,7 +261,10 @@ export async function processMessage(messageId: string, events: Publisher) {
 
     if (mode === 'quick') {
       await stage('answer');
-      const system = await assemblePrompt({ persona: 'dept_expert', department: department.slug, task: 'quick' });
+      // Templates can swap the task (script check, document drafting) and the persona; only known keys are allowed.
+      const task = message.options.task && QUICK_TASKS[message.options.task] ? message.options.task : 'quick';
+      const persona = message.options.persona && ['dept_expert', 'customer_advocate', 'compliance'].includes(message.options.persona) ? message.options.persona : 'dept_expert';
+      const system = await assemblePrompt({ persona, department: department.slug, task });
       let stream: TokenStream | undefined;
       await events.emit(messageId, {
         type: 'part_start',
@@ -241,7 +273,7 @@ export async function processMessage(messageId: string, events: Publisher) {
         persona: 'dept_expert',
       });
       const out = await gateway.call(
-        'quick',
+        QUICK_TASKS[task],
         [
           { role: 'system', content: system },
           ...history,
@@ -265,8 +297,14 @@ export async function processMessage(messageId: string, events: Publisher) {
       await events.emit(messageId, { type: 'part_done', part: 'answer', content: out.content.trim() });
       await saveCitations(out.content);
     } else {
+      // The Compliance Officer joins for regulated departments, and whenever the router raised a red flag.
+      const seatDepts = await getSetting<string[]>('compliance_seat_departments', []);
+      const withCompliance = seatDepts.includes(department.slug) || (router?.red_flag && router.red_flag !== 'none');
       const { rows: personas } = await query(
-        'SELECT key, name FROM personas WHERE in_council AND is_active ORDER BY sort_order',
+        `SELECT key, name FROM personas
+          WHERE is_active AND (in_council OR (key = 'compliance' AND $1))
+          ORDER BY sort_order`,
+        [Boolean(withCompliance)],
       );
       const result = await runCouncil(
         { gateway, assemble: assemblePrompt, getRoleConfig },
@@ -321,7 +359,11 @@ export async function processMessage(messageId: string, events: Publisher) {
       await saveCitations([content, ...result.opinions.map((o) => o.content)].join('\n'));
     }
 
-    if (routerPromise) await saveRouter(await routerPromise);
+    if (routerPromise) {
+      const late = await routerPromise;
+      await saveRouter(late);
+      if (late.red_flag && late.red_flag !== 'none') await raiseRedFlag(messageId, user.id, late);
+    }
 
     await query(`UPDATE messages SET status = 'done', stage = NULL, completed_at = now() WHERE id = $1`, [messageId]);
     await query('UPDATE conversations SET updated_at = now() WHERE id = $1', [message.conversation_id]);

@@ -128,6 +128,8 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
       await hooks.onPartStart(part, 1, advisor, label);
       try {
         const isExpert = advisor.key === 'dept_expert';
+        // The Compliance Officer also reads the knowledge base (policies are usually company-wide).
+        const readsKnowledge = isExpert || advisor.key === 'compliance';
         const system = await deps.assemble({
           persona: advisor.key,
           department: isExpert ? input.department.slug : undefined,
@@ -140,7 +142,7 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
             role: 'user',
             content: userTurn(input.question, {
               context: departmentContext,
-              knowledge: isExpert ? input.knowledge : [],
+              knowledge: readsKnowledge ? input.knowledge : [],
             }),
           },
         ];
