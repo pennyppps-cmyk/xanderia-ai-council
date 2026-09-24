@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import type { Citation, ClarifyRequest, Level, Message, Mode, PlanSummary, Stance, Verdict } from '../types';
 import { useMessageStream, type LivePart, type LiveState } from '../useMessageStream';
 import { Markdown } from './Markdown';
+import { RecordDecision } from '../pages/Decisions';
 import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
 import { getLang, statusLabel, tl } from '../i18n';
 
@@ -266,7 +267,7 @@ function ReviewBody({ part, name }: { part: LivePart; name: (k: string) => strin
 
 const CONFIDENCE_TONE = { low: 'red', medium: 'amber', high: 'green' } as const;
 
-function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(text: string, mode?: Mode): void }) {
+export function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(text: string, mode?: Mode): void }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm">
       <div className="border-b border-ink-100 bg-ink-900 px-5 py-4 text-white">
@@ -494,6 +495,7 @@ function Actions({
           <Icon name="print" className="h-3.5 w-3.5" /> {verdict ? tl('Download report (PDF)') : tl('Export PDF')}
         </a>
         <ShareButton messageId={message.id} />
+        {verdict && <RecordDecision messageId={message.id} />}
         <Button
           size="sm"
           variant="ghost"

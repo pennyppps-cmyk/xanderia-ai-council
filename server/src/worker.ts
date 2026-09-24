@@ -10,6 +10,7 @@ import { createPublisher } from './queue/events.js';
 import { QUEUE_NAME, type MessageJob } from './queue/queue.js';
 import { createRedis, redis } from './redis.js';
 import { runRetention } from './retention.js';
+import { decisionCheckIns } from './jobs.js';
 
 await migrate();
 await seed();
@@ -47,12 +48,17 @@ const maintenance = new Queue('maintenance', { connection: createRedis() });
 await maintenance.upsertJobScheduler('retention', { pattern: '0 3 * * *' }, { name: 'retention' });
 await maintenance.upsertJobScheduler('tracker', { pattern: '*/15 * * * *' }, { name: 'tracker' });
 await maintenance.upsertJobScheduler('mailer', { pattern: '* * * * *' }, { name: 'mailer' });
+// Decision outcome check-ins, daily at 09:05 KL time (01:05 UTC).
+await maintenance.upsertJobScheduler('checkins', { pattern: '5 1 * * *' }, { name: 'checkins' });
 const maintenanceWorker = new Worker(
   'maintenance',
   async (job) => {
     if (job.name === 'tracker') {
       const n = await trackerTick();
       if (n) console.log(`[tracker] ${n} action(s)`);
+    } else if (job.name === 'checkins') {
+      const n = await decisionCheckIns();
+      if (n) console.log(`[checkins] ${n} decision check-in(s) sent`);
     } else if (job.name === 'mailer') {
       const n = await sendQueuedEmails();
       if (n) console.log(`[mailer] processed ${n} email(s)`);

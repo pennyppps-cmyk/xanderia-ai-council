@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import PlanPage from './pages/Plan';
 import SetPassword from './pages/SetPassword';
 import SharedPage from './pages/Shared';
+import DecisionsPage from './pages/Decisions';
 import TasksPage from './pages/Tasks';
 import { Toaster } from './toast';
 
@@ -35,6 +36,8 @@ function Root() {
         <Route path="/plans/:id" element={<PlanPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/shared/:token" element={<SharedPage />} />
+        <Route path="/decisions" element={<DecisionsPage />} />
+        <Route path="/decisions/:id" element={<DecisionsPage />} />
         <Route path="/admin/*" element={me.user.role === 'employee' ? <Navigate to="/" /> : <Admin />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
