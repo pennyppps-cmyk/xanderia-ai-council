@@ -4,18 +4,23 @@ Written for Xanderia IT and the AI Systems team. Last updated 25 September 2026.
 
 ## 1. How it runs today
 
-| Part | Where it runs now | What it is |
+Since 25 September 2026 the whole Council runs on the GPU server **xtracthor** (192.168.88.179), next to Ollama, at **https://192.168.88.179** (office network or VPN).
+
+| Part | Where | Notes |
 |---|---|---|
-| Web app, API, worker, database, queue | Andrew's laptop, in Docker Compose | Caddy (HTTPS web server), Fastify API, background worker, PostgreSQL 17 with pgvector, Redis |
-| AI model for answers (Hermes 3 8B) | GPU server **xtracthor**, 192.168.88.179 (Proxmox VM, RTX 5070 Ti 16 GB, 11 GB RAM, Ollama 0.32.6) | All chat roles: router, quick answers, the six advisors, Chairman, clarifier, Action Crew, drafting |
-| Embedding model (nomic-embed-text) | GPU server xtracthor | Used for the knowledge-base search |
-| Speech-to-text (optional) | Andrew's laptop, Whisper container (`voice` profile) | Voice questions from the web app and Telegram |
+| Web, API, worker, PostgreSQL + pgvector, Redis | Docker Compose in `/home/wanwan/xanderia-council` on xtracthor | Web on port 443; plain HTTP on 8080 (nginx already uses port 80) |
+| AI models (hermes3:8b, nomic-embed-text) | Ollama on the same machine (`http://host.docker.internal:11434` from the containers) | RTX 5070 Ti, 16 GB GPU memory |
+| Backups | `~/xanderia-council/backup.sh`, cron at 01:00 Malaysia time, `~/backups`, 30 days kept | Copy them off the server regularly (NAS) |
+| Voice (Whisper) | Not enabled on the server (RAM is tight) | Can be added with `--profile voice` after a RAM upgrade |
+| Source code | Private GitHub repository `andrew-bot-1994/xanderia-ai-council` | No `.env` or passwords in it |
 
-The laptop reaches the GPU server over the office network or the OpenVPN. **If the laptop is off, or the VPN drops, the Council is unavailable.** Only the laptop can open https://localhost, so colleagues can't use it yet. This is a pilot setup, not production.
+Andrew's laptop copy remains as a spare and a development environment.
 
-Model routing is set per role in **Admin → Model routing**. Provider `gpu` = http://192.168.88.179:11434; provider `ollama` = the laptop's Ollama.
+**Updating the server:** on the laptop, commit and push; then on xtracthor copy the new code (for example `git archive HEAD | ssh wanwan@192.168.88.179 'tar -x -C ~/xanderia-council'`) and run `docker compose up -d --build`. Database migrations run automatically.
 
-**GPU server status (25 September 2026):** all model roles run on xtracthor. A council takes about 20 seconds, and a quick answer 4–6 seconds. Root cause of the earlier failure: after a reboot (kernel update) at 04:06, Ollama started before the NVIDIA driver was ready and fell back to the CPU. Running on the CPU with 11 GB of RAM, it was killed for lack of memory (oom-kill) at 04:29. Its automatic restart found the GPU. The permanent fix is to make Ollama wait for the GPU at boot (Step 1). The laptop's Ollama stays available as a fallback (Admin → Model routing, provider `ollama`).
+**GPU server history (25 September 2026):** after a reboot for a kernel update, Ollama started before the NVIDIA driver was ready, ran on the CPU and was killed for lack of memory (oom-kill). Fixed with the systemd drop-in `10-wait-for-gpu.conf` (waits for the GPU; `OLLAMA_NUM_PARALLEL=2`, `OLLAMA_KEEP_ALIVE=30m`, `OLLAMA_CONTEXT_LENGTH=16384`) and `nvidia-persistenced`.
+
+**Risk of one machine:** the AI, the app and the database share one 11 GB VM. Raise its RAM to 16 GB, and move the app to its own VM (section 2) before company-wide use.
 
 ## 2. Target setup
 
