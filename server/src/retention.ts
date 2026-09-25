@@ -11,6 +11,7 @@ export async function runRetention() {
       `DELETE FROM conversations WHERE updated_at < now() - make_interval(months => $1)`,
       [months],
     );
+    await c.query(`DELETE FROM attachments WHERE message_id IS NULL AND created_at < now() - interval '1 day'`);
     // The audit trigger only permits deletes while this transaction-local flag is on.
     await c.query(`SELECT set_config('xanderia.audit_purge', 'on', true)`);
     const audit = await c.query(`DELETE FROM audit_log WHERE at < now() - make_interval(months => $1)`, [months]);

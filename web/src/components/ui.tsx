@@ -95,6 +95,8 @@ export function Icon({ name, className }: { name: string; className?: string }) 
     send: <path d="m5 12 14-7-5 16-3-7-6-2Z" />,
     mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></>,
     stop: <rect x="7" y="7" width="10" height="10" rx="1.5" />,
+    clip: <path d="m21 12-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9.2-9.2a3.7 3.7 0 0 1 5.2 5.2l-9.2 9.2a1.8 1.8 0 0 1-2.6-2.6l8.5-8.5" />,
+    file: <><path d="M14 3H6v18h12V7l-4-4Z" /><path d="M14 3v4h4" /></>,
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     close: <path d="M6 6l12 12M18 6 6 18" />,
     chevron: <path d="m9 6 6 6-6 6" />,

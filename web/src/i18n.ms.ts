@@ -694,4 +694,10 @@ export const ms: Record<string, string> = {
   'Your follow-up was read together with the conversation before it': 'Soalan susulan anda dibaca bersama perbualan sebelumnya',
   'Understood as:': 'Difahami sebagai:',
   'Works with:': 'Bekerjasama dengan:',
+  'Up to 3 documents per question.': 'Maksimum 3 dokumen bagi setiap soalan.',
+  'Please review the attached document and judge the plan in it.': 'Sila semak dokumen yang dilampirkan dan nilai rancangan di dalamnya.',
+  '{n} words': '{n} perkataan',
+  'Remove {name}': 'Buang {name}',
+  'Attach a plan or document for the council to judge (PDF, Word, Excel, text; up to 3)': 'Lampirkan rancangan atau dokumen untuk dinilai oleh majlis (PDF, Word, Excel, teks; maksimum 3)',
+  'Attach a document': 'Lampirkan dokumen',
 };

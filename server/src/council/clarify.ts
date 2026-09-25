@@ -1,3 +1,4 @@
+import { ATTACHMENT_BUDGET, fitAttachments, type Attachment } from './attachments.js';
 import { PRIORITY } from '../llm/gate.js';
 import type { LlmGateway, Sensitivity } from '../llm/gateway.js';
 import { ClarifySchema, type ClarifyOutput } from '../llm/schemas.js';
@@ -16,7 +17,7 @@ export interface ClarifyRequest {
  */
 export async function checkClarity(
   deps: { gateway: Pick<LlmGateway, 'call'>; assemble(spec: PromptSpec): Promise<string> },
-  input: { question: string; departmentName: string; sensitivity: Sensitivity; userId?: string; messageId?: string },
+  input: { question: string; departmentName: string; sensitivity: Sensitivity; userId?: string; messageId?: string; attachments?: Attachment[] },
 ): Promise<ClarifyRequest | null> {
   try {
     const system = await deps.assemble({ task: 'clarifier' });
@@ -27,7 +28,10 @@ export async function checkClarity(
         { role: 'system', content: system },
         {
           role: 'user',
-          content: userTurn(input.question, { context: `Context: request for the ${input.departmentName} department.` }),
+          content: userTurn(input.question, {
+            context: `Context: request for the ${input.departmentName} department.`,
+            attachments: fitAttachments(input.attachments ?? [], ATTACHMENT_BUDGET.clarify),
+          }),
         },
       ],
       ClarifySchema,

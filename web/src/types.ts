@@ -110,7 +110,17 @@ export interface Message {
   department_id: string | null;
   status: Status;
   stage: string | null;
-  options: { peerReview?: boolean; skipClarify?: boolean; clarify?: ClarifyRequest; effectiveQuestion?: string; understoodFromFollowUp?: boolean };
+  options: {
+    peerReview?: boolean;
+    skipClarify?: boolean;
+    clarify?: ClarifyRequest;
+    effectiveQuestion?: string;
+    understoodFromFollowUp?: boolean;
+    attachmentNames?: string[];
+    attachmentNote?: string;
+  };
+  /** Documents attached to a user message. */
+  attachments?: Array<{ id: string; filename: string; chars: number }>;
   router: RouterInfo | null;
   verdict: Verdict | null;
   citations: Citation[] | null;

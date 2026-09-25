@@ -27,6 +27,8 @@ const SendMessage = z.object({
   skipClarify: z.boolean().optional(),
   /** Council template key; the server looks up its mode / task / persona (never trusted from the client). */
   template: z.string().max(60).optional(),
+  /** Documents uploaded with POST /api/attachments for this question. */
+  attachmentIds: z.array(z.string().uuid()).max(3).optional(),
 });
 
 const MESSAGE_COLUMNS = `m.id, m.conversation_id, m.role, m.content, m.reply_to, m.requested_mode, m.mode,
@@ -123,7 +125,16 @@ export default async function chatRoutes(app: FastifyInstance) {
       [id, req.user.id],
     );
     const parts = await loadParts(messages.filter((m) => m.role === 'assistant').map((m) => m.id));
-    return { conversation: conv, messages: messages.map((m) => ({ ...m, parts: parts.get(m.id) ?? [] })) };
+    const { rows: att } = await query(
+      `SELECT a.id, a.message_id, a.filename, a.chars FROM attachments a JOIN messages m ON m.id = a.message_id
+        WHERE m.conversation_id = $1 ORDER BY a.created_at`,
+      [id],
+    );
+    const attachmentsOf = (mid: string) => att.filter((a) => a.message_id === mid).map(({ message_id: _m, ...a }) => a);
+    return {
+      conversation: conv,
+      messages: messages.map((m) => ({ ...m, parts: parts.get(m.id) ?? [], attachments: m.role === 'user' ? attachmentsOf(m.id) : undefined })),
+    };
   });
 
   app.patch('/api/conversations/:id', auth, async (req, reply) => {
@@ -209,6 +220,14 @@ export default async function chatRoutes(app: FastifyInstance) {
             [conversation.id, body.content, departmentId],
           )
         ).rows[0];
+        if (body.attachmentIds?.length) {
+          const linked = await c.query(
+            `UPDATE attachments SET message_id = $1 WHERE id = ANY($2::uuid[]) AND user_id = $3 AND message_id IS NULL RETURNING id, filename, chars`,
+            [userMsg.id, body.attachmentIds, req.user.id],
+          );
+          if (linked.rowCount !== body.attachmentIds.length) throw Object.assign(new Error('An attached document was not found; attach it again'), { statusCode: 400 });
+          userMsg.attachments = linked.rows;
+        }
         const assistant = (
           await c.query(
             `INSERT INTO messages (conversation_id, role, reply_to, requested_mode, department_id, status, options)

@@ -88,7 +88,15 @@ export default function Chat() {
     setPulse((n) => n + 1);
   });
 
-  async function send(input: { content: string; mode: Mode; departmentId?: string; peerReview?: boolean; skipClarify?: boolean; template?: string }) {
+  async function send(input: {
+    content: string;
+    mode: Mode;
+    departmentId?: string;
+    peerReview?: boolean;
+    skipClarify?: boolean;
+    template?: string;
+    attachmentIds?: string[];
+  }) {
     setSending(true);
     setError(null);
     try {
@@ -176,6 +184,15 @@ export default function Chat() {
                     <div key={m.id} className="flex justify-end">
                       <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-ink-900 px-4 py-2.5 text-sm whitespace-pre-wrap text-white">
                         {m.content}
+                        {m.attachments && m.attachments.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {m.attachments.map((a) => (
+                              <span key={a.id} className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 text-xs text-white/90">
+                                <Icon name="file" className="h-3.5 w-3.5" /> {a.filename}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (

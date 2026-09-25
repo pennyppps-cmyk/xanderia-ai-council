@@ -14,6 +14,7 @@ import { notify } from '../crew/service.js';
 import { deliverToTelegram } from '../telegram/bot.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 import { condenseQuestion } from './condense.js';
+import { ATTACHMENT_BUDGET, fitAttachments, truncationNote, type Attachment } from './attachments.js';
 
 interface LoadedJob {
   message: {
@@ -95,6 +96,14 @@ async function previousAssistant(conversationId: string, userMessageId: string) 
 }
 
 const WHAT_IF_RERUN = ['contrarian', 'executor'];
+
+/** Text of the documents attached to the given user messages, oldest first. */
+async function loadAttachments(messageIds: Array<string | null | undefined>): Promise<Attachment[]> {
+  const ids = [...new Set(messageIds.filter(Boolean))] as string[];
+  if (!ids.length) return [];
+  const { rows } = await query(`SELECT filename, text FROM attachments WHERE message_id = ANY($1::uuid[]) ORDER BY created_at`, [ids]);
+  return rows.map((r) => ({ name: r.filename, text: r.text }));
+}
 
 /** The original council run a what-if builds on (must belong to the same user). */
 async function loadWhatIfBase(baseId: string, userId: string) {
@@ -194,6 +203,16 @@ export async function processMessage(messageId: string, events: Publisher) {
       ]);
     }
 
+    // Documents attached to this question (or, when answering clarifying questions, to the original one).
+    const attachments = await loadAttachments([message.reply_to, historyAnchor]);
+    const attachmentNote = truncationNote(attachments);
+    if (attachments.length) {
+      await query(`UPDATE messages SET options = options || $2 WHERE id = $1`, [
+        messageId,
+        JSON.stringify({ attachmentNames: attachments.map((a) => a.name), ...(attachmentNote ? { attachmentNote } : {}) }),
+      ]);
+    }
+
     // The conversation so far (advisors and Quick answers see it directly).
     const history = await loadHistory(message.conversation_id, historyAnchor, await getSetting('history_turns', 6));
 
@@ -215,7 +234,7 @@ export async function processMessage(messageId: string, events: Publisher) {
     const route = () =>
       routeMessage(
         { gateway, assemble: assemblePrompt },
-        { question, departments, defaultDepartment: department.slug, userId: user.id, messageId },
+        { question, departments, defaultDepartment: department.slug, userId: user.id, messageId, attachments },
       );
 
     // Router first when its answer decides something (mode, or whether a cloud role may run);
@@ -251,7 +270,7 @@ export async function processMessage(messageId: string, events: Publisher) {
       await stage('clarify');
       const clarify = await checkClarity(
         { gateway, assemble: assemblePrompt },
-        { question, departmentName: department.name, sensitivity: router?.sensitivity ?? 'high', userId: user.id, messageId },
+        { question, departmentName: department.name, sensitivity: router?.sensitivity ?? 'high', userId: user.id, messageId, attachments },
       );
       if (clarify) {
         const content = clarifyMarkdown(clarify);
@@ -327,7 +346,7 @@ export async function processMessage(messageId: string, events: Publisher) {
         [
           { role: 'system', content: system },
           ...history,
-          { role: 'user', content: userTurn(question, { knowledge }) },
+          { role: 'user', content: userTurn(question, { knowledge, attachments: fitAttachments(attachments, ATTACHMENT_BUDGET.answer) }) },
         ],
         {
           userId: user.id,
@@ -366,6 +385,7 @@ export async function processMessage(messageId: string, events: Publisher) {
           history,
           department,
           knowledge,
+          attachments,
           language: router?.language ?? 'en',
           sensitivity,
           peerReview: message.options.peerReview ?? (await getSetting('peer_review_default', false)),

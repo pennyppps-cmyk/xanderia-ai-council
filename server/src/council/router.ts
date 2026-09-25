@@ -1,4 +1,5 @@
 import { PRIORITY } from '../llm/gate.js';
+import { ATTACHMENT_BUDGET, fitAttachments, type Attachment } from './attachments.js';
 import type { LlmGateway } from '../llm/gateway.js';
 import { routerSchema, type RouterOutput } from '../llm/schemas.js';
 import { callStructured } from '../llm/structured.js';
@@ -23,6 +24,7 @@ export async function routeMessage(
     defaultDepartment: string;
     userId?: string;
     messageId?: string;
+    attachments?: Attachment[];
   },
 ): Promise<RouterResult> {
   const slugs = input.departments.map((d) => d.slug) as [string, ...string[]];
@@ -55,7 +57,7 @@ export async function routeMessage(
       'router',
       [
         { role: 'system', content: system },
-        { role: 'user', content: userTurn(input.question) },
+        { role: 'user', content: userTurn(input.question, { attachments: fitAttachments(input.attachments ?? [], ATTACHMENT_BUDGET.router) }) },
       ],
       routerSchema(slugs),
       {
