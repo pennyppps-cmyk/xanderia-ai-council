@@ -1,5 +1,6 @@
 import { PRIORITY } from '../llm/gate.js';
 import { transcript } from './condense.js';
+import { factsBlock } from './facts.js';
 import { ATTACHMENT_BUDGET, fitAttachments, type Attachment } from './attachments.js';
 import type { CallContext, LlmGateway, Sensitivity } from '../llm/gateway.js';
 import { ReviewSchema, VerdictSchema, type ReviewOutput, type Verdict } from '../llm/schemas.js';
@@ -25,6 +26,8 @@ export interface CouncilInput {
   knowledge: RetrievedChunk[];
   /** Documents the asker attached (their plan, proposal or data). */
   attachments?: Attachment[];
+  /** What the asker already confirmed in this conversation (clarifying and open-question answers). */
+  facts?: string[];
   language: 'en' | 'ms';
   sensitivity: Sensitivity;
   peerReview: boolean;
@@ -127,7 +130,12 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
   // ── Stage 1: independent opinions, in parallel (the gate limits real concurrency) ──
   await hooks.onStage('stage1');
   const labels = shuffle(LABELS.slice(0, input.advisors.length));
-  const departmentContext = `Context: this request was routed to the ${input.department.name} department of Xanderia.`;
+  const departmentContext = [
+    `Context: this request was routed to the ${input.department.name} department of Xanderia.`,
+    factsBlock(input.facts ?? []),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   const opinions: Opinion[] = await Promise.all(
     input.advisors.map(async (advisor, i): Promise<Opinion> => {

@@ -33,7 +33,10 @@ export function cleanRewrite(raw: string, original: string, context = '') {
   // A rewrite must not invent figures: every number in it has to appear in the message or the conversation.
   const known = new Set((`${original}\n${context}`.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, '')));
   const invented = (t.match(/\d+(?:[.,]\d+)*/g) ?? []).some((n) => !known.has(n.replace(/,/g, '')));
-  return invented ? original : t;
+  // …and must keep every number the asker typed (an answer like "180 days" must survive).
+  const inRewrite = new Set((t.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/,/g, '')));
+  const dropped = (original.match(/\d+(?:[.,]\d+)*/g) ?? []).some((n) => !inRewrite.has(n.replace(/,/g, '')));
+  return invented || dropped ? original : t;
 }
 
 export async function condenseQuestion(

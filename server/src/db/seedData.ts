@@ -206,7 +206,7 @@ Then name the strongest answer. Return JSON only.`,
 - conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": the specific argument, fact or risk that decides it (never "the majority agreed"). Include at least one conflict if the advisors disagreed on anything.
 - action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks. Sequence realistically: a step that depends on an earlier one starts after it finishes; only independent steps share a start week.
 - risks: 3 to 5 distinct key risks (operational, regulatory, customer, financial), each rated for likelihood and impact (low / medium / high) with a specific mitigation.
-- open_questions: what must be answered before acting.
+- open_questions: what must be answered before acting. Never repeat a question the asker has already answered (see the confirmed facts); use those answers instead.
 - confidence.level: low / medium / high; confidence.what_would_change: what new information would change this recommendation.`,
 };
 

@@ -14,6 +14,7 @@ import { notify } from '../crew/service.js';
 import { deliverToTelegram } from '../telegram/bot.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 import { condenseQuestion } from './condense.js';
+import { confirmedFacts, factsBlock, parseOpenAnswer, questionForOpenAnswer } from './facts.js';
 import { ATTACHMENT_BUDGET, fitAttachments, truncationNote, type Attachment } from './attachments.js';
 
 interface LoadedJob {
@@ -37,7 +38,7 @@ interface LoadedJob {
     status: string;
   };
   question: string;
-  user: { id: string; role: UserRole; department_id: string };
+  user: { id: string; role: UserRole; department_id: string; locale: string | null };
   department: { id: string; slug: string; name: string };
   conversation: { id: string; title: string };
 }
@@ -46,7 +47,7 @@ async function load(messageId: string): Promise<LoadedJob | null> {
   const { rows } = await query(
     `SELECT m.id, m.conversation_id, m.reply_to, m.requested_mode, m.department_id, m.options, m.status,
             q.content AS question,
-            u.id AS user_id, u.role AS user_role, u.department_id AS user_department_id,
+            u.id AS user_id, u.role AS user_role, u.department_id AS user_department_id, u.locale AS user_locale,
             d.slug AS dept_slug, d.name AS dept_name,
             c.title AS conv_title
        FROM messages m
@@ -62,7 +63,7 @@ async function load(messageId: string): Promise<LoadedJob | null> {
   return {
     message: r,
     question: r.question,
-    user: { id: r.user_id, role: r.user_role, department_id: r.user_department_id },
+    user: { id: r.user_id, role: r.user_role, department_id: r.user_department_id, locale: r.user_locale },
     department: { id: r.department_id, slug: r.dept_slug, name: r.dept_name },
     conversation: { id: r.conversation_id, title: r.conv_title },
   };
@@ -96,6 +97,31 @@ async function previousAssistant(conversationId: string, userMessageId: string) 
 }
 
 const WHAT_IF_RERUN = ['contrarian', 'executor'];
+
+/** Confirmed facts from the conversation before the given user message. */
+async function loadFacts(conversationId: string, beforeMessageId: string) {
+  const { rows } = await query(
+    `SELECT role, content, options FROM messages
+      WHERE conversation_id = $1 AND status = 'done'
+        AND created_at < (SELECT created_at FROM messages WHERE id = $2)
+      ORDER BY created_at, (role = 'assistant')`,
+    [conversationId, beforeMessageId],
+  );
+  return confirmedFacts(rows);
+}
+
+/** The request behind the latest answer before this message (what an open-question answer refers to). */
+async function baseQuestion(conversationId: string, beforeMessageId: string): Promise<string | null> {
+  const { rows } = await query(
+    `SELECT COALESCE(a.options->>'effectiveQuestion', q.content) AS question
+       FROM messages a JOIN messages q ON q.id = a.reply_to
+      WHERE a.conversation_id = $1 AND a.role = 'assistant' AND a.status = 'done' AND a.mode IN ('council', 'quick')
+        AND a.created_at < (SELECT created_at FROM messages WHERE id = $2)
+      ORDER BY a.created_at DESC LIMIT 1`,
+    [conversationId, beforeMessageId],
+  );
+  return rows[0]?.question ?? null;
+}
 
 /** Text of the documents attached to the given user messages, oldest first. */
 async function loadAttachments(messageIds: Array<string | null | undefined>): Promise<Attachment[]> {
@@ -216,9 +242,26 @@ export async function processMessage(messageId: string, events: Publisher) {
     // The conversation so far (advisors and Quick answers see it directly).
     const history = await loadHistory(message.conversation_id, historyAnchor, await getSetting('history_turns', 6));
 
+    // What the asker already confirmed earlier in this conversation.
+    const facts = await loadFacts(message.conversation_id, historyAnchor);
+
+    // An answer to an open question under a verdict: reconsider that plan with the answer
+    // (already a complete message, so it is not rewritten).
+    const openAnswer = !answeringClarify ? parseOpenAnswer(job.question) : null;
+    if (openAnswer) {
+      const base = await baseQuestion(message.conversation_id, historyAnchor);
+      if (base) {
+        question = questionForOpenAnswer(base, openAnswer);
+        await query(`UPDATE messages SET options = options || $2 WHERE id = $1`, [
+          messageId,
+          JSON.stringify({ effectiveQuestion: question, openAnswer }),
+        ]);
+      }
+    }
+
     // A short follow-up ("i meant the council") is rewritten into a standalone question first,
     // because the router, the clarifier and the knowledge search only see this one message.
-    if (!answeringClarify && !message.options.whatIf && history.length) {
+    if (!answeringClarify && !openAnswer && !message.options.whatIf && history.length) {
       await stage('router');
       const c = await condenseQuestion({ gateway, assemble: assemblePrompt }, { question, history, userId: user.id, messageId });
       if (c.rewritten) {
@@ -231,11 +274,15 @@ export async function processMessage(messageId: string, events: Publisher) {
     }
 
     const departments = (await query('SELECT slug, name FROM departments WHERE is_active ORDER BY name')).rows;
-    const route = () =>
-      routeMessage(
+    // Someone who uses the app in Bahasa Malaysia gets answers in BM, whatever language they typed in.
+    const wantsMalay = user.locale === 'ms';
+    const route = async () => {
+      const r = await routeMessage(
         { gateway, assemble: assemblePrompt },
         { question, departments, defaultDepartment: department.slug, userId: user.id, messageId, attachments },
       );
+      return wantsMalay ? { ...r, language: 'ms' as const } : r;
+    };
 
     // Router first when its answer decides something (mode, or whether a cloud role may run);
     // for an explicit Quick question on a local model it runs alongside the answer instead.
@@ -333,7 +380,9 @@ export async function processMessage(messageId: string, events: Publisher) {
       // Templates can swap the task (script check, document drafting) and the persona; only known keys are allowed.
       const task = message.options.task && QUICK_TASKS[message.options.task] ? message.options.task : 'quick';
       const persona = message.options.persona && ['dept_expert', 'customer_advocate', 'compliance'].includes(message.options.persona) ? message.options.persona : 'dept_expert';
-      const system = await assemblePrompt({ persona, department: department.slug, task });
+      const system =
+        (await assemblePrompt({ persona, department: department.slug, task })) +
+        (wantsMalay ? '\n\nThe asker uses the app in Bahasa Malaysia: write the whole answer in Bahasa Malaysia.' : '');
       let stream: TokenStream | undefined;
       await events.emit(messageId, {
         type: 'part_start',
@@ -346,7 +395,10 @@ export async function processMessage(messageId: string, events: Publisher) {
         [
           { role: 'system', content: system },
           ...history,
-          { role: 'user', content: userTurn(question, { knowledge, attachments: fitAttachments(attachments, ATTACHMENT_BUDGET.answer) }) },
+          {
+            role: 'user',
+            content: userTurn(question, { knowledge, attachments: fitAttachments(attachments, ATTACHMENT_BUDGET.answer), context: factsBlock(facts) || undefined }),
+          },
         ],
         {
           userId: user.id,
@@ -386,7 +438,8 @@ export async function processMessage(messageId: string, events: Publisher) {
           department,
           knowledge,
           attachments,
-          language: router?.language ?? 'en',
+          facts,
+          language: wantsMalay ? 'ms' : (router?.language ?? 'en'),
           sensitivity,
           peerReview: message.options.peerReview ?? (await getSetting('peer_review_default', false)),
           advisors: whatIf ? (personas as Advisor[]).filter((p) => WHAT_IF_RERUN.includes(p.key)) : (personas as Advisor[]),
