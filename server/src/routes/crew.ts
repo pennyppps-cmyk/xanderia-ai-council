@@ -30,7 +30,7 @@ async function planForUser(planId: string, userId: string) {
 }
 
 const TASK_COLUMNS = `t.id, t.plan_id, t.seq, t.title, t.description, t.owner_type, t.owner_role, t.directory_id,
-  t.resolution, t.candidates, t.depends_on, to_char(t.due_date, 'YYYY-MM-DD') AS due_date, t.status, t.email_subject,
+  t.resolution, t.candidates, t.collaborators, t.depends_on, to_char(t.due_date, 'YYYY-MM-DD') AS due_date, t.status, t.email_subject,
   t.email_body, t.approved, t.response_note, t.agent_output, t.sent_at, t.acknowledged_at, t.completed_at,
   t.escalation_state, t.snoozed_until, t.updated_at,
   s.name AS owner_name, s.position AS owner_position, s.email AS owner_email, s.manager_email`;

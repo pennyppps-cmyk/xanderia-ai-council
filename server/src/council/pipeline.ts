@@ -13,6 +13,7 @@ import { routeMessage, type RouterResult } from './router.js';
 import { notify } from '../crew/service.js';
 import { deliverToTelegram } from '../telegram/bot.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
+import { condenseQuestion } from './condense.js';
 
 interface LoadedJob {
   message: {
@@ -193,6 +194,23 @@ export async function processMessage(messageId: string, events: Publisher) {
       ]);
     }
 
+    // The conversation so far (advisors and Quick answers see it directly).
+    const history = await loadHistory(message.conversation_id, historyAnchor, await getSetting('history_turns', 6));
+
+    // A short follow-up ("i meant the council") is rewritten into a standalone question first,
+    // because the router, the clarifier and the knowledge search only see this one message.
+    if (!answeringClarify && !message.options.whatIf && history.length) {
+      await stage('router');
+      const c = await condenseQuestion({ gateway, assemble: assemblePrompt }, { question, history, userId: user.id, messageId });
+      if (c.rewritten) {
+        question = c.question;
+        await query(`UPDATE messages SET options = options || $2 WHERE id = $1`, [
+          messageId,
+          JSON.stringify({ effectiveQuestion: question, understoodFromFollowUp: true }),
+        ]);
+      }
+    }
+
     const departments = (await query('SELECT slug, name FROM departments WHERE is_active ORDER BY name')).rows;
     const route = () =>
       routeMessage(
@@ -289,7 +307,6 @@ export async function processMessage(messageId: string, events: Publisher) {
       await events.emit(messageId, { type: 'citations', citations: used });
     };
 
-    const history = await loadHistory(message.conversation_id, historyAnchor, await getSetting('history_turns', 6));
     const sensitivity = router?.sensitivity ?? 'high'; // unknown yet → treat as sensitive
 
     if (mode === 'quick') {

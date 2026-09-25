@@ -110,7 +110,7 @@ export interface Message {
   department_id: string | null;
   status: Status;
   stage: string | null;
-  options: { peerReview?: boolean; skipClarify?: boolean; clarify?: ClarifyRequest; effectiveQuestion?: string };
+  options: { peerReview?: boolean; skipClarify?: boolean; clarify?: ClarifyRequest; effectiveQuestion?: string; understoodFromFollowUp?: boolean };
   router: RouterInfo | null;
   verdict: Verdict | null;
   citations: Citation[] | null;
@@ -159,6 +159,7 @@ export interface CrewTask {
   directory_id: string | null;
   resolution: 'resolved' | 'choose' | 'unassigned' | 'agent';
   candidates: Person[];
+  collaborators?: Array<Person & { reason: string }>;
   depends_on: number[];
   due_date: string | null;
   status: TaskStatus;

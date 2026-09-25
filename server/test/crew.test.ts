@@ -190,3 +190,22 @@ describe('cleanEmailBody', () => {
     expect(cleanEmailBody('Hi Ain,\nPlease call.\nTerima kasih')).toBe('Please call.');
   });
 });
+
+describe('who to work with', () => {
+  it('suggests dependency owners and matching directory positions, never the owner or invented people', async () => {
+    const { suggestCollaborators } = await import('../src/crew/resolve.js');
+    const { withContacts } = await import('../src/crew/service.js');
+    const dir = [
+      { id: '1', name: 'Siti Aminah', position: 'HR Manager', email: 'siti@xanderia.com.my', department_id: 'hr' },
+      { id: '2', name: 'Kumar Raj', position: 'Finance Manager', email: 'kumar@xanderia.com.my', department_id: 'fin' },
+      { id: '3', name: 'Aisyah Tan', position: 'Collections Manager', email: 'aisyah@xanderia.com.my', department_id: 'cc' },
+    ];
+    const c = suggestCollaborators(['Finance Manager', 'Chief Wizard', 'Collections Manager'], [{ seq: 1, person: dir[0] }], dir, 'cc', '3');
+    expect(c.map((x) => x.name)).toEqual(['Siti Aminah', 'Kumar Raj']);
+    expect(c[0].reason).toMatch(/step 1/);
+    const body = withContacts('Please draft the budget.', c, 'English');
+    expect(body).toContain('Who to work with:');
+    expect(body).toContain('- Kumar Raj, Finance Manager (kumar@xanderia.com.my): as Finance Manager');
+    expect(withContacts('x', [], 'English')).toBe('x');
+  });
+});

@@ -9,6 +9,16 @@ import { extractText, getDocumentProxy } from 'unpdf';
 export const SUPPORTED = /\.(txt|md|markdown|csv|pdf|docx|xlsx)$/i;
 
 export async function extractDocumentText(filename: string, data: Buffer): Promise<string> {
+  return cleanText(await rawText(filename, data));
+}
+
+/** PostgreSQL text can't hold NUL, and some PDFs emit it (and other control characters) for icons and symbols. */
+export function cleanText(text: string) {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\u0000/g, '').replace(/[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ');
+}
+
+async function rawText(filename: string, data: Buffer): Promise<string> {
   const ext = filename.toLowerCase().split('.').pop();
   switch (ext) {
     case 'pdf':

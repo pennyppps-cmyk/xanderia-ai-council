@@ -50,3 +50,10 @@ describe('document extraction for the knowledge base', () => {
     expect(text).toContain('Motorcycle | 0.075 | 15000');
   });
 });
+
+describe('text cleanup', () => {
+  it('removes NUL and control characters that PostgreSQL rejects, keeping tabs and newlines', async () => {
+    const { cleanText } = await import('../src/rag/extract.js');
+    expect(cleanText('a\u0000b\u0007c\td\ne')).toBe('ab c\td\ne');
+  });
+});

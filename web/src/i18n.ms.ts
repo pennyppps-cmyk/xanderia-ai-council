@@ -691,4 +691,7 @@ export const ms: Record<string, string> = {
   'Connect Telegram': 'Sambung Telegram',
   Product: 'Produk',
   'Receives the weekly digest email': 'Menerima e-mel ringkasan mingguan',
+  'Your follow-up was read together with the conversation before it': 'Soalan susulan anda dibaca bersama perbualan sebelumnya',
+  'Understood as:': 'Difahami sebagai:',
+  'Works with:': 'Bekerjasama dengan:',
 };

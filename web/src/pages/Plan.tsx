@@ -241,6 +241,7 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
           {tl("Suggested owner:")} {t.owner_role}
           {t.depends_on.length > 0 && ` · ${tl('after step {n}', { n: t.depends_on.join(', ') })}`}
         </p>
+        <WorksWith task={t} />
         {!isAgent && (
           <button className="mt-1 text-xs font-medium text-accent-700 hover:underline" onClick={() => setShowEmail((s) => !s)}>
             {showEmail ? tl('Hide email') : tl('Preview / edit email')}
@@ -303,6 +304,21 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
   );
 }
 
+/** Suggested colleagues for a task (from the staff directory). */
+function WorksWith({ task: t }: { task: CrewTask }) {
+  if (!t.collaborators?.length) return null;
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-ink-500">
+      <span className="font-medium">{tl('Works with:')}</span>
+      {t.collaborators.map((c) => (
+        <span key={c.id} title={`${c.email} · ${c.reason}`} className="rounded-full bg-accent-50 px-2 py-0.5 text-accent-800">
+          {c.name} · {c.position}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void }) {
   const [reassign, setReassign] = useState(false);
   const [showDraft, setShowDraft] = useState(false);
@@ -327,6 +343,7 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
         {t.owner_type === 'agent' ? tl('AI Runner') : t.owner_name ?? tl('Unassigned')}
         {t.owner_position ? ` · ${t.owner_position}` : ''}
       </p>
+      <WorksWith task={t} />
       <div className="mt-1 flex flex-wrap gap-1">
         {t.due_date && <Badge tone={overdue ? 'red' : 'neutral'}>{tl("due")} {t.due_date}</Badge>}
         {t.status === 'cant_do' && <Badge tone="red">{tl("can't do")}</Badge>}

@@ -66,3 +66,38 @@ export function resolveOwner(role: string, directory: DirectoryEntry[], departme
   }
   return { resolution: 'choose', directoryId: null, candidates: scored.slice(0, 8).map((x) => x.d) };
 }
+
+export interface Collaborator {
+  id: string;
+  name: string;
+  position: string;
+  email: string;
+  /** Why this person: "works on step 2" or the position the Dispatcher asked for. */
+  reason: string;
+}
+
+/**
+ * Who a task owner should work with: the owners of the steps this task depends on, then people
+ * matching the positions the Dispatcher suggested. Only clear matches from the staff directory are
+ * used (one person, or one in the plan's department); never the owner themself; at most 3.
+ */
+export function suggestCollaborators(
+  workWith: string[],
+  dependsOn: Array<{ seq: number; person: DirectoryEntry | null }>,
+  directory: DirectoryEntry[],
+  departmentId: string | null | undefined,
+  ownerId: string | null,
+): Collaborator[] {
+  const out: Collaborator[] = [];
+  const add = (d: DirectoryEntry, reason: string) => {
+    if (d.id === ownerId || out.some((c) => c.id === d.id) || out.length >= 3) return;
+    out.push({ id: d.id, name: d.name, position: d.position, email: d.email, reason });
+  };
+  for (const dep of dependsOn) if (dep.person) add(dep.person, `does step ${dep.seq}, which this task depends on`);
+  for (const role of workWith) {
+    const r = resolveOwner(role, directory, departmentId);
+    const person = r.directoryId ? r.candidates.find((c) => c.id === r.directoryId) : null;
+    if (person) add(person, `as ${role}`);
+  }
+  return out;
+}

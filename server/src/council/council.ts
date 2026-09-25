@@ -1,4 +1,5 @@
 import { PRIORITY } from '../llm/gate.js';
+import { transcript } from './condense.js';
 import type { CallContext, LlmGateway, Sensitivity } from '../llm/gateway.js';
 import { ReviewSchema, VerdictSchema, type ReviewOutput, type Verdict } from '../llm/schemas.js';
 import { callStructured } from '../llm/structured.js';
@@ -268,15 +269,17 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
       ? '\n\nThe user wrote in Bahasa Malaysia: write every text field of the verdict in Bahasa Malaysia.'
       : '\n\nWrite every text field of the verdict in English.') +
     (input.chairmanNote ? `\n\n${input.chairmanNote}` : '');
-  // Budget: context minus output, system prompt, schema and question overhead.
-  const budget = cfg.num_ctx - cfg.num_predict - estimateTokens(system + input.question) - 1200;
+  // The recent conversation, so the verdict fits what was already discussed (context only).
+  const recent = input.history.length ? transcript(input.history, 3, 500) : '';
+  // Budget: context minus output, system prompt, schema, question and conversation overhead.
+  const budget = cfg.num_ctx - cfg.num_predict - estimateTokens(system + input.question + recent) - 1200;
   const { texts } = condenseForChairman(good, reviewsText, budget);
 
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
     {
       role: 'user',
-      content: `${userTurn(input.question, { context: departmentContext })}\n\nCouncil opinions:\n${good
+      content: `${recent ? `Conversation so far (context only):\n<conversation>\n${recent}\n</conversation>\n\n` : ''}${userTurn(input.question, { context: departmentContext })}\n\nCouncil opinions:\n${good
         .map((o, i) => advisorBlock(o.advisor.name, texts[i]))
         .join('\n')}${reviewsText ? `\n\nPeer review summary:\n${reviewsText}` : ''}\n\nNow adjudicate and return the verdict JSON.`,
     },

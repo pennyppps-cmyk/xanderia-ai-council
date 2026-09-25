@@ -46,6 +46,11 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onS
       </div>
       <div className="min-w-0 flex-1 space-y-3">
         <Header live={live} mode={mode} message={message} reviewFlag={Boolean(dept?.review_before_acting)} />
+        {message.options?.understoodFromFollowUp && message.options.effectiveQuestion && (
+          <p className="text-xs text-ink-500" title={tl('Your follow-up was read together with the conversation before it')}>
+            <span className="font-medium">{tl('Understood as:')}</span> {message.options.effectiveQuestion}
+          </p>
+        )}
 
         {live.status === 'error' ? (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">

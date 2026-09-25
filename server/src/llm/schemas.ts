@@ -93,6 +93,8 @@ export const DispatchSchema = z.object({
         owner_role: z.string(),
         due_in_working_days: z.number().int().min(1).max(260),
         depends_on: z.array(z.number().int().min(1)),
+        // Positions the owner should work with (input, data, sign-off). Resolved against the directory.
+        work_with: z.array(z.string()).max(3).default([]),
       }),
     )
     .min(1),

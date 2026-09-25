@@ -12,7 +12,7 @@ import { getSetting } from '../settings.js';
 import { addWorkingDays, DEFAULT_CALENDAR, isBusinessHours, klParts, nextBusinessMoment, type WorkCalendar } from './calendar.js';
 import { allowedRecipient, buildTaskEmail, cleanEmailBody, scrubEmailText } from './email.js';
 import { getMailProvider } from './mailer.js';
-import { resolveOwner, type DirectoryEntry } from './resolve.js';
+import { resolveOwner, suggestCollaborators, type Collaborator, type DirectoryEntry } from './resolve.js';
 import { signTaskToken } from './tokens.js';
 import { DEFAULT_TIMINGS, trackerActions, type TrackerTimings } from './tracker.js';
 
@@ -162,19 +162,35 @@ export async function dispatchPlan(planId: string) {
     const cal = await loadCalendar();
     const today = klParts(new Date()).date;
     const tasks = res.data.tasks.slice(0, 12);
-    const inserted: Array<{ id: string; title: string; description: string; owner: DirectoryEntry | null; dueDate: string }> = [];
+    const inserted: Array<{ id: string; title: string; description: string; owner: DirectoryEntry | null; dueDate: string; collaborators: Collaborator[] }> = [];
+    // Owners per step, so a task can point to whoever does the steps it depends on.
+    const owners = tasks.map((t) => (t.owner_type === 'agent' ? null : resolveOwner(t.owner_role, directory, plan.department_id)));
+    const ownerOf = (i: number) => {
+      const r = owners[i];
+      return r?.directoryId ? directory.find((d) => d.id === r.directoryId) ?? null : null;
+    };
 
     await tx(async (c) => {
       for (const [i, t] of tasks.entries()) {
         const seq = i + 1;
         const isAgent = t.owner_type === 'agent';
-        const r = isAgent ? null : resolveOwner(t.owner_role, directory, plan.department_id);
+        const r = owners[i];
+        const self = ownerOf(i);
+        const collaborators = isAgent
+          ? []
+          : suggestCollaborators(
+              t.work_with,
+              t.depends_on.filter((d) => d >= 1 && d < seq).map((d) => ({ seq: d, person: ownerOf(d - 1) })),
+              directory,
+              plan.department_id,
+              self?.id ?? null,
+            );
         const dueDate = addWorkingDays(today, t.due_in_working_days, cal);
         const deps = t.depends_on.filter((d) => d >= 1 && d < seq);
         const { rows: ins } = await c.query(
           `INSERT INTO action_tasks (plan_id, seq, title, description, owner_type, owner_role, directory_id,
-                                     resolution, candidates, depends_on, due_date)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+                                     resolution, candidates, depends_on, due_date, collaborators)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
           [
             planId,
             seq,
@@ -187,10 +203,11 @@ export async function dispatchPlan(planId: string) {
             JSON.stringify((r?.candidates ?? []).map((d) => ({ id: d.id, name: d.name, position: d.position, email: d.email }))),
             deps,
             dueDate,
+            JSON.stringify(collaborators),
           ],
         );
         const owner = r?.directoryId ? directory.find((d) => d.id === r.directoryId)! : null;
-        if (!isAgent) inserted.push({ id: ins[0].id, title: t.title, description: t.description, owner, dueDate });
+        if (!isAgent) inserted.push({ id: ins[0].id, title: t.title, description: t.description, owner, dueDate, collaborators });
       }
     });
 
@@ -202,6 +219,7 @@ export async function dispatchPlan(planId: string) {
         why: verdict.verdict,
         dueDate: t.dueDate,
         ownerPosition: t.owner?.position ?? null,
+        collaborators: t.collaborators,
         language,
         userId: plan.requester_id,
       });
@@ -231,9 +249,11 @@ async function draftEmailBody(i: {
   why: string;
   dueDate: string;
   ownerPosition: string | null;
+  collaborators?: Collaborator[];
   language: string;
   userId: string;
 }) {
+  const people = i.collaborators ?? [];
   const fallback = `You have been asked to take on this task: ${i.title}.\n\n${i.description}\n\nIt is part of a plan agreed through the Xanderia AI Council. Please confirm with the buttons below whether you can take it on.`;
   try {
     // No base layer: its delimiter wording made the model wrap emails in <document> tags.
@@ -244,16 +264,25 @@ async function draftEmailBody(i: {
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `Language: ${i.language}\nRecipient's position: ${i.ownerPosition ?? 'colleague'}\nTask: ${i.title}\nWhat done looks like: ${i.description}\nWhy it matters (context): ${i.why}\nDue: ${i.dueDate}`,
+          content:
+            `Language: ${i.language}\nRecipient's position: ${i.ownerPosition ?? 'colleague'}\nTask: ${i.title}\nWhat done looks like: ${i.description}\nWhy it matters (context): ${i.why}\nDue: ${i.dueDate}` +
+            (people.length ? `\nColleagues to work with: ${people.map((p) => `${p.name.split(' ')[0]} (${p.position}; ${p.reason})`).join('; ')}` : ''),
         },
       ],
       { userId: i.userId, sensitivity: 'high', priority: PRIORITY.background, purpose: 'crew:herald' },
     );
     const body = scrubEmailText(cleanEmailBody(out.content));
-    return body.length >= 20 ? body.slice(0, 1500) : fallback;
+    return withContacts(body.length >= 20 ? body.slice(0, 1500) : fallback, people, i.language);
   } catch {
-    return fallback;
+    return withContacts(fallback, people, i.language);
   }
+}
+
+/** The "who to work with" list is added by code from the directory, never written by the model. */
+export function withContacts(body: string, people: Collaborator[], language: string) {
+  if (!people.length) return body;
+  const head = language === 'Bahasa Malaysia' ? 'Siapa yang perlu anda hubungi:' : 'Who to work with:';
+  return `${body}\n\n${head}\n${people.map((p) => `- ${p.name}, ${p.position} (${p.email}): ${p.reason}`).join('\n')}`;
 }
 
 // ── 2. Launch (approval) ─────────────────────────────────────────────────────
