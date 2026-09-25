@@ -12,11 +12,11 @@ Since 25 September 2026 the whole Council runs on the GPU server **xtracthor** (
 | AI models (hermes3:8b, nomic-embed-text) | Ollama on the same machine (`http://host.docker.internal:11434` from the containers) | RTX 5070 Ti, 16 GB GPU memory |
 | Backups | `~/xanderia-council/backup.sh`, cron at 01:00 Malaysia time, `~/backups`, 30 days kept | Copy them off the server regularly (NAS) |
 | Voice (Whisper) | Not enabled on the server (RAM is tight) | Can be added with `--profile voice` after a RAM upgrade |
-| Source code | Private GitHub repository `andrew-bot-1994/xanderia-ai-council` | No `.env` or passwords in it |
+| Source code | Private GitHub repository `pennyppps-cmyk/xanderia-ai-council` (older copy: `andrew-bot-1994/xanderia-ai-council`) | No `.env` or passwords in it; the server pulls with a read-only deploy key |
 
 Andrew's laptop copy remains as a spare and a development environment.
 
-**Updating the server:** on the laptop, commit and push; then on xtracthor copy the new code (for example `git archive HEAD | ssh wanwan@192.168.88.179 'tar -x -C ~/xanderia-council'`) and run `docker compose up -d --build`. Database migrations run automatically.
+**Updating the server:** commit and push on the laptop to the private GitHub repository `pennyppps-cmyk/xanderia-ai-council`, then on xtracthor run `~/xanderia-council/update.sh`. It pulls with a read-only deploy key, rebuilds, restarts, and waits for the site to answer. `.env` and the database volumes are never touched; migrations run automatically. `update.sh --force` rebuilds even when nothing changed.
 
 **GPU server history (25 September 2026):** after a reboot for a kernel update, Ollama started before the NVIDIA driver was ready, ran on the CPU and was killed for lack of memory (oom-kill). Fixed with the systemd drop-in `10-wait-for-gpu.conf` (waits for the GPU; `OLLAMA_NUM_PARALLEL=2`, `OLLAMA_KEEP_ALIVE=30m`, `OLLAMA_CONTEXT_LENGTH=16384`) and `nvidia-persistenced`.
 
