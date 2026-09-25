@@ -45,6 +45,25 @@ describe('answers the asker already gave', () => {
     expect(second).toContain('Excel table');
   });
 
+  it('removes open questions the asker already answered, and keeps new ones', async () => {
+    const { dropAnswered, answeredQuestions } = await import('../src/council/facts.js');
+    const answered = answeredQuestions([
+      { role: 'user', content: `Answer to the council's open question "${Q}": 180 days` },
+      {
+        role: 'assistant',
+        content: '…',
+        options: { clarifiedFrom: 'x', effectiveQuestion: 'q\n\nThe council asked:\n1. What specific type of loans are in your database?\n\nThe asker answered:\npersonal' },
+      },
+    ]);
+    expect(answered).toEqual([Q, 'What specific type of loans are in your database?']);
+    const open = [
+      'What are the specific thresholds for classifying a loan as non-performing?', // same as Q, reworded
+      'What delinquency thresholds should classify loans as non-performing (30/90/180 days)?', // same again
+      'Who will own the monthly NPL report?', // new
+    ];
+    expect(dropAnswered(open, answered)).toEqual(['Who will own the monthly NPL report?']);
+  });
+
   it('never lets a follow-up rewrite drop a number the asker typed', () => {
     expect(cleanRewrite('What delinquency thresholds should we use?', 'and use 180 days', 'User: thresholds 30/90/180')).toBe('and use 180 days');
     expect(cleanRewrite('Use a 180-day threshold for NPL.', 'and use 180 days', 'User: thresholds')).toBe('Use a 180-day threshold for NPL.');

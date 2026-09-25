@@ -29,6 +29,8 @@ const SendMessage = z.object({
   template: z.string().max(60).optional(),
   /** Documents uploaded with POST /api/attachments for this question. */
   attachmentIds: z.array(z.string().uuid()).max(3).optional(),
+  /** The language the asker's screen shows; answers follow it. */
+  lang: z.enum(['en', 'ms']).optional(),
 });
 
 const MESSAGE_COLUMNS = `m.id, m.conversation_id, m.role, m.content, m.reply_to, m.requested_mode, m.mode,
@@ -232,7 +234,7 @@ export default async function chatRoutes(app: FastifyInstance) {
           await c.query(
             `INSERT INTO messages (conversation_id, role, reply_to, requested_mode, department_id, status, options)
              VALUES ($1, 'assistant', $2, $3, $4, 'queued', $5) RETURNING *`,
-            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, skipClarify: body.skipClarify, ...templateOpts })],
+            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, skipClarify: body.skipClarify, ...(body.lang ? { uiLang: body.lang } : {}), ...templateOpts })],
           )
         ).rows[0];
         await c.query('UPDATE conversations SET updated_at = now() WHERE id = $1', [conversation.id]);

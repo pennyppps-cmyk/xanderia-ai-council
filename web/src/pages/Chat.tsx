@@ -9,7 +9,7 @@ import { cx, Icon, Spinner } from '../components/ui';
 import type { ConversationSummary, Message, Mode } from '../types';
 import { useUserEvents } from '../useUserEvents';
 import { TemplateDialog, TemplateGrid, type CouncilTemplate } from '../components/Templates';
-import { tl } from '../i18n';
+import { getLang, tl } from '../i18n';
 
 
 const EXAMPLES = [
@@ -101,7 +101,7 @@ export default function Chat() {
     setError(null);
     try {
       const res = await api<{ conversation: { id: string }; userMessage: Message; assistantMessage: Message }>('/api/messages', {
-        body: { ...input, conversationId: id },
+        body: { ...input, conversationId: id, lang: getLang() },
       });
       if (!id) {
         navigate(`/c/${res.conversation.id}`);

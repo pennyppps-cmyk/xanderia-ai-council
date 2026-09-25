@@ -14,7 +14,7 @@ import { notify } from '../crew/service.js';
 import { deliverToTelegram } from '../telegram/bot.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 import { condenseQuestion } from './condense.js';
-import { confirmedFacts, factsBlock, parseOpenAnswer, questionForOpenAnswer } from './facts.js';
+import { answeredQuestions, confirmedFacts, dropAnswered, factsBlock, parseOpenAnswer, questionForOpenAnswer } from './facts.js';
 import { ATTACHMENT_BUDGET, fitAttachments, truncationNote, type Attachment } from './attachments.js';
 
 interface LoadedJob {
@@ -107,7 +107,7 @@ async function loadFacts(conversationId: string, beforeMessageId: string) {
       ORDER BY created_at, (role = 'assistant')`,
     [conversationId, beforeMessageId],
   );
-  return confirmedFacts(rows);
+  return { facts: confirmedFacts(rows), answered: answeredQuestions(rows) };
 }
 
 /** The request behind the latest answer before this message (what an open-question answer refers to). */
@@ -243,7 +243,7 @@ export async function processMessage(messageId: string, events: Publisher) {
     const history = await loadHistory(message.conversation_id, historyAnchor, await getSetting('history_turns', 6));
 
     // What the asker already confirmed earlier in this conversation.
-    const facts = await loadFacts(message.conversation_id, historyAnchor);
+    const { facts, answered } = await loadFacts(message.conversation_id, historyAnchor);
 
     // An answer to an open question under a verdict: reconsider that plan with the answer
     // (already a complete message, so it is not rewritten).
@@ -275,7 +275,8 @@ export async function processMessage(messageId: string, events: Publisher) {
 
     const departments = (await query('SELECT slug, name FROM departments WHERE is_active ORDER BY name')).rows;
     // Someone who uses the app in Bahasa Malaysia gets answers in BM, whatever language they typed in.
-    const wantsMalay = user.locale === 'ms';
+    const screenLang = (message.options as { uiLang?: string }).uiLang;
+    const wantsMalay = screenLang ? screenLang === 'ms' : user.locale === 'ms';
     const route = async () => {
       const r = await routeMessage(
         { gateway, assemble: assemblePrompt },
@@ -481,6 +482,10 @@ export async function processMessage(messageId: string, events: Publisher) {
           },
         },
       );
+      if (result.verdict) {
+        // Never ask again what the asker already answered, in this turn or earlier ones.
+        result.verdict.open_questions = dropAnswered(result.verdict.open_questions, [...answered, ...(openAnswer ? [openAnswer.question] : [])]);
+      }
       const content = result.verdict ? verdictToMarkdown(result.verdict) : result.verdictRaw.trim();
       await query(
         `UPDATE messages SET content = $2, verdict = $3, cloud_used = $4 WHERE id = $1`,

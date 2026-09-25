@@ -48,3 +48,36 @@ export function questionForOpenAnswer(baseQuestion: string, open: { question: st
   const base = baseQuestion.split('\n\nThe asker has now answered')[0];
   return `${base}\n\nThe asker has now answered the council's open question "${open.question}": ${open.answer}\nReconsider the previous verdict with this answer and update it where the answer changes it.`;
 }
+
+/** The questions the asker has already answered (clarifying and open questions), for filtering. */
+export function answeredQuestions(messages: FactSource[]): string[] {
+  const out: string[] = [];
+  for (const m of messages) {
+    if (m.role === 'user') {
+      const open = parseOpenAnswer(m.content);
+      if (open) out.push(open.question);
+    } else if (m.options?.clarifiedFrom && m.options.effectiveQuestion) {
+      const asked = /The council asked:\n([\s\S]*?)\n\nThe asker answered:/.exec(m.options.effectiveQuestion);
+      if (asked) out.push(...asked[1].split('\n').map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean));
+    }
+  }
+  return out;
+}
+
+const STOP = new Set('the a an of to for in on and or is are be what which how should we our your this that with by as at from can do does will would it its there any specific'.split(' '));
+const words = (s: string) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)));
+
+/** True when two questions ask essentially the same thing (word overlap). */
+export function sameQuestion(a: string, b: string) {
+  const wa = words(a);
+  const wb = words(b);
+  if (!wa.size || !wb.size) return false;
+  let inter = 0;
+  for (const w of wa) if (wb.has(w)) inter++;
+  return inter / Math.min(wa.size, wb.size) >= 0.7 || inter / (wa.size + wb.size - inter) >= 0.5;
+}
+
+/** Drop open questions the asker has already answered (the model sometimes repeats them). */
+export function dropAnswered(openQuestions: string[], answered: string[]) {
+  return openQuestions.filter((q) => !answered.some((a) => sameQuestion(q, a)));
+}
