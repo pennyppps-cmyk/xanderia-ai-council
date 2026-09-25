@@ -16,6 +16,12 @@ echo "Updating $before -> $after"
 git log --oneline "$before..$after" 2>/dev/null | head -20
 docker compose up -d --build
 docker image prune -f >/dev/null
-sleep 5
 docker compose ps --format '{{.Service}}: {{.Status}}'
-curl -sk -o /dev/null -w 'web: HTTP %{http_code}\n' "https://$(grep '^SITE_ADDRESS=' .env | cut -d= -f2)/api/health" || true
+# The API needs a few seconds to run migrations and start; wait up to a minute.
+site="https://$(grep '^SITE_ADDRESS=' .env | cut -d= -f2)/api/health"
+for i in $(seq 1 30); do
+  code=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' "$site" || true)
+  [ "$code" = "200" ] && break
+  sleep 2
+done
+echo "web: HTTP $code"
