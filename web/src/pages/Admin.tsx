@@ -36,11 +36,12 @@ export default function Admin() {
         <LanguageToggle />
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {/* Absolute links: inside the /admin/* splat route, relative links resolve against the full URL and pile up. */}
         <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-ink-100 bg-white p-2 md:w-52 md:flex-col md:border-r md:border-b-0">
           {tabs.map((t) => (
             <NavLink
               key={t.path}
-              to={t.path}
+              to={`/admin/${t.path}`}
               className={({ isActive }) =>
                 cx(
                   'rounded-lg px-3 py-2 text-sm whitespace-nowrap',
@@ -55,7 +56,7 @@ export default function Admin() {
         <div className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
           <div className="mx-auto max-w-5xl">
             <Routes>
-              <Route index element={<Navigate to={isAdmin ? 'overview' : 'knowledge'} replace />} />
+              <Route index element={<Navigate to={isAdmin ? '/admin/overview' : '/admin/knowledge'} replace />} />
               {isAdmin && (
                 <>
                   <Route path="overview" element={<Overview />} />
@@ -70,7 +71,7 @@ export default function Admin() {
                 </>
               )}
               <Route path="knowledge" element={<Knowledge />} />
-              <Route path="*" element={<Navigate to="." replace />} />
+              <Route path="*" element={<Navigate to={isAdmin ? '/admin/overview' : '/admin/knowledge'} replace />} />
             </Routes>
           </div>
         </div>
