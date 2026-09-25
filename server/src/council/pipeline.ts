@@ -318,7 +318,15 @@ export async function processMessage(messageId: string, events: Publisher) {
       await stage('clarify');
       const clarify = await checkClarity(
         { gateway, assemble: assemblePrompt },
-        { question, departmentName: department.name, sensitivity: router?.sensitivity ?? 'high', userId: user.id, messageId, attachments },
+        {
+          question,
+          departmentName: department.name,
+          sensitivity: router?.sensitivity ?? 'high',
+          userId: user.id,
+          messageId,
+          attachments,
+          language: wantsMalay ? 'ms' : (router?.language ?? 'en'),
+        },
       );
       if (clarify) {
         const content = clarifyMarkdown(clarify);

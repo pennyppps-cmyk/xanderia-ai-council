@@ -17,10 +17,12 @@ export interface ClarifyRequest {
  */
 export async function checkClarity(
   deps: { gateway: Pick<LlmGateway, 'call'>; assemble(spec: PromptSpec): Promise<string> },
-  input: { question: string; departmentName: string; sensitivity: Sensitivity; userId?: string; messageId?: string; attachments?: Attachment[] },
+  input: { question: string; departmentName: string; sensitivity: Sensitivity; userId?: string; messageId?: string; attachments?: Attachment[]; language?: 'en' | 'ms' },
 ): Promise<ClarifyRequest | null> {
   try {
-    const system = await deps.assemble({ task: 'clarifier' });
+    const system =
+      (await deps.assemble({ task: 'clarifier' })) +
+      (input.language === 'ms' ? '\n\nWrite the questions and the assumptions in Bahasa Malaysia.' : '');
     const res = await callStructured<ClarifyOutput>(
       deps.gateway,
       'clarifier',
