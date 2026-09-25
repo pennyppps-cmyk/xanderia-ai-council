@@ -7,15 +7,15 @@ Written for Xanderia IT and the AI Systems team. Last updated 25 September 2026.
 | Part | Where it runs now | What it is |
 |---|---|---|
 | Web app, API, worker, database, queue | Andrew's laptop, in Docker Compose | Caddy (HTTPS web server), Fastify API, background worker, PostgreSQL 17 with pgvector, Redis |
-| AI model for answers (Hermes 3 8B) | **Andrew's laptop** for now (local Ollama). Target: GPU server **xtracthor**, 192.168.88.179 (Proxmox VM, RTX 5070 Ti 16 GB, Ollama 0.32.6) | All chat roles: router, quick answers, the six advisors, Chairman, clarifier, Action Crew, drafting |
-| Embedding model (nomic-embed-text) | Andrew's laptop (local Ollama) | Used for the knowledge-base search. Temporary: the GPU server's disk was full, so it isn't installed there yet |
+| AI model for answers (Hermes 3 8B) | GPU server **xtracthor**, 192.168.88.179 (Proxmox VM, RTX 5070 Ti 16 GB, 11 GB RAM, Ollama 0.32.6) | All chat roles: router, quick answers, the six advisors, Chairman, clarifier, Action Crew, drafting |
+| Embedding model (nomic-embed-text) | GPU server xtracthor | Used for the knowledge-base search |
 | Speech-to-text (optional) | Andrew's laptop, Whisper container (`voice` profile) | Voice questions from the web app and Telegram |
 
 The laptop reaches the GPU server over the office network or the OpenVPN. **If the laptop is off, or the VPN drops, the Council is unavailable.** Only the laptop can open https://localhost, so colleagues can't use it yet. This is a pilot setup, not production.
 
 Model routing is set per role in **Admin → Model routing**. Provider `gpu` = http://192.168.88.179:11434; provider `ollama` = the laptop's Ollama.
 
-**GPU server status (25 September 2026):** reachable over the VPN, and fast at first (about 150 tokens per second). During a council run it then loaded Hermes with no GPU memory (`size_vram: 0`, so it ran on the CPU and took 30–60 seconds per advisor), and soon after Ollama stopped accepting connections. The chat roles were moved back to the laptop until this is fixed (Step 1).
+**GPU server status (25 September 2026):** all model roles run on xtracthor. A council takes about 20 seconds, and a quick answer 4–6 seconds. Root cause of the earlier failure: after a reboot (kernel update) at 04:06, Ollama started before the NVIDIA driver was ready and fell back to the CPU. Running on the CPU with 11 GB of RAM, it was killed for lack of memory (oom-kill) at 04:29. Its automatic restart found the GPU. The permanent fix is to make Ollama wait for the GPU at boot (Step 1). The laptop's Ollama stays available as a fallback (Admin → Model routing, provider `ollama`).
 
 ## 2. Target setup
 
@@ -47,9 +47,9 @@ The app server needs no GPU; the model runs on xtracthor.
 ## 3. Step-by-step plan
 
 ### Step 1: Prepare the GPU server (xtracthor), about 1 hour
-0. Fix the GPU problem first: run `nvidia-smi` and check the RTX 5070 Ti is visible and which processes use its memory (the other service on port 8000 and the minicpm vision model may be holding it). Check `journalctl -u ollama` for crashes and out-of-memory errors. Ollama must show `size_vram` equal to the model size in `/api/ps` after a request.
+0. Make Ollama wait for the GPU at boot: add a systemd drop-in `/etc/systemd/system/ollama.service.d/10-wait-for-gpu.conf` with `After=nvidia-persistenced.service` and an `ExecStartPre` that waits until `nvidia-smi -L` succeeds; enable `nvidia-persistenced`. After any reboot, `/api/ps` must show `size_vram` equal to the model size. Consider raising the VM's RAM from 11 GB to 16 GB; the doc-extractor app also uses about 2.5 GB.
 1. Free disk space. The disk was 100% full: remove unused models (`ollama list`, `ollama rm <name>`), old logs and old Docker images.
-2. Install the embedding model: `ollama pull nomic-embed-text` (about 270 MB). Confirm `hermes3:8b` is listed.
+2. Embedding model: `nomic-embed-text` is installed (25 September 2026). Confirm `hermes3:8b` and `nomic-embed-text` are listed.
 3. Ollama settings (systemd override or environment): `OLLAMA_HOST=0.0.0.0:11434`, `OLLAMA_NUM_PARALLEL=2`, `OLLAMA_KEEP_ALIVE=30m`, `OLLAMA_MAX_LOADED_MODELS=2`. Restart Ollama.
 4. Firewall: allow port 11434 **only from the app server's IP** (and the admin laptop during the move). Ollama has no password, so it must not be open to the whole network.
 5. Change the SSH password of the `wanwan` account. It was shared in a chat message during setup.
