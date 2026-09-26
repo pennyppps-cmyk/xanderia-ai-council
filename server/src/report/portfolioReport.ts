@@ -16,7 +16,7 @@ type Doc = PDFKit.PDFDocument;
 const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 const rm = (n: number) => `RM ${Math.round(n).toLocaleString('en-MY')}`;
 /** Only characters the font can draw. */
-const safe = (s: string) => s.replace(/[→]/g, '->').replace(/[^\x20-\x7E -ɏ\n]/g, '');
+const safe = (s: string) => s.replace(/[→]/g, '->').replace(/\s*[—–]\s*/g, ' - ').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E -ɏ\n]/g, '');
 
 function heading(doc: Doc, text: string) {
   if (doc.y > PAGE.h - 140) doc.addPage();
@@ -99,16 +99,18 @@ export async function renderPortfolioReport(opts: {
     { big: pct(s.nplRatio), small: `NPL ratio${prev ? ` (${s.nplRatio >= prev.nplRatio ? '+' : ''}${((s.nplRatio - prev.nplRatio) * 100).toFixed(2)} pts)` : ''}`, color: s.nplRatio > 0.05 ? C.red : s.nplRatio > 0.03 ? C.amber : C.green },
     { big: pct(s.par.par30), small: 'PAR30', color: C.ink },
     { big: pct(s.par.par90), small: 'PAR90', color: C.ink },
-    { big: rm(s.total.npl.balance), small: `NPL balance (${s.total.npl.accounts.toLocaleString()} accounts)`, color: C.ink },
+    { big: rm(s.total.npl.balance), small: `NPL balance (${s.total.npl.accounts.toLocaleString()} account${s.total.npl.accounts === 1 ? '' : 's'})`, color: C.ink },
   ];
   const tw = (W - 18) / 4;
+  const ty = doc.y; // text() moves doc.y, so every tile uses the same top
   tiles.forEach((t, i) => {
     const x = PAGE.m + i * (tw + 6);
-    doc.roundedRect(x, doc.y, tw, 54, 6).fill(C.bg);
-    doc.font('bold').fontSize(14).fillColor(t.color).text(t.big, x + 10, doc.y + 10, { width: tw - 20, lineBreak: false });
-    doc.font('regular').fontSize(7.2).fillColor(C.muted).text(t.small, x + 10, doc.y + 34, { width: tw - 20, lineBreak: false, ellipsis: true });
+    doc.roundedRect(x, ty, tw, 54, 6).fill(C.bg);
+    doc.font('bold').fontSize(14).fillColor(t.color).text(t.big, x + 10, ty + 10, { width: tw - 20, lineBreak: false });
+    doc.font('regular').fontSize(7.2).fillColor(C.muted).text(t.small, x + 10, ty + 34, { width: tw - 20, lineBreak: false, ellipsis: true });
   });
-  doc.y += 70;
+  doc.x = PAGE.m;
+  doc.y = ty + 70;
 
   // Bucket mix bar
   heading(doc, 'Balance by days past due');
