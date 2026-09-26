@@ -210,5 +210,18 @@ export async function monthlyImprovementReport() {
     );
   }
   if (admins.length) await writeAudit({ action: 'improvement_report_sent', detail: { recipients: admins.length } });
+  // Same day: ask for this month's loan export, so the portfolio report can be produced.
+  const { rows: owners } = await query(
+    `SELECT u.id FROM users u LEFT JOIN departments d ON d.id = u.department_id
+      WHERE u.is_active AND (u.role = 'admin' OR (u.role = 'dept_lead' AND d.slug IN ('finance', 'credit-collections', 'management')))`,
+  );
+  for (const o of owners) {
+    await notify(o.id, {
+      kind: 'portfolio_reminder',
+      title: 'Monthly portfolio report: upload this month-end loan export',
+      body: 'Tools → Portfolio report. The figures, trend and council commentary are produced in about a minute.',
+      link: '/tools',
+    });
+  }
   return admins.length;
 }

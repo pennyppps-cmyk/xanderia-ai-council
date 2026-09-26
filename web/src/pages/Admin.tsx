@@ -1252,6 +1252,29 @@ function Settings() {
           {tl("Send department heads a weekly digest email")}
         </label>
       </div>
+      <h3 className="mt-6 mb-2 text-sm font-semibold">{tl('Loan tools')}</h3>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={tl('NPL definition (days past due)')} hint={tl('Used by the portfolio report.')}>
+          <input className={inputCls} type="number" min={30} max={360} value={f.portfolio_npl_days ?? 90} onChange={(e) => set('portfolio_npl_days', Number(e.target.value))} />
+        </Field>
+        <label className="inline-flex items-center gap-2 self-end pb-2 text-sm">
+          <input type="checkbox" className="accent-accent-600" checked={f.portfolio_restructured_is_npl ?? true} onChange={(e) => set('portfolio_restructured_is_npl', e.target.checked)} />
+          {tl('Count restructured / rescheduled loans as NPL')}
+        </label>
+        <Field label={tl('Portfolio report recipients (Management)')} hint={tl('Email addresses, separated by commas.')}>
+          <input
+            className={inputCls}
+            value={(f.portfolio_report_recipients ?? []).join(', ')}
+            onChange={(e) => set('portfolio_report_recipients', e.target.value.split(/[,;\s]+/).map((x: string) => x.trim()).filter(Boolean))}
+          />
+        </Field>
+        <Field label={tl('Affordability: maximum deductions (% of gross pay)')} hint={tl('Including the new instalment. 60% is the usual limit for salary deductions.')}>
+          <input className={inputCls} type="number" min={10} max={100} value={f.affordability_max_deduction_pct ?? 60} onChange={(e) => set('affordability_max_deduction_pct', Number(e.target.value))} />
+        </Field>
+        <Field label={tl('Affordability: minimum net pay after the instalment (RM)')} hint={tl('0 = no minimum.')}>
+          <input className={inputCls} type="number" min={0} value={f.affordability_min_net ?? 0} onChange={(e) => set('affordability_min_net', Number(e.target.value))} />
+        </Field>
+      </div>
       <div className="mt-4">
         <Button
           variant="primary"

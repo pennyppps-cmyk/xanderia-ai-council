@@ -4,13 +4,17 @@ import { api } from '../api';
 import { Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
 import { tl } from '../i18n';
 import { Shell } from './Plan';
+import { AffordabilityTool, DeductionsTool, PortfolioTool } from './ToolsLoans';
 
 /**
  * Working tools: loan / collections calculators (computed in the browser) and arrears file
  * analysis (aggregated on the server, file not stored). Every result can be taken to the council.
  */
-type Tab = 'instalment' | 'rebate' | 'roll' | 'cost' | 'arrears';
+type Tab = 'portfolio' | 'deductions' | 'affordability' | 'instalment' | 'rebate' | 'roll' | 'cost' | 'arrears';
 const TABS: Array<{ key: Tab; label: string }> = [
+  { key: 'portfolio', label: 'Portfolio report' },
+  { key: 'deductions', label: 'Deduction reconciliation' },
+  { key: 'affordability', label: 'Payslip affordability' },
   { key: 'instalment', label: 'Instalment' },
   { key: 'rebate', label: 'Early settlement rebate' },
   { key: 'roll', label: 'Roll rates' },
@@ -25,7 +29,7 @@ const num = (s: string) => {
 };
 
 export default function ToolsPage() {
-  const [tab, setTab] = useState<Tab>('instalment');
+  const [tab, setTab] = useState<Tab>('portfolio');
   const navigate = useNavigate();
   // Pre-fill a new council question with the result (the asker reviews and sends it).
   const ask = (text: string) => navigate('/', { state: { prefill: text, mode: 'council' } });
@@ -47,6 +51,9 @@ export default function ToolsPage() {
           </button>
         ))}
       </div>
+      {tab === 'portfolio' && <PortfolioTool ask={ask} />}
+      {tab === 'deductions' && <DeductionsTool ask={ask} />}
+      {tab === 'affordability' && <AffordabilityTool ask={ask} />}
       {tab === 'instalment' && <Instalment ask={ask} />}
       {tab === 'rebate' && <Rebate ask={ask} />}
       {tab === 'roll' && <RollRates ask={ask} />}
