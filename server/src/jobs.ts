@@ -178,11 +178,17 @@ export async function weeklyDigests() {
   for (const u of leads) {
     if (!cache.has(u.department_id)) cache.set(u.department_id, await digestFor(u.department_id));
     const d = cache.get(u.department_id)!;
+    const { onboardingFor } = await import('./onboarding.js');
+    const setup = await onboardingFor({ id: u.id, role: 'dept_lead', department_id: u.department_id });
+    const paragraphs = digestParagraphs(u.display_name, d);
+    if (!setup.complete) {
+      paragraphs.splice(2, 0, `YOUR SETUP: ${setup.done} of ${setup.total} steps done. Still to do: ${setup.items.filter((i) => !i.done).map((i) => i.title.toLowerCase()).join('; ')}.`);
+    }
     await queueNoticeEmail(
       'digest',
       u.email,
       `Weekly digest, ${d.department}: ${d.questions} questions, ${d.overdue.length} overdue tasks / Ringkasan mingguan`,
-      digestParagraphs(u.display_name, d),
+      paragraphs,
       { label: 'Open the decision register / Buka daftar keputusan', href: appUrl('/decisions') },
     );
   }

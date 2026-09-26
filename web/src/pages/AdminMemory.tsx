@@ -42,6 +42,7 @@ export default function CompanyMemory() {
       <HouseRules isAdmin={isAdmin} />
       <Answers status="suggested" isAdmin={isAdmin} />
       <Answers status="approved" isAdmin={isAdmin} />
+      {isAdmin && <LeadSetup />}
       {isAdmin && <Report />}
     </>
   );
@@ -204,6 +205,60 @@ function Answers({ status, isAdmin }: { status: 'suggested' | 'approved'; isAdmi
             </li>
           ))}
         </ul>
+      )}
+    </Section>
+  );
+}
+
+interface LeadProgress {
+  id: string;
+  name: string;
+  email: string;
+  department: string | null;
+  last_login_at: string | null;
+  reminders: number;
+  done: number;
+  total: number;
+  missing: string[];
+}
+
+function LeadSetup() {
+  const list = useData<LeadProgress[]>('/api/admin/onboarding');
+  return (
+    <Section
+      title={tl('Department lead setup')}
+      hint={tl('Each lead has a setup checklist on their home screen (house rules, knowledge, reviewing answers, a first council question, a first decision). Leads are reminded by notification and email until it is done, at most 3 times.')}
+    >
+      {!list.data ? (
+        <Spinner />
+      ) : list.data.length === 0 ? (
+        <p className="text-sm text-ink-400">{tl('No department leads yet. Set Role → Department lead in Admin → Users.')}</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-ink-500">
+              <th className="py-1">{tl('Lead')}</th>
+              <th className="py-1">{tl('Department')}</th>
+              <th className="py-1">{tl('Progress')}</th>
+              <th className="py-1">{tl('Still to do')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.data.map((l) => (
+              <tr key={l.id} className="border-t border-ink-100 align-top">
+                <td className="py-2 pr-2">
+                  <p className="font-medium">{l.name}</p>
+                  <p className="text-xs text-ink-400">{l.last_login_at ? tl('last sign-in {date}', { date: new Date(l.last_login_at).toLocaleDateString() }) : tl('never signed in')}</p>
+                </td>
+                <td className="py-2 pr-2">{l.department ?? '—'}</td>
+                <td className="py-2 pr-2">
+                  <Badge tone={l.done === l.total ? 'green' : l.done === 0 ? 'red' : 'amber'}>{l.done}/{l.total}</Badge>
+                </td>
+                <td className="py-2 text-xs text-ink-600">{l.missing.length ? l.missing.map((m) => tl(m)).join(' · ') : tl('All done')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </Section>
   );

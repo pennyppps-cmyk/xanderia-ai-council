@@ -12,6 +12,7 @@ import { createRedis, redis } from './redis.js';
 import { runRetention } from './retention.js';
 import { decisionCheckIns, knowledgeFreshness, monthlyImprovementReport, weeklyDigests } from './jobs.js';
 import { backfillDecisionEmbeddings } from './memory/memory.js';
+import { onboardingNudges } from './onboarding.js';
 import { embed } from './llm/registry.js';
 import { getSetting } from './settings.js';
 import { startTelegramPolling } from './telegram/bot.js';
@@ -74,6 +75,8 @@ const maintenanceWorker = new Worker(
       const n = await trackerTick();
       if (n) console.log(`[tracker] ${n} action(s)`);
     } else if (job.name === 'checkins') {
+      const nudges = await onboardingNudges().catch((err) => (console.error('[onboarding]', err), { welcomed: 0, reminded: 0 }));
+      if (nudges.welcomed || nudges.reminded) console.log(`[onboarding] welcomed ${nudges.welcomed}, reminded ${nudges.reminded}`);
       const n = await decisionCheckIns();
       if (n) console.log(`[checkins] ${n} decision check-in(s) sent`);
     } else if (job.name === 'freshness') {

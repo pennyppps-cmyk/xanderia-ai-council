@@ -10,6 +10,7 @@ import type { ConversationSummary, Message, Mode } from '../types';
 import { useUserEvents } from '../useUserEvents';
 import { TemplateDialog, TemplateGrid, type CouncilTemplate } from '../components/Templates';
 import { getLang, tl } from '../i18n';
+import { OnboardingCard } from '../components/Onboarding';
 
 
 const EXAMPLES = [
@@ -153,6 +154,7 @@ export default function Chat() {
                 <p className="mx-auto mt-2 max-w-lg text-sm text-ink-600">
                   {tl("Ask a quick question, or bring a plan or decision to the council: six advisors with different mandates weigh in, and the Chairman returns one verdict with an action plan.")}
                 </p>
+                <OnboardingCard />
                 {templates.length > 0 && (
                   <div className="mt-6">
                     <p className="mb-2 text-left text-xs font-semibold tracking-wide text-ink-400 uppercase">{tl('Start from a template')}</p>
