@@ -17,6 +17,7 @@ import decisionRoutes from './routes/decisions.js';
 import toolRoutes from './routes/tools.js';
 import channelRoutes from './routes/channels.js';
 import attachmentRoutes from './routes/attachments.js';
+import memoryRoutes from './routes/memory.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -55,5 +56,6 @@ export async function buildApp() {
   await app.register(toolRoutes);
   await app.register(channelRoutes);
   await app.register(attachmentRoutes);
+  await app.register(memoryRoutes);
   return app;
 }

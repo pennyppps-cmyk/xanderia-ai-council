@@ -10,7 +10,9 @@ import { createPublisher } from './queue/events.js';
 import { QUEUE_NAME, type MessageJob } from './queue/queue.js';
 import { createRedis, redis } from './redis.js';
 import { runRetention } from './retention.js';
-import { decisionCheckIns, knowledgeFreshness, weeklyDigests } from './jobs.js';
+import { decisionCheckIns, knowledgeFreshness, monthlyImprovementReport, weeklyDigests } from './jobs.js';
+import { backfillDecisionEmbeddings } from './memory/memory.js';
+import { embed } from './llm/registry.js';
 import { getSetting } from './settings.js';
 import { startTelegramPolling } from './telegram/bot.js';
 
@@ -55,6 +57,13 @@ await maintenance.upsertJobScheduler('checkins', { pattern: '5 1 * * *' }, { nam
 // Knowledge freshness daily at 09:15 KL; the department heads' digest on Mondays at 08:00 KL.
 await maintenance.upsertJobScheduler('freshness', { pattern: '15 1 * * *' }, { name: 'freshness' });
 await maintenance.upsertJobScheduler('digest', { pattern: '0 0 * * 1' }, { name: 'digest' });
+// Improvement report to admins on the 1st of each month, 09:00 KL.
+await maintenance.upsertJobScheduler('improvement', { pattern: '0 1 1 * *' }, { name: 'improvement' });
+// Company memory: decisions recorded before memory existed get embedded once.
+void backfillDecisionEmbeddings(pool, (t) => embed(t, { purpose: 'memory_index' }))
+  .then((n) => n && console.log(`[memory] indexed ${n} past decision(s)`))
+  .catch(() => {});
+
 // Telegram bot (when TELEGRAM_BOT_TOKEN is set): long polling, one poller across workers.
 void startTelegramPolling();
 
@@ -72,6 +81,8 @@ const maintenanceWorker = new Worker(
       if (n) console.log(`[freshness] ${n} stale document(s) flagged`);
     } else if (job.name === 'digest') {
       if (await getSetting('weekly_digest_enabled', true)) console.log(`[digest] ${await weeklyDigests()} digest(s) queued`);
+    } else if (job.name === 'improvement') {
+      console.log(`[improvement] report queued for ${await monthlyImprovementReport()} admin(s)`);
     } else if (job.name === 'mailer') {
       const n = await sendQueuedEmails();
       if (n) console.log(`[mailer] processed ${n} email(s)`);

@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import mammoth from 'mammoth';
 import { extractText, getDocumentProxy } from 'unpdf';
 
@@ -6,7 +7,7 @@ import { extractText, getDocumentProxy } from 'unpdf';
  * Turn an uploaded file into Markdown-ish text for chunking. Headings become section
  * names for citations: PDF pages ("Page 3"), Word headings, Excel sheet names.
  */
-export const SUPPORTED = /\.(txt|md|markdown|csv|pdf|docx|xlsx)$/i;
+export const SUPPORTED = /\.(txt|md|markdown|csv|pdf|docx|xlsx|zip)$/i;
 
 export async function extractDocumentText(filename: string, data: Buffer): Promise<string> {
   return cleanText(await rawText(filename, data));
@@ -27,6 +28,8 @@ async function rawText(filename: string, data: Buffer): Promise<string> {
       return docxText(data);
     case 'xlsx':
       return xlsxText(data);
+    case 'zip':
+      return notesZipText(data);
     default:
       return data.toString('utf8');
   }
@@ -91,4 +94,33 @@ function cellText(v: unknown): string {
     return '';
   }
   return String(v).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A zipped folder of Markdown notes (for example an Obsidian vault): one section per note, so answers
+ * cite "Vault › Note". Obsidian syntax is simplified: front matter removed, [[Note|label]] links become text.
+ */
+export async function notesZipText(data: Buffer, maxNotes = 2000) {
+  const zip = await JSZip.loadAsync(data);
+  const files = Object.values(zip.files)
+    .filter((f) => !f.dir && /\.(md|markdown|txt)$/i.test(f.name) && !/(^|\/)(\.obsidian|\.trash|node_modules|__MACOSX)\//.test(f.name))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, maxNotes);
+  if (!files.length) throw new Error('The zip has no Markdown (.md) or text notes');
+  const sections: string[] = [];
+  for (const f of files) {
+    const raw = await f.async('string');
+    const text = raw
+      .replace(/^---\n[\s\S]*?\n---\n/, '') // YAML front matter
+      .replace(/!\[\[[^\]]*\]\]/g, '') // embedded files
+      .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+      .replace(/\[\[([^\]]+)\]\]/g, '$1')
+      .replace(/^(#{1,6})\s/gm, (_m, h: string) => `${'#'.repeat(Math.min(h.length + 2, 6))} `) // keep note headings under the note
+      .trim();
+    if (!text) continue;
+    const name = f.name.replace(/\.(md|markdown|txt)$/i, '').split('/').slice(-2).join(' / ');
+    sections.push(`## ${name}\n\n${text}`);
+  }
+  if (!sections.length) throw new Error('The notes in the zip are empty');
+  return sections.join('\n\n');
 }

@@ -7,6 +7,7 @@ import type { Department } from '../types';
 import { CrewAdmin, DirectoryAdmin } from './AdminCrew';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { tl } from '../i18n';
+import CompanyMemory from './AdminMemory';
 
 
 const TABS = [
@@ -18,6 +19,7 @@ const TABS = [
   { path: 'knowledge', label: 'Knowledge', admin: false },
   { path: 'directory', label: 'Staff directory', admin: true },
   { path: 'crew', label: 'Action Crew & email', admin: true },
+  { path: 'memory', label: 'Company memory', admin: false },
   { path: 'audit', label: 'Audit log', admin: true },
   { path: 'settings', label: 'Settings', admin: true },
 ];
@@ -71,6 +73,7 @@ export default function Admin() {
                 </>
               )}
               <Route path="knowledge" element={<Knowledge />} />
+              <Route path="memory" element={<CompanyMemory />} />
               <Route path="*" element={<Navigate to={isAdmin ? '/admin/overview' : '/admin/knowledge'} replace />} />
             </Routes>
           </div>
@@ -1027,11 +1030,11 @@ function Knowledge() {
     <>
       <Card title={tl("Add a document")}>
         <p className="mb-3 text-xs text-ink-400">
-          {tl("Staff only retrieve documents from their own department and company-wide documents (plus any extra access an admin grants). Accepts PDF (text PDFs, not scans), Word (.docx), Excel (.xlsx), .txt, .md and .csv. Answers cite the document and page / section / sheet. Requires the embedding model (")}<code>nomic-embed-text</code>{tl(") on Ollama.")}
+          {tl("Staff only retrieve documents from their own department and company-wide documents (plus any extra access an admin grants). Accepts PDF (text PDFs, not scans), Word (.docx), Excel (.xlsx), .txt, .md, .csv, and a .zip of Markdown notes (for example an Obsidian vault). Answers cite the document and page / section / sheet. Requires the embedding model (")}<code>nomic-embed-text</code>{tl(") on Ollama.")}
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label={tl("File")}>
-            <input type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.markdown,.csv" className="block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <input type="file" accept=".pdf,.docx,.xlsx,.txt,.md,.markdown,.csv,.zip" className="block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </Field>
           <Field label={tl("Title (optional)")}>
             <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tl("Defaults to file name")} />

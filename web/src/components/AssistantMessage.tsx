@@ -46,6 +46,18 @@ export function AssistantMessage({ message, onFinished, onFollowUp, onRetry, onS
       </div>
       <div className="min-w-0 flex-1 space-y-3">
         <Header live={live} mode={mode} message={message} reviewFlag={Boolean(dept?.review_before_acting)} />
+        {message.options?.memory && (message.options.memory.lessons + message.options.memory.approved + message.options.memory.rules > 0) && (
+          <p className="text-xs text-ink-500" title={tl('House rules, approved company answers and past decisions the council was shown')}>
+            {tl('Drew on company memory:')}{' '}
+            {[
+              message.options.memory.rules ? tl('{n} house rules', { n: message.options.memory.rules }) : '',
+              message.options.memory.approved ? tl('{n} approved answers', { n: message.options.memory.approved }) : '',
+              message.options.memory.lessons ? tl('{n} past decisions', { n: message.options.memory.lessons }) : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        )}
         {message.options?.attachmentNote && (
           <p className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800">{message.options.attachmentNote}</p>
         )}
@@ -520,6 +532,7 @@ function Actions({
           <Icon name="edit" className="h-3.5 w-3.5" /> {tl('Word')}
         </a>
         <ShareButton messageId={message.id} />
+        <CompanyAnswerButton messageId={message.id} />
         {verdict && <RecordDecision messageId={message.id} />}
         {verdict && onWhatIf && (
           <Button size="sm" variant="ghost" aria-expanded={panel === 'whatif'} onClick={() => setPanel(panel === 'whatif' ? null : 'whatif')}
@@ -814,6 +827,42 @@ function WhatIfForm({ onSubmit }: { onSubmit(change: string): Promise<void> }) {
         {busy ? tl('Starting…') : tl('Re-run')}
       </Button>
     </form>
+  );
+}
+
+/** Save an answer to company memory: approved straight away for leads and admins, a suggestion for others. */
+function CompanyAnswerButton({ messageId }: { messageId: string }) {
+  const { me } = useAuth();
+  const [state, setState] = useState<'unknown' | 'none' | 'suggested' | 'approved' | 'rejected' | 'error'>('unknown');
+  const lead = me?.user.role === 'admin' || me?.user.role === 'dept_lead';
+  useEffect(() => {
+    api<{ status: 'suggested' | 'approved' | 'rejected' }>(`/api/messages/${messageId}/company-answer`)
+      .then((r) => setState(r.status))
+      .catch(() => setState('none'));
+  }, [messageId]);
+  if (state === 'unknown') return null;
+  if (state === 'approved' || state === 'suggested' || state === 'rejected')
+    return (
+      <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-accent-700">
+        ✓ {state === 'approved' ? tl('Company answer') : state === 'suggested' ? tl('Suggested for company memory') : tl('Not accepted for company memory')}
+      </span>
+    );
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      title={lead ? tl('The council will reuse this answer for similar questions') : tl('Suggest this answer to your department lead for company memory')}
+      onClick={async () => {
+        try {
+          const r = await api<{ status: 'suggested' | 'approved' }>(`/api/messages/${messageId}/company-answer`, { body: {} });
+          setState(r.status);
+        } catch {
+          setState('error');
+        }
+      }}
+    >
+      <Icon name="pin" className="h-3.5 w-3.5" /> {state === 'error' ? tl('Could not save') : lead ? tl('Save as company answer') : tl('Suggest as company answer')}
+    </Button>
   );
 }
 

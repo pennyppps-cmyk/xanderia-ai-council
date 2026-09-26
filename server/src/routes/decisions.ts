@@ -2,9 +2,11 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '../audit.js';
 import { verdictToMarkdown } from '../council/format.js';
-import { query } from '../db/pool.js';
+import { pool, query } from '../db/pool.js';
 import { PRIORITY } from '../llm/gate.js';
 import { gateway } from '../llm/registry.js';
+import { embed } from '../llm/registry.js';
+import { indexDecision } from '../memory/memory.js';
 import type { Verdict } from '../llm/schemas.js';
 import { assemblePrompt } from '../prompts/assembler.js';
 
@@ -70,6 +72,8 @@ export default async function decisionRoutes(app: FastifyInstance) {
       [id, req.user.id, m.department_id, body.title ?? v.verdict.slice(0, 200), v.verdict, body.visibility],
     );
     await writeAudit({ actorUserId: req.user.id, action: 'decision_recorded', targetType: 'decision', targetId: ins[0].id, detail: { message_id: id, visibility: body.visibility } });
+    // Company memory: later questions on similar topics will be shown this decision and its outcome.
+    void indexDecision(pool, (t) => embed(t, { userId: req.user.id, purpose: 'memory_index' }), ins[0].id).catch(() => {});
     return ins[0];
   });
 
@@ -128,6 +132,7 @@ export default async function decisionRoutes(app: FastifyInstance) {
       [id, body.title ?? null, body.status ?? null, body.visibility ?? null],
     );
     await writeAudit({ actorUserId: req.user.id, action: 'decision_updated', targetType: 'decision', targetId: id, detail: body });
+    if (body.title) void indexDecision(pool, (t) => embed(t, { userId: req.user.id, purpose: 'memory_index' }), id).catch(() => {});
     return { ok: true };
   });
 

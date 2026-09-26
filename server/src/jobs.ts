@@ -1,7 +1,8 @@
 import { writeAudit } from './audit.js';
 import { config } from './config.js';
 import { notify } from './crew/service.js';
-import { query } from './db/pool.js';
+import { pool, query } from './db/pool.js';
+import { improvementReport, improvementReportText } from './memory/report.js';
 
 /** Shared plain + HTML email in the Council's style, queued through the outbox. */
 export async function queueNoticeEmail(kind: 'digest' | 'checkin', to: string, subject: string, paragraphs: string[], button?: { label: string; href: string }) {
@@ -187,4 +188,21 @@ export async function weeklyDigests() {
   }
   if (leads.length) await writeAudit({ action: 'weekly_digest_sent', detail: { recipients: leads.length } });
   return leads.length;
+}
+
+/** First of each month: the improvement report to every active admin. */
+export async function monthlyImprovementReport() {
+  const report = await improvementReport(pool, 30);
+  const { rows: admins } = await query(`SELECT email, display_name FROM users WHERE role = 'admin' AND is_active`);
+  for (const a of admins) {
+    await queueNoticeEmail(
+      'digest',
+      a.email,
+      `Xanderia AI Council: monthly improvement report / Laporan penambahbaikan bulanan`,
+      [`Hi ${a.display_name},`, ...improvementReportText(report)],
+      { label: 'Open company memory / Buka memori syarikat', href: appUrl('/admin/memory') },
+    );
+  }
+  if (admins.length) await writeAudit({ action: 'improvement_report_sent', detail: { recipients: admins.length } });
+  return admins.length;
 }

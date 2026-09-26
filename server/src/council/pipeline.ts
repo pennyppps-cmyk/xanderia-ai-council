@@ -14,6 +14,7 @@ import { notify } from '../crew/service.js';
 import { deliverToTelegram } from '../telegram/bot.js';
 import { checkClarity, clarifyMarkdown, composeClarifiedQuestion } from './clarify.js';
 import { condenseQuestion } from './condense.js';
+import { recallMemory } from '../memory/memory.js';
 import { answeredQuestions, confirmedFacts, dropAnswered, factsBlock, parseOpenAnswer, questionForOpenAnswer } from './facts.js';
 import { ATTACHMENT_BUDGET, fitAttachments, truncationNote, type Attachment } from './attachments.js';
 
@@ -373,6 +374,11 @@ export async function processMessage(messageId: string, events: Publisher) {
         console.warn(`[pipeline] retrieval skipped: ${(err as Error).message}`);
       }
     }
+    // Company memory: house rules, approved answers and lessons from past decisions.
+    const memory = await recallMemory(pool, (t) => embed(t, { userId: user.id, purpose: 'memory_recall' }), user, department.id, question);
+    if (memory.block) {
+      await query(`UPDATE messages SET options = options || $2 WHERE id = $1`, [messageId, JSON.stringify({ memory: memory.counts })]);
+    }
     const citations = toCitations(knowledge);
     // Only list sources the answer actually cites ([S1] …), not everything retrieved.
     const saveCitations = async (answerText: string) => {
@@ -406,7 +412,7 @@ export async function processMessage(messageId: string, events: Publisher) {
           ...history,
           {
             role: 'user',
-            content: userTurn(question, { knowledge, attachments: fitAttachments(attachments, ATTACHMENT_BUDGET.answer), context: factsBlock(facts) || undefined }),
+            content: userTurn(question, { knowledge, attachments: fitAttachments(attachments, ATTACHMENT_BUDGET.answer), context: [factsBlock(facts), memory.block].filter(Boolean).join('\n\n') || undefined }),
           },
         ],
         {
@@ -448,6 +454,7 @@ export async function processMessage(messageId: string, events: Publisher) {
           knowledge,
           attachments,
           facts,
+          memory: memory.block,
           language: wantsMalay ? 'ms' : (router?.language ?? 'en'),
           sensitivity,
           peerReview: message.options.peerReview ?? (await getSetting('peer_review_default', false)),

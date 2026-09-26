@@ -28,6 +28,8 @@ export interface CouncilInput {
   attachments?: Attachment[];
   /** What the asker already confirmed in this conversation (clarifying and open-question answers). */
   facts?: string[];
+  /** Company memory: house rules, approved answers and lessons from past decisions. */
+  memory?: string;
   language: 'en' | 'ms';
   sensitivity: Sensitivity;
   peerReview: boolean;
@@ -133,6 +135,7 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
   const departmentContext = [
     `Context: this request was routed to the ${input.department.name} department of Xanderia.`,
     factsBlock(input.facts ?? []),
+    input.memory ?? '',
   ]
     .filter(Boolean)
     .join('\n\n');

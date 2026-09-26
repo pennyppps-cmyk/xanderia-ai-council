@@ -118,6 +118,7 @@ export interface Message {
     understoodFromFollowUp?: boolean;
     attachmentNames?: string[];
     attachmentNote?: string;
+    memory?: { lessons: number; approved: number; rules: number };
   };
   /** Documents attached to a user message. */
   attachments?: Array<{ id: string; filename: string; chars: number }>;
