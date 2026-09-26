@@ -215,7 +215,9 @@ export function portfolioMarkdown(s: PortfolioSummary, month: string, trend: Arr
     '',
     `- NPL ratio: **${pct(s.nplRatio)}** of balance (${pct(s.nplRatioAccounts)} of accounts)`,
     `- PAR30 ${pct(s.par.par30)} · PAR60 ${pct(s.par.par60)} · PAR90 ${pct(s.par.par90)}`,
-    ...(trend.length ? [`- NPL trend: ${trend.map((t) => `${t.month} ${pct(t.nplRatio)}`).join(' → ')}`] : []),
+    trend.length > 1
+      ? `- NPL trend: ${trend.map((t) => `${t.month} ${pct(t.nplRatio)}`).join(' → ')}`
+      : '- NPL trend: none (no earlier month saved, so no month-on-month comparison is possible)',
     '',
     '| Bucket (DPD) | Accounts | Balance | % balance |',
     '|---|---|---|---|',

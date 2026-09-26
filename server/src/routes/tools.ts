@@ -116,7 +116,7 @@ export default async function toolRoutes(app: FastifyInstance) {
       'document',
       [
         { role: 'system', content: system },
-        { role: 'user', content: `Figures (data):\n\n${portfolioMarkdown(snap.summary, snap.month, trend)}` },
+        { role: 'user', content: `Figures (data):\n\n${portfolioMarkdown(snap.summary, snap.month, trend)}\n\nRules: compare with earlier months only if the NPL trend lists them. Branch, product and employer names are codes: repeat them exactly, never expand or guess what they stand for.` },
       ],
       { userId: req.user.id, sensitivity: 'high', priority: PRIORITY.quick, purpose: 'portfolio_commentary' },
     );
