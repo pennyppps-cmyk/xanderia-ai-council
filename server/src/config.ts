@@ -37,6 +37,13 @@ const Env = z.object({
   SMTP_SECURE: bool,
   N8N_MAIL_WEBHOOK_URL: z.string().optional(),
   N8N_MAIL_SECRET: z.string().optional(),
+  // Notis blast direct sending to customers (e.g. the Collections mailbox). Off when NOTIS_SMTP_HOST is unset.
+  NOTIS_SMTP_HOST: z.string().optional(),
+  NOTIS_SMTP_PORT: z.coerce.number().default(587),
+  NOTIS_SMTP_USER: z.string().optional(),
+  NOTIS_SMTP_PASS: z.string().optional(),
+  NOTIS_SMTP_SECURE: bool,
+  NOTIS_MAIL_FROM: z.string().default('Xanderia Collections <collections@xanderia.com>'),
   // Telegram bot (optional). Long polling from the worker: no inbound port or public URL needed.
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   // On-premises speech-to-text (OpenAI-compatible /v1/audio/transcriptions, e.g. the `voice` compose profile).

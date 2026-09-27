@@ -13,6 +13,7 @@ import SetPassword from './pages/SetPassword';
 import SharedPage from './pages/Shared';
 import DecisionsPage from './pages/Decisions';
 import ToolsPage from './pages/Tools';
+import NotisPage from './pages/Notis';
 import TasksPage from './pages/Tasks';
 import { Toaster } from './toast';
 
@@ -40,6 +41,8 @@ function Root() {
         <Route path="/decisions" element={<DecisionsPage />} />
         <Route path="/decisions/:id" element={<DecisionsPage />} />
         <Route path="/tools" element={<ToolsPage />} />
+        <Route path="/notis" element={<NotisPage />} />
+        <Route path="/notis/:id" element={<NotisPage />} />
         <Route path="/admin/*" element={me.user.role === 'employee' ? <Navigate to="/" /> : <Admin />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

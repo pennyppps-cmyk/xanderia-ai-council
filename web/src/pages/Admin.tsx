@@ -1274,6 +1274,12 @@ function Settings() {
         <Field label={tl('Affordability: minimum net pay after the instalment (RM)')} hint={tl('0 = no minimum.')}>
           <input className={inputCls} type="number" min={0} value={f.affordability_min_net ?? 0} onChange={(e) => set('affordability_min_net', Number(e.target.value))} />
         </Field>
+        <Field label={tl('Notis blast: column Finance uses to hold a customer')} hint={tl('Rows with anything written in this column are not sent.')}>
+          <input className={inputCls} value={f.notis_hold_column ?? 'remarks Ain'} onChange={(e) => set('notis_hold_column', e.target.value)} />
+        </Field>
+        <Field label={tl('Notis blast: remove customer details after (days)')} hint={tl('IC, address and amounts are deleted from old batches; the send log is kept.')}>
+          <input className={inputCls} type="number" min={7} max={3650} value={f.notis_retention_days ?? 90} onChange={(e) => set('notis_retention_days', Number(e.target.value))} />
+        </Field>
       </div>
       <div className="mt-4">
         <Button

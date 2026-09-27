@@ -2,6 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { config } from './config.js';
 import { processMessage } from './council/pipeline.js';
 import { dispatchPlan, runAgentTask, sendQueuedEmails, trackerTick } from './crew/service.js';
+import { sendQueuedNotis } from './notis/send.js';
 import { migrate } from './db/migrate.js';
 import { pool, query } from './db/pool.js';
 import { seed } from './db/seed.js';
@@ -89,6 +90,8 @@ const maintenanceWorker = new Worker(
     } else if (job.name === 'mailer') {
       const n = await sendQueuedEmails();
       if (n) console.log(`[mailer] processed ${n} email(s)`);
+      const notis = await sendQueuedNotis();
+      if (notis) console.log(`[notis] processed ${notis} notice(s)`);
     } else {
       console.log('[worker] retention', await runRetention());
     }

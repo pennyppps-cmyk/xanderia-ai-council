@@ -17,6 +17,7 @@ COPY web/package.json web/
 RUN npm ci -w server --include-workspace-root=false --omit=dev --ignore-scripts && npm cache clean --force
 COPY --from=build /app/server/dist server/dist
 COPY server/migrations server/migrations
+COPY server/assets server/assets
 WORKDIR /app/server
 USER node
 EXPOSE 4000

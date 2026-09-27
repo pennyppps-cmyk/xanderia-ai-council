@@ -82,6 +82,7 @@ export const inputCls =
 /** Tiny inline icon set (stroke icons, 16px). */
 export function Icon({ name, className }: { name: string; className?: string }) {
   const paths: Record<string, ReactNode> = {
+    download: <path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" />,
     plus: <path d="M12 5v14M5 12h14" />,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>,
     pin: <path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4-1-6Z" />,

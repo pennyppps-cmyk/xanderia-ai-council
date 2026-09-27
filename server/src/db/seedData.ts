@@ -246,6 +246,9 @@ export const SETTINGS: Record<string, unknown> = {
   portfolio_report_recipients: [],
   affordability_max_deduction_pct: 60,
   affordability_min_net: 0,
+  notis_departments: ['credit-collections'],
+  notis_hold_column: 'remarks Ain',
+  notis_retention_days: 90,
   compliance_seat_departments: ['credit-collections', 'legal-compliance', 'finance', 'hr'],
   // Action Crew
   crew_names: { dispatcher: 'Dispatcher', herald: 'Herald', tracker: 'Tracker', runner: 'Runner' },

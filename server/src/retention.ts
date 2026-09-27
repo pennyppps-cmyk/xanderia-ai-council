@@ -15,7 +15,15 @@ export async function runRetention() {
     // The audit trigger only permits deletes while this transaction-local flag is on.
     await c.query(`SELECT set_config('xanderia.audit_purge', 'on', true)`);
     const audit = await c.query(`DELETE FROM audit_log WHERE at < now() - make_interval(months => $1)`, [months]);
-    return { conversations: conv.rowCount ?? 0, audit: audit.rowCount ?? 0 };
+    await c.query(`DELETE FROM notis_log WHERE at < now() - make_interval(months => $1)`, [months]);
+    // Notis blast: customer details (IC, address, amounts) are removed after notis_retention_days.
+    const notisDays = Number(await getSetting('notis_retention_days', 90));
+    const notis = await c.query(
+      `WITH old AS (UPDATE notis_batches SET purged_at = now() WHERE purged_at IS NULL AND created_at < now() - make_interval(days => $1) RETURNING id)
+       UPDATE notis_rows SET data = NULL, email = NULL, customer_name = NULL WHERE batch_id IN (SELECT id FROM old) AND delivery IS DISTINCT FROM 'queued'`,
+      [Number.isFinite(notisDays) && notisDays > 0 ? notisDays : 90],
+    );
+    return { conversations: conv.rowCount ?? 0, audit: audit.rowCount ?? 0, notisRows: notis.rowCount ?? 0 };
   });
   await writeAudit({ action: 'retention_run', detail: { months, ...result } });
   return result;
