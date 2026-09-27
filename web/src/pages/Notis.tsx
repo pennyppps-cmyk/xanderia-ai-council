@@ -385,7 +385,7 @@ function BatchView({ id, access }: { id: string; access: Access }) {
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1">
-                        <span className="break-all">{r.email ?? '—'}</span>
+                        <span className="[overflow-wrap:anywhere]">{r.email ?? '—'}</span>
                         {!purged && r.delivery !== 'sent' && r.delivery !== 'queued' && (r.state === 'ready' || r.state === 'no_email') && (
                           <button className="text-ink-400 hover:text-ink-700" title={tl('Edit email')} onClick={() => { setEditing(r.id); setEmailDraft(r.email ?? ''); }}>
                             <Icon name="edit" className="h-3.5 w-3.5" />
@@ -398,7 +398,7 @@ function BatchView({ id, access }: { id: string; access: Access }) {
                     {r.months}
                     {r.overdue != null && <span className="text-xs text-ink-500"> ({r.overdue})</span>}
                   </td>
-                  <td className="py-2 pr-2 text-right tabular-nums">{rm(r.amount)}</td>
+                  <td className="whitespace-nowrap py-2 pr-2 text-right tabular-nums">{rm(r.amount)}</td>
                   <td className="py-2 pr-2">
                     <div className="flex flex-wrap gap-1">
                       <Badge tone={STATE[r.state].tone}>{tl(STATE[r.state].label)}</Badge>
@@ -416,7 +416,7 @@ function BatchView({ id, access }: { id: string; access: Access }) {
                   </td>
                   <td className="py-2 text-right">
                     {!purged && r.state !== 'incomplete' && (
-                      <a href={`/api/notis/rows/${r.id}/letter.pdf`} target="_blank" rel="noreferrer" className="text-xs font-medium text-accent-700 hover:underline">
+                      <a href={`/api/notis/rows/${r.id}/letter.pdf`} target="_blank" rel="noreferrer" className="whitespace-nowrap text-xs font-medium text-accent-700 hover:underline">
                         {tl('Preview letter')}
                       </a>
                     )}
