@@ -136,6 +136,11 @@ const ALIASES: Record<string, string[]> = {
   accountnumber: ['account no', 'account', 'no akaun', 'acc no'],
   address: ['alamat'],
   phone: ['phone no', 'tel', 'no telefon', 'mobile'],
+  months: ['month in arrears', 'months in arrears', 'bulan tertunggak'],
+  monthsinarrears: ['month in arrears', 'bulan tertunggak'],
+  amount: ['outstanding amount', 'amount due', 'jumlah tertunggak', 'jumlah'],
+  installment: ['monthly installment with interest', 'monthly installment', 'monthly instalment', 'ansuran bulanan'],
+  instalment: ['monthly installment with interest', 'monthly installment', 'monthly instalment', 'ansuran bulanan'],
 };
 function bigrams(s: string) {
   const out = new Set<string>();
