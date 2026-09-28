@@ -288,8 +288,8 @@ export function CrewAdmin() {
       <Card title={tl("Public holidays")}>
         <p className="mb-3 text-xs text-ink-400">{tl("No emails are sent, and no working days are counted, on these dates. Add national and state holidays (Hari Raya, CNY, Deepavali…) each year.")}</p>
         <div className="mb-3 flex flex-wrap gap-2">
-          <input type="date" className={cx(inputCls, 'w-44')} value={newHoliday.date} onChange={(e) => setNewHoliday({ ...newHoliday, date: e.target.value })} />
-          <input className={cx(inputCls, 'w-64')} placeholder={tl("Name, e.g. Hari Kebangsaan")} value={newHoliday.name} onChange={(e) => setNewHoliday({ ...newHoliday, name: e.target.value })} />
+          <input type="date" className={cx(inputCls, 'w-44!')} value={newHoliday.date} onChange={(e) => setNewHoliday({ ...newHoliday, date: e.target.value })} />
+          <input className={cx(inputCls, 'w-64!')} placeholder={tl("Name, e.g. Hari Kebangsaan")} value={newHoliday.name} onChange={(e) => setNewHoliday({ ...newHoliday, name: e.target.value })} />
           <Button
             size="sm"
             disabled={!newHoliday.date || !newHoliday.name}

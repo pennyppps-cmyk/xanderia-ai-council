@@ -56,7 +56,7 @@ const Err = ({ e }: { e: string | null }) => (e ? <p className="mt-3 rounded-lg 
 
 export default function TemplatesPage() {
   const { id } = useParams();
-  return <Shell title={tl('Templates')} back={id ? '/templates' : '/'}>{id ? <TemplateView id={id} /> : <TemplateList />}</Shell>;
+  return <Shell title={tl('Document templates')} back={id ? '/templates' : '/'}>{id ? <TemplateView id={id} /> : <TemplateList />}</Shell>;
 }
 
 function TemplateList() {
@@ -427,15 +427,15 @@ function DataTab({ t, draft, setDraft, meta, run, headers, busy, run$, reload }:
         <div className="mt-3 space-y-2">
           {draft.filters.map((f, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
-              <select className={cx(inputCls, 'w-56 py-1 text-sm')} disabled={!t.canEdit} value={f.column} onChange={(e) => setDraft({ ...draft, filters: draft.filters.map((x, j) => (j === i ? { ...x, column: e.target.value } : x)) })}>
+              <select className={cx(inputCls, 'w-56! py-1 text-sm')} disabled={!t.canEdit} value={f.column} onChange={(e) => setDraft({ ...draft, filters: draft.filters.map((x, j) => (j === i ? { ...x, column: e.target.value } : x)) })}>
                 {!headers.includes(f.column) && <option value={f.column}>{f.column || tl('— column —')}</option>}
                 {headers.map((h) => <option key={h} value={h}>{h}</option>)}
               </select>
-              <select className={cx(inputCls, 'w-40 py-1 text-sm')} disabled={!t.canEdit} value={f.op} onChange={(e) => setDraft({ ...draft, filters: draft.filters.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)) })}>
+              <select className={cx(inputCls, 'w-40! py-1 text-sm')} disabled={!t.canEdit} value={f.op} onChange={(e) => setDraft({ ...draft, filters: draft.filters.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)) })}>
                 {Object.entries(meta.ops).map(([k, label]) => <option key={k} value={k}>{tl(label)}</option>)}
               </select>
               {!['blank', 'not_blank'].includes(f.op) && (
-                <input className={cx(inputCls, 'w-40 py-1 text-sm')} disabled={!t.canEdit} value={f.value ?? ''} onChange={(e) => setDraft({ ...draft, filters: draft.filters.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })} />
+                <input className={cx(inputCls, 'w-40! py-1 text-sm')} disabled={!t.canEdit} value={f.value ?? ''} onChange={(e) => setDraft({ ...draft, filters: draft.filters.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })} />
               )}
               {t.canEdit && (
                 <button className="text-ink-400 hover:text-red-600" onClick={() => setDraft({ ...draft, filters: draft.filters.filter((_, j) => j !== i) })} aria-label={tl('Remove')}>
@@ -507,7 +507,7 @@ function TemplateTab({ t, busy, run$, reload }: { t: Template; busy: string | nu
             {tl('Replace')} “<strong>{selected.slice(0, 60)}</strong>” {tl('with')}
           </span>
           <span className="font-mono">{'{{'}</span>
-          <input className={cx(inputCls, 'w-44 py-1 font-mono text-sm')} value={tagName} onChange={(e) => setTagName(e.target.value.replace(/\s+/g, '_'))} />
+          <input className={cx(inputCls, 'w-44! py-1 font-mono text-sm')} value={tagName} onChange={(e) => setTagName(e.target.value.replace(/\s+/g, '_'))} />
           <span className="font-mono">{'}}'}</span>
           <Button
             size="sm"
@@ -633,7 +633,7 @@ function GenerateTab({ t, dirty, meta, run, busy, run$, reloadRun, setNote }: {
             <Button size="sm" disabled={!selected.length || busy !== null} onClick={() => run$('test', async () => { const r = await api<{ to: string }>(`${q}/test`, { body: {} }); setNote(tl('Test copy sent to {to}.', { to: r.to })); })}>
               {tl('Send me a test copy')}
             </Button>
-            <input className={cx(inputCls, 'w-24 py-1')} placeholder="SEND" value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-label={tl('Type SEND to confirm')} />
+            <input className={cx(inputCls, 'w-24! py-1')} placeholder="SEND" value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-label={tl('Type SEND to confirm')} />
             <Button size="sm" variant="danger" disabled={confirm !== 'SEND' || busy !== null} onClick={() => run$('send', async () => { const r = await api<{ queued: number }>(`${q}/send`, { body: { confirm } }); setConfirm(''); setNote(tl('{n} emails are being sent.', { n: r.queued })); await reloadRun(); })}>
               {tl('Send {n} emails', { n: selected.length - noEmail })}
             </Button>

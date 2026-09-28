@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { HelpButton } from '../components/HelpButton';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -139,9 +140,10 @@ export default function Chat() {
           <button onClick={() => setDrawer(true)} className="rounded-md p-1.5 text-ink-600 hover:bg-ink-100" aria-label={tl("Menu")}>
             <Icon name="menu" className="h-5 w-5" />
           </button>
-          <span className="truncate text-sm font-semibold">
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
             {conversations.find((c) => c.id === id)?.title ?? 'Xanderia AI Council'}
           </span>
+          <HelpButton />
         </header>
 
         <div className="flex-1 overflow-y-auto">

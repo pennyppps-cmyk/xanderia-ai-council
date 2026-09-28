@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import type { ConversationSummary } from '../types';
+import { HelpButton } from './HelpButton';
 import { LanguageToggle } from './LanguageToggle';
 import { TelegramButton } from './Channels';
 import { NotificationBell } from './Notifications';
@@ -70,7 +71,10 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
             {me?.department.name} · {me?.user.role.replace('_', ' ')}
           </p>
           </div>
-          <LanguageToggle dark />
+          <span className="flex shrink-0 items-center gap-1.5">
+            <HelpButton dark />
+            <LanguageToggle dark />
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <NotificationBell pulse={pulse} />
@@ -100,7 +104,7 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
             onClick={onNavigate}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
           >
-            <Icon name="copy" className="h-3.5 w-3.5" /> {tl('Templates')}
+            <Icon name="copy" className="h-3.5 w-3.5" /> {tl('Doc templates')}
           </Link>
           {me && (me.user.role === 'admin' || me.department.slug === 'credit-collections') && (
             <Link

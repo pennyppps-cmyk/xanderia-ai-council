@@ -306,7 +306,7 @@ function BatchView({ id, access }: { id: string; access: Access }) {
                 </Button>
                 {access.send && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <input className={cx(inputCls, 'w-28')} placeholder="SEND" value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-label={tl('Type SEND to confirm')} />
+                    <input className={cx(inputCls, 'w-28!')} placeholder="SEND" value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-label={tl('Type SEND to confirm')} />
                     <Button
                       variant="danger"
                       size="sm"

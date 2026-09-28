@@ -1027,4 +1027,13 @@ export const ms: Record<string, string> = {
   "— choose a column —": "— pilih lajur —",
   "— column —": "— lajur —",
   "— none (documents only) —": "— tiada (dokumen sahaja) —",
+  // User guide
+  "User guide": "Panduan pengguna",
+  "Full guide (PDF)": "Panduan penuh (PDF)",
+  "Search the guide…": "Cari dalam panduan…",
+  "Nothing matches. Try another word.": "Tiada padanan. Cuba perkataan lain.",
+  "The guide is in English. The app itself can be switched to BM with EN / BM.": "Panduan ini dalam bahasa Inggeris. Aplikasi boleh ditukar kepada BM dengan EN / BM.",
+  "Open full size": "Buka saiz penuh",
+  "Doc templates": "Templat dokumen",
+  "Document templates": "Templat dokumen",
 };

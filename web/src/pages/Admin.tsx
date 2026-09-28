@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import { Badge, Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
 import type { Department } from '../types';
 import { CrewAdmin, DirectoryAdmin } from './AdminCrew';
+import { HelpButton } from '../components/HelpButton';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { tl } from '../i18n';
 import CompanyMemory from './AdminMemory';
@@ -35,6 +36,7 @@ export default function Admin() {
           <Icon name="chevron" className="h-4 w-4 rotate-180" /> {tl("Back to chat")}
         </Link>
         <h1 className="flex-1 text-sm font-semibold">{isAdmin ? tl('Administration') : tl('Knowledge base')}</h1>
+        <HelpButton />
         <LanguageToggle />
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">

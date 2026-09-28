@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { CrewPanel } from '../components/CrewPanel';
 import { Markdown } from '../components/Markdown';
+import { HelpButton } from '../components/HelpButton';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { OwnerPicker } from '../components/OwnerPicker';
 import { Badge, Button, cx, Icon, Spinner } from '../components/ui';
@@ -451,6 +452,7 @@ export function Shell({ title, back = '/', right, children }: { title: string; b
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h1>
         {right}
+        <HelpButton />
         <LanguageToggle />
       </header>
       <main className="flex-1 overflow-y-auto p-4 md:p-6">

@@ -312,7 +312,7 @@ def architecture_diagram():
     node(d, 230, 110, 100, 44, "Council app (API)", "login, roles, chat, reports,\naction plans, audit log")
     node(d, 355, 110, 127, 44, "Database", "conversations, knowledge base,\ntasks, audit log (PostgreSQL)")
     node(d, 230, 30, 100, 50, "Council worker", "runs the advisors, Chairman\nand Action Crew; reminders;\nemail sending")
-    node(d, 355, 30, 127, 50, "Hermes 3 on the GPU server", "Ollama: hermes3:8b and\nnomic-embed-text\n(on-premises)", dark=True)
+    node(d, 355, 30, 127, 50, "Qwen 2.5 on the GPU server", "Ollama: qwen2.5:14b and\nnomic-embed-text\n(on-premises)", dark=True)
     node(d, 0, 30, 205, 50, "Email (optional)", "outbox by default: nothing leaves.\nSMTP or n8n when enabled;\ninternal addresses only", tone=AMBER_BG)
     arrow(d, 90, 132, 115, 132)
     arrow(d, 205, 132, 230, 132)
@@ -370,7 +370,7 @@ def cover(c, doc):
     c.setFont("Sans", 10)
     c.setFillColor(colors.HexColor("#c7d4de"))
     c.drawString(20 * mm, h - 94 * mm, "Ask questions  ·  Pressure-test plans with an AI council  ·  Put decisions into action")
-    c.drawString(20 * mm, h - 104 * mm, "Xanderia Services Sdn Bhd  ·  Internal  ·  September 2026  ·  Runs on-premises on Hermes 3")
+    c.drawString(20 * mm, h - 104 * mm, "Xanderia Services Sdn Bhd  ·  Internal  ·  September 2026  ·  Runs on-premises on Qwen 2.5")
     footer(c, doc)
 
 
@@ -393,15 +393,16 @@ def build(out):
     st += [P("What's inside", "h2"),
            table([["Part", "For", "Covers"],
                   ["1. What it is", "Everyone", "The three things it does, how a question flows, where it runs"],
-                  ["2. Features at a glance", "Everyone", "The main features on two pages (the full list is in part 7)"],
+                  ["2. Features at a glance", "Everyone", "The main features on two pages (the full list is in part 8)"],
                   ["3. Using it", "All staff", "Asking, the council, reading a verdict, the report, sharing, putting a plan into action, tasks you receive"],
-                  ["4. Doing more", "All staff", "Templates, script checker, what-if, drafting documents and Word, the decision register, calculators, arrears files, Telegram, voice, Bahasa Malaysia screens"],
-                  ["5. Running it", "Admins, department leads", "Users and invites, staff directory, Action Crew and email, knowledge and freshness, prompts, models, heatmap, weekly digest, red flags, go-live checklist"],
-                  ["6. Privacy, safety and tips", "Everyone", "What stays on-premises, what needs approval, good questions, timing, FAQ"],
-                  ["7. Complete feature list", "Everyone", "Every feature, what it does and where to find it, on a few pages"]],
+                  ["4. Doing more", "All staff", "Templates, script checker, what-if, drafting documents and Word, the decision register, calculators, arrears files, Telegram, voice, Bahasa Malaysia screens, attaching documents, company memory"],
+                  ["5. Loan and Collections work", "Collections, Finance, Credit", "Portfolio report, salary-deduction reconciliation, payslip affordability, notis blast, document templates (mail merge)"],
+                  ["6. Running it", "Admins, department leads", "Users and invites, staff directory, Action Crew and email, knowledge and freshness, prompts, models, heatmap, weekly digest, red flags, lead setup checklist, company memory, loan-tool settings, go-live checklist"],
+                  ["7. Privacy, safety and tips", "Everyone", "What stays on-premises, what needs approval, good questions, timing, FAQ"],
+                  ["8. Complete feature list", "Everyone", "Every feature, what it does and where to find it, on a few pages"]],
                  [42, 38, 90]),
            Spacer(1, 6),
-           tip("Everything the Council says is <b>advice</b>. Final decisions sit with the responsible staff and management. Legal and finance answers must be reviewed before acting.", "Remember"),
+           tip("In the app, press the <b>?</b> button (top of each page, or next to EN / BM in the sidebar) to open the part of this guide for that page. Everything the Council says is <b>advice</b>. Final decisions sit with the responsible staff and management. Legal and finance answers must be reviewed before acting.", "Remember"),
            PageBreak()]
 
     # Part 1
@@ -415,7 +416,7 @@ def build(out):
            P("How a question flows", "h2"), journey_diagram(),
            P("You can leave the page while the council works. You'll get a notification when the verdict is ready.", "small"),
            P("Where it runs", "h2"), architecture_diagram(),
-           P("The AI model (Hermes 3) runs on Xanderia's own GPU server. Questions, documents and verdicts are not sent to any outside AI service. Every model call is written to an audit log.", "body"),
+           P("The AI model (Qwen 2.5, 14B) runs on Xanderia's own GPU server. Questions, documents and verdicts are not sent to any outside AI service. Every model call is written to an audit log.", "body"),
            PageBreak()]
 
     # Part 2
@@ -427,7 +428,7 @@ def build(out):
                   ["Live progress", "See Intake \u2192 Advisors \u2192 (Peer review) \u2192 Chairman as it happens. Advisors' opinions stream in as they write."],
                   ["The verdict", "Decision, why, disagreements resolved, action plan (owner, timeline), risks rated by likelihood and impact, open questions, confidence."],
                   ["Advisor stances", "Each advisor declares For / Conditional / Against with a conviction score. A summary bar shows how the council split."],
-                  ["Peer review (optional)", "Advisors critique each other anonymously and score each answer 1\u20135. Adds about a minute and a half."],
+                  ["Peer review (optional)", "Advisors critique each other anonymously and score each answer 1\u20135. Adds about half a minute."],
                   ["Analytics report (PDF)", "Executive summary, stance map, peer scores, risk heat map, action-plan timeline, disagreements, and every advisor's full opinion."],
                   ["Follow-ups", "Ask a follow-up in the same conversation, or click an open question to answer it and have the council reconsider."],
                   ["Share", "Copy a read-only link for a colleague (they must be signed in). You can revoke it."],
@@ -445,6 +446,14 @@ def build(out):
                   ["Telegram and voice <font color='#0d9488'>new</font>", "Ask from Telegram, or speak your question in BM or English. Speech is transcribed on our own server."],
                   ["Bahasa Malaysia", "Ask in BM and the answer comes back in BM. The whole app can also be switched to BM (EN / BM toggle)."],
                   ["Compliance seat, red flags <font color='#0d9488'>new</font>", "A Compliance Officer joins the council for sensitive departments. Requests that look like harassment, fraud, data misuse or discrimination are flagged to Compliance."],
+                  ["Attach documents <font color='#0d9488'>new</font>", "Attach a PDF, Word, Excel or text file to a question and the council judges the plan in it."],
+                  ["Company memory <font color='#0d9488'>new</font>", "Lessons from recorded outcomes, answers approved by leads, and department house rules are recalled for similar questions."],
+                  ["Portfolio report <font color='#0d9488'>new</font>", "Month-end loan export \u2192 NPL, PAR, buckets, branch/product/employer, vintage, roll rates; monthly trend, council commentary, PDF."],
+                  ["Deduction reconciliation <font color='#0d9488'>new</font>", "Loans vs the employer or Angkasa deduction file: not deducted, short, over, unknown, with a CSV."],
+                  ["Payslip affordability <font color='#0d9488'>new</font>", "The payslip extractor report \u2192 affordable / borderline / not affordable against the deduction limit, with the largest instalment allowed."],
+                  ["Notis blast <font color='#0d9488'>new</font>", "The monthly missed-deduction letters from the masterlist: every row checked, letters and Outlook drafts for the batch."],
+                  ["Document templates <font color='#0d9488'>new</font>", "Word templates with {{tags}} mapped to spreadsheet columns: one document (and email draft) per row."],
+                  ["In-app guide <font color='#0d9488'>new</font>", "The ? button opens this guide at the part for the page you are on."],
                   ["Admin", "Users, invites, departments, prompts with versions and a test sandbox, model settings, knowledge base with review dates, staff directory, Action Crew, email outbox, audit log, heatmap, weekly digest."]],
                  [44, 126]),
            CondPageBreak(150 * mm)]
@@ -470,7 +479,7 @@ def build(out):
                    "If key facts are missing, the council asks up to 3 questions first. Answer them in one message, or press <b>Skip</b> to proceed on its stated assumptions."]),
            shot("04-clarify", "Before the council meets: clarifying questions, and what it will assume if you skip."),
            shot("05-progress", "While the council works: the progress strip, each advisor's stance as it finishes, and opinions streaming in. You can leave; you'll be notified.", crop=(0, 0, 1920, 830)),
-           P("A full council takes about 1\u20132 minutes, or about 3 with peer review. Quick questions from colleagues are always served first.", "small"),
+           P("A full council takes about 20\u201340 seconds, or about a minute with peer review. Quick questions from colleagues are always served first.", "small"),
            CondPageBreak(90 * mm),
            P("3.4 Read the verdict", "h2"),
            shot("06-verdict", "The Chairman's verdict sits on top: the decision, confidence, the reasoning, and every disagreement between advisors with how it was settled and why."),
@@ -524,7 +533,7 @@ def build(out):
            walkthrough("Ask the council with a template", [
                ("Press <b>Templates</b> in the question box, or pick a template card on the home screen.", "w-t1-templates-button", "wide"),
                ("Fill in what you know. Fields marked * are required; empty fields are left out. Press <b>Ask the council</b>.", "23-template-dialog", "side"),
-               ("The council starts straight away. The verdict arrives in 1\u20132 minutes, like any council question.", None, None),
+               ("The council starts straight away. The verdict arrives in under a minute, like any council question.", None, None),
            ]),
            Spacer(1, 8),
 
@@ -627,65 +636,148 @@ def build(out):
            P("4.10 Bahasa Malaysia screens", "h2"),
            P("Switch the whole app between English and BM with the <b>EN / BM</b> toggle (on the sign-in page, in the sidebar and at the top of each page). Your choice is saved to your account and follows you to other devices. Answers follow the language of your question, whichever screen language you use."),
            shot("40-bm-tools", "The Tools page in Bahasa Malaysia.", crop=BM_CROP),
+           CondPageBreak(90 * mm),
+
+           P("4.11 Attach a document for the council to judge", "h2"),
+           walkthrough("Judge a plan in a document", [
+               ("Press the <b>paperclip</b> in the question box and choose the file: PDF with a text layer (not a scan), Word, Excel, CSV or text. Up to 5 files.", None, None),
+               ("Add your question, for example \u201cJudge this plan. Is the budget realistic?\u201d, and choose <b>Council</b> for a plan or proposal. Send without text and the council reviews the document.", "43-attach", "wide"),
+               ("Only the text of the file is kept with the conversation, under the same retention as your history.", None, None),
+           ]),
+           CondPageBreak(80 * mm),
+
+           P("4.12 Company memory", "h2"),
+           P("The council gets more accurate as more people use it. Three kinds of company memory are recalled for each question, and the answer says when it drew on them (\u201cDrew on company memory: 2 house rules, 1 past decision\u201d)."),
+           table([["Memory", "Where it comes from"],
+                  ["Lessons", "Outcomes recorded in the decision register (worked, partly, did not work) are recalled when someone asks something similar."],
+                  ["Approved answers", "Under a good answer, press <b>Suggest as company answer</b>. The department lead approves it (editing first if needed) and the council reuses it for similar questions in that department, or company-wide."],
+                  ["House rules", "Short facts the council must always follow for a department, e.g. \u201cOur NPL definition is 90 days past due; restructured loans are included.\u201d Set by leads in Admin \u2192 Company memory."]],
+                 [34, 136]),
+           PageBreak()]
+
+    # Part 5 (loan and Collections work)
+    st += [P("5 \u00b7 Loan and Collections work", "h1"),
+           P("Tools for Collections, Finance and Credit. Customer files are read in memory and not stored unless stated; only totals go to the council.", "lead"),
+           P("5.1 Monthly portfolio report", "h2"),
+           walkthrough("From month-end export to management report", [
+               ("<b>Tools \u2192 Portfolio report.</b> Choose the month and upload the month-end loan export (.csv or .xlsx, one row per account, with a DPD column). Balance, branch, product, employer, disbursement date and a restructured flag are used when present. Add last month\u2019s export for roll rates.", None, None),
+               ("Press <b>Analyse</b>: NPL ratio (by balance and by accounts), PAR30/60/90, DPD buckets, breakdowns by branch, product and employer, vintage by disbursement quarter and the roll-rate matrix, all calculated exactly.", "46-portfolio", "wide"),
+               ("Leads and admins tick <b>Save as this month\u2019s report</b> (totals only) to build the trend. Then <b>Write council commentary</b> (a CRO-style draft: read it before sending), <b>Download PDF report</b>, or <b>Email to Management</b> (recipients in Admin \u2192 Settings).", None, None),
+           ]),
+           tip("On the 1st of each month, admins and the Finance, Collections and Management leads get a reminder to upload the export. The NPL definition (days past due, restructured loans) is set in Admin \u2192 Settings."),
+           CondPageBreak(90 * mm),
+
+           P("5.2 Salary-deduction reconciliation", "h2"),
+           walkthrough("Find missed and short deductions", [
+               ("<b>Tools \u2192 Deduction reconciliation.</b> Upload the loans with their monthly instalment, and the deduction file from the employer or Angkasa.", None, None),
+               ("They are matched on account number, IC number or salary number, whichever both files have (IC formatting doesn\u2019t matter). Press <b>Reconcile</b>.", None, None),
+               ("You get every loan <b>not deducted</b>, <b>short</b> or <b>over</b>, and deductions with <b>no matching loan</b>, with amounts and the total shortfall. <b>Download exceptions</b> gives an Excel CSV.", "47-deductions", "wide"),
+           ]),
+           CondPageBreak(90 * mm),
+
+           P("5.3 Payslip affordability check", "h2"),
+           walkthrough("Check an application against the deduction limit", [
+               ("<b>Tools \u2192 Payslip affordability.</b> Upload the \u201cPayslip Extraction Result\u201d report from the payslip extractor (one or more months) and enter the instalment, or the amount, rate and tenure.", None, None),
+               ("The new instalment is added to existing deductions for the <b>weakest month</b> and checked against the limit (60% of gross by default; set in Admin \u2192 Settings): <b>Affordable</b>, <b>Borderline</b> or <b>Not affordable</b>, with the largest instalment the rule allows.", "48-affordability", "wide"),
+               ("Flags point out existing financing, lines the extractor marked Not Match, big month-to-month changes and fewer than 3 payslips. <b>Draft a credit memo</b> starts the memo from these figures. Name and IC are never sent to the council.", None, None),
+           ]),
+           CondPageBreak(90 * mm),
+
+           P("5.4 Notis blast (missed salary deduction letters)", "h2"),
+           P("Sidebar \u2192 <b>Notis blast</b> (Collections staff and admins). It produces the monthly <i>Makluman Tunggakan Bayaran Ansuran Bulanan</i> letter for every customer in the masterlist, with the approved wording, logo and bank details."),
+           walkthrough("Run the monthly batch", [
+               ("Download the masterlist from SharePoint and upload it as it is; the \u201cMISS DEDUCTION EMAIL\u201d sheet is read. Choose the date to print on the letters and press <b>Check the list</b>.", None, None),
+               ("Every row is checked. <b>Held by Finance</b>: something is written in \u201cremarks Ain\u201d. <b>No valid email</b> and <b>Incomplete data</b> are skipped. <b>Check first</b> flags amounts that don\u2019t equal instalment \u00d7 months, unreadable months, blank AS OF DATE (the list\u2019s usual date is used), IC numbers that aren\u2019t 12 digits and shared emails. Preview any letter, fix an email, or untick a customer.", "49-notis", "wide"),
+               ("Press <b>Download Outlook drafts</b>. Extract the zip and double-click each file: classic Outlook opens it addressed, with the letter attached. Check it and press Send. The zip includes <b>_Not sent - follow up.csv</b>.", None, None),
+           ]),
+           tip("Every download is recorded in the send log. Customer details are removed from batches after 90 days (the log is kept). Direct sending from the Council switches on once IT connects the Collections mailbox; it needs a lead, a test copy first and typing SEND."),
+           CondPageBreak(90 * mm),
+
+           P("5.5 Document templates (mail merge)", "h2"),
+           P("Sidebar \u2192 <b>Doc templates</b>. A Word document with <b>{{tags}}</b> becomes one document per spreadsheet row. Each tag is matched to a column once; values are filled straight from the spreadsheet, not written by the AI, so a batch takes seconds and every amount is exactly what is in the file."),
+           walkthrough("Make reminder letters from a spreadsheet", [
+               ("In Word, type tags where the data goes (<b>{{customername}}</b>, <b>{{amount}}</b>, <b>{{date}}</b>) and save as .docx, then upload it. Or, on the <b>Template</b> tab, select sample text in the preview, name the tag and press <b>Make tag</b> (the formatting is kept).", "52-templates-tag", "wide"),
+               ("On <b>Data &amp; mapping</b>, upload the spreadsheet. Tags are matched to columns by name; <b>Suggest the rest with AI</b> uses column names only. Choose a format per tag (RM, dates, IC, Malay months, capitals), add conditions (e.g. \u201cremarks Ain is blank\u201d) and a file-name pattern, then <b>Save changes</b>.", "50-templates-mapping", "wide"),
+               ("On <b>Email</b>, choose the email column and write the subject and message with the same tags.", "53-templates-email", "wide"),
+               ("On <b>Generate</b>, check the rows (blank tags and bad emails are flagged) and download the <b>Word documents</b> or <b>Outlook drafts</b>. Next month, upload the new spreadsheet: the mapping is kept.", "51-templates-generate", "wide"),
+           ]),
+           tip("Templates belong to your department; tick Company-wide to share one. PDF output needs a converter on the server; until then documents are Word files."),
            PageBreak()]
 
     # Part 5
-    st += [P("5 · Running it (admins and department leads)", "h1"),
+    st += [P("6 · Running it (admins and department leads)", "h1"),
            P("Department leads see <b>Knowledge</b> for their own department. Admins see everything below under <b>Admin</b>.", "lead"),
-           P("5.1 Users and invites", "h2"),
+           P("6.1 Users and invites", "h2"),
            P("<b>Admin → Users → Add user.</b> Leave the password empty and the new colleague gets an email (English and BM) with a link to set their own password, valid for 7 days. <b>Resend invite</b> issues a new link. Anyone can use <b>Forgot password?</b> on the sign-in page for a 1-hour reset link. Until email is connected, the invite link is shown on screen for you to pass on."),
            side_by_side(["41-invite-admin", "42-invite-set"], "Left: a new user with an invite link. Right: the page where they set their password."),
-           P("5.2 Staff directory", "h2"),
+           P("6.2 Staff directory", "h2"),
            P("The Action Crew only assigns tasks and sends emails to people in this directory. Import the HR export as CSV with the columns <b>name, position, department, email, manager_email</b>. Re-importing updates people by email. Add or edit people one by one as needed."),
            shot("15-directory", "Admin \u2192 Staff directory. (The people shown are test entries.)"),
-           P("5.3 Action Crew and email", "h2"),
+           P("6.3 Action Crew and email", "h2"),
            *bullets(["<b>Allowed email domains:</b> emails to any other domain are blocked.",
                      "<b>Business hours and weekend:</b> Kedah, Kelantan and Terengganu can use a Friday\u2013Saturday weekend.",
                      "<b>Reminder and escalation timings.</b> Escalation can be switched off.",
                      "<b>Public holidays:</b> add national and state holidays each year; no emails are sent and no working days are counted on them.",
                      "<b>Email outbox:</b> every email the Crew produced, with its status. By default emails are <b>only recorded, not sent</b>, until IT connects SMTP or n8n."]),
            shot("16-crew-admin", "Admin \u2192 Action Crew & email."),
-           P("5.4 Knowledge base and review dates", "h2"),
+           P("6.4 Knowledge base and review dates", "h2"),
            P("Upload SOPs, policies, product sheets and FAQs (PDF, Word, Excel, text). Choose who can retrieve each document: one department or company-wide. Staff only get answers from their own department's documents and company-wide ones, unless an admin grants extra access. Scanned PDFs without a text layer are rejected."),
            P("Every document has a <b>review interval</b> (30, 90, 180 or 365 days; 180 by default). When it passes, the document shows <b>Review due</b>, and the uploader and the department lead (or admins, for company-wide documents) get a notification. Check the document, then press <b>Mark reviewed</b>, upload a new version, or delete it. The council keeps quoting a stale document until you do."),
            shot("38-knowledge-fresh", "Admin \u2192 Knowledge: upload, review dates, and a document due for review.", crop=KNOWLEDGE_CROP),
-           P("5.5 Personas, prompts and the test sandbox", "h2"),
+           P("6.5 Personas, prompts and the test sandbox", "h2"),
            P("Each advisor's behaviour comes from short prompt layers (base \u2192 persona \u2192 department \u2192 task). Edit a layer and save it as a new version; any older version can be re-activated. Before saving, use <b>Test this prompt</b> to run your draft with a sample question and see the output and whether it still produces a valid verdict."),
            shot("18-prompts", "Admin \u2192 Personas & prompts, with version history and the test sandbox.", crop=(0, 0, 1920, 1300)),
-           P("5.6 Models, audit and settings", "h2"),
-           *bullets(["<b>Model routing:</b> the model and settings per role (Hermes 3 by default). Upgrading the model is a setting, not a redeploy.",
+           P("6.6 Models, audit and settings", "h2"),
+           *bullets(["<b>Model routing:</b> the model and settings per role (Qwen 2.5 14B by default). Upgrading the model is a setting, not a redeploy.",
                      "<b>Audit log:</b> every login, question (by reference, not text), model call, document retrieval, email and status change. It cannot be edited.",
-                     "<b>Settings:</b> who can use Council mode, retention (default 12 months), peer review default, clarifying questions on or off, knowledge base on or off, the weekly digest on or off, and which departments get the Compliance seat."]),
+                     "<b>Settings:</b> who can use Council mode, retention (default 12 months), peer review default, clarifying questions on or off, knowledge base on or off, the weekly digest on or off, which departments get the Compliance seat, and the loan tools (6.10)."]),
            side_by_side(["19-models", "20-audit"], "Left: model routing per role. Right: the audit log."),
            CondPageBreak(90 * mm),
-           P("5.7 Ask-the-org heatmap and the weekly digest", "h2"),
+           P("6.7 Ask-the-org heatmap and the weekly digest", "h2"),
            P("<b>Admin \u2192 Overview</b> shows which departments ask about which areas over the last 30 to 365 days. A heavy cell outside a department's own area (for example HR asking Finance questions) can point to a training need or an unclear policy. A red ring marks cells with red flags. Only counts are shown, never what anyone asked."),
            shot("37-digest", "The ask-the-org heatmap and questions per week.", crop=HEATMAP_CROP),
            P("Every Monday at 08:00, each <b>department lead</b> gets a digest email for their department: questions asked (and the trend), the areas asked about, decisions and outcomes recorded, overdue action tasks with owners, and documents due for review. Like the heatmap, it holds counts only, never question text. <b>Preview</b> shows what a department will receive; <b>Send now</b> sends this week's digests immediately. A lead can be taken off the list in Admin \u2192 Users."),
            shot("37-digest", "Digest preview for one department.", crop=DIGEST_CROP),
-           P("5.8 Compliance seat and red flags", "h2"),
+           P("6.8 Compliance seat and red flags", "h2"),
            *bullets(["<b>Compliance seat:</b> for the departments set in Admin \u2192 Settings (default Credit &amp; Collections, Legal &amp; Compliance, Finance and HR), a <b>Compliance Officer</b> joins the council. It checks the plan against the law, BNM guidance and internal policy, using the knowledge base.",
                      "<b>Red flags:</b> if a request looks like harassment, fraud, misuse of personal data or discrimination, the answer still comes, but with a warning, and admins and Legal &amp; Compliance leads get a notification. The flag is written to the audit log. Blocking the answer would only teach people to rephrase."]),
            shot("25-red-flag", "A flagged request: the warning above the answer. Compliance has been notified.", crop=REDFLAG_CROP),
            CondPageBreak(80 * mm),
-           P("5.9 Go-live checklist", "h2"),
+           P("6.9 Department lead setup and company memory", "h2"),
+           P("Set <b>Role \u2192 Department lead</b> in Admin \u2192 Users. The lead then gets a setup checklist on the home screen that ticks itself off as the steps are done, with reminders (at most 3): add at least 3 house rules, upload an SOP or policy, clear the suggested-answers queue, ask a first council question, record a first decision. Leads review suggested answers and write house rules in <b>Admin \u2192 Company memory</b>; admins see every department there and get a monthly improvement report."),
+           shot("44-memory", "Admin \u2192 Company memory: house rules, suggested answers to review, approved answers and lead setup progress."),
+           P("6.10 Settings for the loan tools", "h2"),
+           table([["Setting", "Default", "Used by"],
+                  ["NPL definition (days past due)", "90", "Portfolio report"],
+                  ["Count restructured loans as NPL", "Yes", "Portfolio report"],
+                  ["Portfolio report recipients", "none", "Email to Management"],
+                  ["Maximum deductions (% of gross pay)", "60%", "Payslip affordability"],
+                  ["Minimum net pay after the instalment", "RM 0", "Payslip affordability"],
+                  ["Column Finance uses to hold a customer", "remarks Ain", "Notis blast"],
+                  ["Remove customer details after", "90 days", "Notis blast, document templates"]],
+                 [70, 30, 70]),
+           CondPageBreak(80 * mm),
+           P("6.11 Go-live checklist", "h2"),
            table([["", "Step", "Where"],
                   ["\u2610", "Replace the test staff directory with the HR export", "Admin \u2192 Staff directory \u2192 Import CSV"],
                   ["\u2610", "Add this year's public holidays (national and state)", "Admin \u2192 Action Crew & email"],
                   ["\u2610", "Set the public address staff use (APP_BASE_URL) and connect email (MAIL_PROVIDER = smtp or n8n)", "Server .env (IT)"],
-                  ["\u2610", "Point the Council at the GPU server running Hermes 3 (OLLAMA_BASE_URL)", "Server .env (IT)"],
+                  ["\u2610", "Point the Council at the GPU server running Qwen 2.5 (OLLAMA_BASE_URL)", "Server .env (IT)"],
                   ["\u2610", "Create user accounts and set department leads", "Admin \u2192 Users"],
                   ["\u2610", "Upload each department's SOPs and policies", "Admin \u2192 Knowledge (leads can upload)"],
                   ["\u2610", "Decide who can use Council mode at first", "Admin \u2192 Settings"],
                   ["\u2610", "Set department leads (they receive the weekly digest)", "Admin \u2192 Users"],
                   ["\u2610", "Optional: Telegram bot. Create it with @BotFather and set TELEGRAM_BOT_TOKEN", "Server .env (IT)"],
                   ["\u2610", "Optional: voice. Start the voice profile and set WHISPER_URL", "Server (IT)"],
+                  ["\u2610", "Connect the Collections mailbox for direct notis and template sending (NOTIS_SMTP_*)", "Server .env (IT)"],
+                  ["\u2610", "Optional: PDF output for document templates. Run a Gotenberg converter and set PDF_CONVERTER_URL", "Server (IT)"],
+                  ["\u2610", "Give Collections staff accounts in the Credit & Collections department (notis blast access)", "Admin \u2192 Users"],
                   ["\u2610", "Check System health shows Database, Redis and Ollama green", "Admin \u2192 Overview"]],
                  [8, 102, 60]),
            PageBreak()]
 
     # Part 5
-    st += [P("6 · Privacy, safety and tips", "h1"),
+    st += [P("7 · Privacy, safety and tips", "h1"),
            P("Built-in protections", "h2"),
            table([["Protection", "What it means for you"],
                   ["On-premises AI", "The model runs on Xanderia's GPU server. Your questions and documents are not sent to outside AI services."],
@@ -696,7 +788,7 @@ def build(out):
                   ["Audit trail", "Every model call, retrieval, email and status change is logged and cannot be altered."],
                   ["Your history, your choice", "Delete a conversation or your whole history at any time. Conversations older than the retention period (default 12 months) are deleted automatically."],
                   ["Counts, not content", "The heatmap and the weekly digest show numbers only. Your department lead can't read what you asked."],
-                  ["Files and voice not kept", "Arrears files are analysed in memory and never stored; only totals reach the AI. Voice recordings are transcribed on our own server and discarded."],
+                  ["Files and voice not kept", "Arrears, portfolio, deduction and payslip files are analysed in memory and never stored; only totals reach the AI. Notis and document-template data is deleted after 90 days. Voice recordings are transcribed on our own server and discarded."],
                   ["Red flags", "Requests that look like harassment, fraud, data misuse or discrimination are flagged to Compliance and logged."],
                   ["Telegram is outside", "Messages to the bot pass through Telegram's servers. Don't send customer personal data there; use the web app."]],
                  [40, 130]),
@@ -708,7 +800,7 @@ def build(out):
                      "<b>Don't paste customer IC or account numbers</b> unless you really need to. Describe the situation instead."]),
            P("Frequently asked questions", "h2"),
            table([["Question", "Answer"],
-                  ["How long does it take?", "Quick: a few seconds. Council: about 1\u20132 minutes, or about 3 with peer review. You can leave the page; a notification tells you when it's done."],
+                  ["How long does it take?", "Quick: a few seconds. Council: about 20\u201340 seconds, or about a minute with peer review. You can leave the page; a notification tells you when it's done."],
                   ["Can I ask in Bahasa Malaysia?", "Yes. You'll get the answer and verdict in BM. BM quality is a little weaker than English, so check important wording."],
                   ["Why did it ask me questions first?", "Important facts were missing. Answer them, or press Skip and it will proceed on the assumptions it listed."],
                   ["Is the verdict a decision?", "No. It is advice. The responsible staff and management decide. Legal and finance answers must be reviewed before acting."],
@@ -717,10 +809,13 @@ def build(out):
                   ["Can I change one thing and re-ask?", "Yes: press What if\u2026 under the verdict. It re-runs two advisors and updates the verdict in about half the time."],
                   ["Can I get the answer in Word?", "Yes: press Word under any answer. Draft a document turns it into an SOP, policy, letter or memo first."],
                   ["Does the council remember what we decided?", "Only if you press Record as decision. Then it asks you after 30 and 60 days whether it worked."],
+                  ["Does the AI write the notis letters or template documents?", "No. The wording is your template; every value comes straight from the spreadsheet. The AI is only used to suggest which column fits a tag, and for the portfolio commentary."],
+                  ["A notis draft opens read-only.", "The drafts need classic Outlook for Windows. In new Outlook or Outlook on the web, use the letters zip instead."],
+                  ["Where is this guide in the app?", "Press the ? button at the top of any page, or next to EN / BM in the sidebar."],
                   ["Who do I contact?", "Your department lead for access or knowledge documents; the AI Systems team for anything else."]],
                  [48, 122])]
 
-    st += [PageBreak(), P("7 · Complete feature list", "h1"),
+    st += [PageBreak(), P("8 · Complete feature list", "h1"),
            P("Everything the Xanderia AI Council can do, and where to find it.", "lead"),
            catalogue([
                ("Asking and answers", [
@@ -733,6 +828,9 @@ def build(out):
                    ("Fair queue", "Quick questions are served before council work; you see your place in the queue when the model is busy.", "Automatic"),
                    ("Sources", "Answers based on the knowledge base cite the document and page, section or sheet as [S1], [S2].", "Under an answer"),
                    ("Answers in BM", "Ask in Bahasa Malaysia and the answer or verdict comes back in BM.", "Automatic"),
+                   ("Attach documents", "PDF, Word, Excel, CSV or text attached to a question; the council judges the plan in it.", "Paperclip in the question box"),
+                   ("Company memory", "Lessons from outcomes, approved company answers and house rules recalled for similar questions.", "Automatic; Suggest as company answer"),
+                   ("In-app guide", "The ? button opens this guide at the part for the current page.", "Top of each page; sidebar"),
                ]),
                ("The council", [
                    ("Six advisors and a Chairman", "Contrarian, First Principles Thinker, Expansionist, Customer Advocate, Executor and the Department Expert answer independently; the Chairman decides.", "Council mode"),
@@ -774,6 +872,14 @@ def build(out):
                    ("Cost to collect", "Cost per RM 1 collected, % of collections, cost per account resolved.", "Tools"),
                    ("Arrears file analysis", "CSV/XLSX export \u2192 DPD buckets by branch and product; not stored; only totals go to the council.", "Tools \u2192 Arrears file"),
                    ("Ask the council about this", "Puts the figures from any tool into a new question.", "Every tool"),
+                   ("Portfolio report", "Month-end export \u2192 NPL, PAR, buckets, breakdowns, vintage, roll rates; saved months, trend, commentary, PDF, email.", "Tools \u2192 Portfolio report"),
+                   ("Deduction reconciliation", "Loans vs employer/Angkasa deductions: not deducted, short, over, unknown; CSV.", "Tools \u2192 Deduction reconciliation"),
+                   ("Payslip affordability", "Payslip extractor report \u2192 verdict against the deduction limit, largest instalment allowed, flags, credit memo.", "Tools \u2192 Payslip affordability"),
+               ]),
+               ("Collections letters and documents", [
+                   ("Notis blast", "Masterlist \u2192 checked rows \u2192 missed-deduction letters and Outlook drafts; not-sent list; send log; direct sending when connected.", "Sidebar \u2192 Notis blast"),
+                   ("Document templates", "Word template with {{tags}} + spreadsheet \u2192 one document per row; tag matching, formats, conditions, file names, email drafts.", "Sidebar \u2192 Doc templates"),
+                   ("Make tag", "Select text in a template preview to turn it into a tag.", "Doc templates \u2192 Template"),
                ]),
                ("Ways in", [
                    ("Web app", "Works in any browser, on desktop and phone.", "Council address"),
@@ -784,7 +890,7 @@ def build(out):
                ("Your history and privacy", [
                    ("History", "Search, pin, rename and delete conversations; delete your whole history at any time.", "Sidebar"),
                    ("Retention", "Conversations older than the retention period (default 12 months) are deleted automatically.", "Automatic"),
-                   ("On-premises AI", "Hermes 3 runs on Xanderia's own GPU server; no outside AI service is used.", "Automatic"),
+                   ("On-premises AI", "Qwen 2.5 (14B) runs on Xanderia's own GPU server; no outside AI service is used.", "Automatic"),
                    ("Personal data guard", "IC, account and phone numbers, emails and names are detected and never sent to an outside model.", "Automatic"),
                    ("Red-flag detector", "Requests that look like harassment, fraud, data misuse or discrimination get a warning and are flagged to Compliance.", "Automatic"),
                    ("Access control", "You retrieve only your department's and company-wide documents, unless granted more.", "Automatic"),
@@ -801,7 +907,8 @@ def build(out):
                    ("Overview", "System health (database, queue, Ollama), 30-day usage, latency and feedback.", "Admin \u2192 Overview"),
                    ("Ask-the-org heatmap", "Which departments ask about which areas; counts only.", "Admin \u2192 Overview"),
                    ("Weekly digest", "Monday email to each department lead: questions, decisions, outcomes, overdue tasks, documents to review; counts only. Preview and send now.", "Admin \u2192 Overview"),
-                   ("Settings", "Who may use Council mode, retention, peer review default, clarifying questions, knowledge base, weekly digest, compliance-seat departments.", "Admin \u2192 Settings"),
+                   ("Settings", "Who may use Council mode, retention, peer review default, clarifying questions, knowledge base, weekly digest, compliance-seat departments, loan-tool settings.", "Admin \u2192 Settings"),
+                   ("Company memory", "House rules, suggested answers to review, approved answers, lead setup progress, monthly improvement report.", "Admin \u2192 Company memory"),
                ]),
            ])]
 
