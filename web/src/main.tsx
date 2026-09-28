@@ -14,6 +14,7 @@ import SharedPage from './pages/Shared';
 import DecisionsPage from './pages/Decisions';
 import ToolsPage from './pages/Tools';
 import NotisPage from './pages/Notis';
+import TemplatesPage from './pages/Templates';
 import TasksPage from './pages/Tasks';
 import { Toaster } from './toast';
 
@@ -41,6 +42,8 @@ function Root() {
         <Route path="/decisions" element={<DecisionsPage />} />
         <Route path="/decisions/:id" element={<DecisionsPage />} />
         <Route path="/tools" element={<ToolsPage />} />
+        <Route path="/templates" element={<TemplatesPage />} />
+        <Route path="/templates/:id" element={<TemplatesPage />} />
         <Route path="/notis" element={<NotisPage />} />
         <Route path="/notis/:id" element={<NotisPage />} />
         <Route path="/admin/*" element={me.user.role === 'employee' ? <Navigate to="/" /> : <Admin />} />

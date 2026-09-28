@@ -83,6 +83,7 @@ export const inputCls =
 export function Icon({ name, className }: { name: string; className?: string }) {
   const paths: Record<string, ReactNode> = {
     download: <path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14" />,
+    spark: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />,
     plus: <path d="M12 5v14M5 12h14" />,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></>,
     pin: <path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4-1-6Z" />,

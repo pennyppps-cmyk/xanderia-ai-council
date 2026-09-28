@@ -249,6 +249,7 @@ export const SETTINGS: Record<string, unknown> = {
   notis_departments: ['credit-collections'],
   notis_hold_column: 'remarks Ain',
   notis_retention_days: 90,
+  merge_retention_days: 90,
   compliance_seat_departments: ['credit-collections', 'legal-compliance', 'finance', 'hr'],
   // Action Crew
   crew_names: { dispatcher: 'Dispatcher', herald: 'Herald', tracker: 'Tracker', runner: 'Runner' },

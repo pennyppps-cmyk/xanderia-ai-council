@@ -44,6 +44,8 @@ const Env = z.object({
   NOTIS_SMTP_PASS: z.string().optional(),
   NOTIS_SMTP_SECURE: bool,
   NOTIS_MAIL_FROM: z.string().default('Xanderia Collections <collections@xanderia.com>'),
+  // Word → PDF for the Templates workspace (a Gotenberg service, e.g. http://pdf:3000). Word output only when unset.
+  PDF_CONVERTER_URL: z.string().optional(),
   // Telegram bot (optional). Long polling from the worker: no inbound port or public URL needed.
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   // On-premises speech-to-text (OpenAI-compatible /v1/audio/transcriptions, e.g. the `voice` compose profile).

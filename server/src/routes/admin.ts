@@ -357,6 +357,7 @@ export default async function adminRoutes(app: FastifyInstance) {
         notis_departments: z.array(z.string().max(60)).max(20).optional(),
         notis_hold_column: z.string().min(1).max(80).optional(),
         notis_retention_days: z.number().int().min(7).max(3650).optional(),
+        merge_retention_days: z.number().int().min(7).max(3650).optional(),
         crew_names: z.object({ dispatcher: z.string(), herald: z.string(), tracker: z.string(), runner: z.string() }).optional(),
         crew_email_domains: z.array(z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i)).min(1).optional(),
         crew_business_hours: z.object({ start: z.number().int().min(0).max(23), end: z.number().int().min(1).max(24) }).optional(),
