@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth';
 import { getLang, tl } from '../i18n';
 import type { LivePart, LiveState } from '../useMessageStream';
@@ -245,6 +245,9 @@ const W = 240;
 const H = 100;
 const TABLE_Y = 70;
 const SPRITE_Y = 46;
+/** Wall space above the heads, kept clear for speech bubbles. */
+const TOP = 46;
+const VIEW_H = H + TOP;
 
 export function CouncilRoom({ live }: { live: LiveState }) {
   const { personas } = useAuth();
@@ -314,20 +317,42 @@ export function CouncilRoom({ live }: { live: LiveState }) {
     log.current?.scrollTo({ top: log.current.scrollHeight });
   }, [lastSpoken.length]);
 
-  // Bubbles sit over the speaker, but never run off the edge of the room.
-  const at = me ? (me.x / W) * 100 : 50;
-  const bubblePos: React.CSSProperties = at < 32 ? { left: '0.5rem' } : at > 68 ? { right: '0.5rem' } : { left: `${at}%`, transform: 'translateX(-50%)' };
   const streaming: LivePart | undefined = running && caughtUp ? Object.values(live.parts).find((p) => !p.done && p.text) : undefined;
+  if (streaming) thinking.delete(streaming.persona); // its bubble is already over its head
+
+  // The room's width in pixels, so each bubble can sit over its speaker without leaving the room.
+  const roomRef = useRef<HTMLDivElement>(null);
+  const [roomW, setRoomW] = useState(0);
+  useLayoutEffect(() => {
+    const el = roomRef.current;
+    if (!el) return;
+    const measure = () => setRoomW(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const bubbleFor = (key: string | undefined): React.CSSProperties & { tail: number } => {
+    const p = posOf(key);
+    const scale = roomW / W;
+    const width = Math.min(roomW - 16, Math.max(260, roomW * (roomW < 560 ? 0.94 : 0.6)), 560);
+    const sx = (p ? p.x : W / 2) * scale;
+    const left = Math.min(Math.max(sx - width / 2, 8), roomW - width - 8);
+    // The bubble's tail points at the speaker's head (above any thinking dots).
+    const headTop = (TOP + (p ? p.y : SPRITE_Y) - 12) * scale;
+    return { left, width, top: 6, maxHeight: Math.max(48, headTop - 12), tail: Math.min(Math.max(sx - left, 14), width - 14) };
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border-2 border-ink-900 bg-ink-900 shadow-[4px_4px_0_0_rgba(15,23,42,0.25)]">
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" shapeRendering="crispEdges" role="img" aria-label={tl('The council room: the advisors discussing your question')}>
-          {/* Wall, window, sign */}
-          <rect width={W} height={TABLE_Y} fill="#26324d" />
+      <div className="relative" ref={roomRef}>
+        <svg viewBox={`0 0 ${W} ${VIEW_H}`} className="block w-full" shapeRendering="crispEdges" role="img" aria-label={tl('The council room: the advisors discussing your question')}>
+          {/* Wall (taller than the room, so speech has space above the heads) */}
+          <rect width={W} height={TOP + TABLE_Y} fill="#26324d" />
           {Array.from({ length: 12 }, (_, i) => (
-            <rect key={i} x={i * 20} y={0} width={1} height={TABLE_Y - 8} fill="#2d3a58" />
+            <rect key={i} x={i * 20} y={0} width={1} height={TOP + TABLE_Y - 8} fill="#2d3a58" />
           ))}
+          <g transform={`translate(0 ${TOP})`}>
           <rect x={16} y={8} width={44} height={24} fill="#8ec5e8" />
           <rect x={16} y={8} width={44} height={24} fill="none" stroke="#5a4632" strokeWidth={2} />
           <rect x={37} y={8} width={2} height={24} fill="#5a4632" />
@@ -430,40 +455,49 @@ export function CouncilRoom({ live }: { live: LiveState }) {
               strokeWidth={1.5}
             />
           )}
+          </g>
         </svg>
 
-        {/* Round banner */}
-        {roundBanner && (
-          <div className="pointer-events-none absolute top-2 left-2 bg-ink-900/85 px-2 py-0.5 font-mono text-[10px] font-bold tracking-wide text-amber-300 uppercase sm:text-xs">
-            {roundBanner}
-          </div>
-        )}
-
-        {/* Speech bubble */}
-        {beat && beat.kind !== 'round' && (
-          <div
-            key={beat.id}
-            className={cx(
-              'room-pop pointer-events-none absolute top-2 max-w-[80%] border-2 border-ink-900 px-2.5 py-1.5 text-[11px] leading-snug shadow-[3px_3px_0_0_rgba(15,23,42,0.6)] sm:max-w-[62%] sm:text-sm',
-              beat.kind === 'verdict' || beat.kind === 'first' ? 'bg-amber-100' : beat.kind === 'clash' ? 'bg-red-50' : beat.kind === 'agree' ? 'bg-emerald-50' : beat.kind === 'insight' || beat.kind === 'missed' ? 'bg-violet-50' : 'bg-white',
-            )}
-            style={{ ...bubblePos, marginTop: roundBanner ? '1.6rem' : undefined }}
-          >
-            {beat.speaker && (
-              <p className="font-mono text-[10px] font-bold text-ink-500 uppercase">
-                {nameOf(beat.speaker)}
-                {beat.kind === 'verdict' && ` · ${tl('Verdict')}`}
+        {/* Speech bubble, over the speaker */}
+        {roomW > 0 && beat && beat.kind !== 'round' && (() => {
+          const { tail, ...pos } = bubbleFor(beat.speaker);
+          return (
+            <div
+              key={beat.id}
+              className={cx(
+                'room-pop pointer-events-none absolute flex flex-col border-2 border-ink-900 px-3 py-2 text-xs leading-snug shadow-[3px_3px_0_0_rgba(15,23,42,0.6)] sm:text-sm',
+                beat.kind === 'verdict' || beat.kind === 'first' ? 'bg-amber-100' : beat.kind === 'clash' ? 'bg-red-50' : beat.kind === 'agree' ? 'bg-emerald-50' : beat.kind === 'insight' || beat.kind === 'missed' ? 'bg-violet-50' : 'bg-white',
+              )}
+              style={{ ...pos, top: undefined, bottom: `calc(100% - ${pos.maxHeight as number}px - 6px)` }}
+            >
+              {beat.speaker && (
+                <p className="shrink-0 font-mono text-[10px] font-bold text-ink-500 uppercase">
+                  {nameOf(beat.speaker)}
+                  {beat.kind === 'verdict' && ` · ${tl('Verdict')}`}
+                </p>
+              )}
+              <p className="min-h-0 overflow-hidden text-ink-900">{beat.text}</p>
+              <span className="absolute -bottom-[7px] h-3 w-3 rotate-45 border-r-2 border-b-2 border-ink-900 bg-inherit" style={{ left: tail - 6 }} />
+            </div>
+          );
+        })()}
+        {roomW > 0 && !beat && streaming && (() => {
+          const { tail, ...pos } = bubbleFor(streaming.persona);
+          const tailText = streaming.text.replace(/\*\*|__|`/g, '').replace(/\s+/g, ' ').trim();
+          const shown = tailText.length > 260 ? `…${tailText.slice(-260).replace(/^\S*\s/, '')}` : tailText;
+          return (
+            <div
+              className="pointer-events-none absolute flex flex-col border-2 border-dashed border-ink-500 bg-white px-3 py-2 text-xs leading-snug text-ink-700 sm:text-sm"
+              style={{ ...pos, top: undefined, bottom: `calc(100% - ${pos.maxHeight as number}px - 6px)` }}
+            >
+              <p className="shrink-0 font-mono text-[10px] font-bold text-ink-400 uppercase">
+                {nameOf(streaming.persona)} · {tl('thinking out loud')}
               </p>
-            )}
-            <p className="text-ink-900">{beat.text}</p>
-          </div>
-        )}
-        {!beat && streaming && (
-          <div className="pointer-events-none absolute top-2 left-1/2 max-w-[78%] -translate-x-1/2 border-2 border-dashed border-ink-400 bg-white/90 px-2.5 py-1.5 text-[11px] text-ink-600 sm:max-w-[62%] sm:text-sm">
-            <p className="font-mono text-[10px] font-bold text-ink-400 uppercase">{nameOf(streaming.persona)} · {tl('thinking out loud')}</p>
-            <p>{clip(streaming.text.slice(-200), 200)}</p>
-          </div>
-        )}
+              <p className="min-h-0 overflow-hidden">{shown}</p>
+              <span className="absolute -bottom-[7px] h-3 w-3 rotate-45 border-r-2 border-b-2 border-dashed border-ink-500 bg-white" style={{ left: tail - 6 }} />
+            </div>
+          );
+        })()}
       </div>
 
       {/* Controls */}
@@ -489,6 +523,7 @@ export function CouncilRoom({ live }: { live: LiveState }) {
         <button type="button" className="rounded bg-ink-700 px-2 py-1 font-mono hover:bg-ink-600" onClick={() => setIndex(beats.length)}>
           {tl('Skip to latest')}
         </button>
+        {roundBanner && <span className="font-mono font-bold text-amber-300 uppercase">{roundBanner}</span>}
         <span className="ml-auto font-mono text-ink-300">
           {Math.min(index + 1, beats.length)}/{beats.length}
           {running ? ` · ${tl('live')}` : ''}
