@@ -7,6 +7,9 @@ import type { Verdict } from '../src/llm/schemas.js';
 const verdict: Verdict = {
   verdict: 'Pilot branch-level approval of top-up loans under RM 3,000 in two branches for 8 weeks, with head-office sampling of 20% of approvals.',
   why: 'Faster approvals are the main customer complaint, and the risk is limited by amount and repayment history. A pilot with sampling tests whether branch decisions match head office before a wider rollout.',
+  agreements: ['Approval speed is the main complaint (Customer Advocate, Executor, Expansionist).'],
+  blind_spots: ['Nobody said how branch staff are trained to judge top-ups.'],
+  first_step: 'Credit head picks the two pilot branches this week.',
   conflicts: [
     {
       between: 'The Contrarian vs The Expansionist',

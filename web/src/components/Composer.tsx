@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useCouncilView } from './CouncilRoom';
 import { useAuth } from '../auth';
 import type { Mode } from '../types';
 import { cx, Icon, Spinner } from './ui';
@@ -25,7 +26,7 @@ interface Props {
   defaultDepartmentId?: string;
   /** Shown instead of the default placeholder, e.g. while the council waits for answers. */
   placeholder?: string;
-  onSend(input: { content: string; mode: Mode; departmentId: string; peerReview: boolean; attachmentIds?: string[] }): Promise<void>;
+  onSend(input: { content: string; mode: Mode; departmentId: string; peerReview: boolean; watchRoom?: boolean; attachmentIds?: string[] }): Promise<void>;
   /** Opens the template picker. */
   onTemplates?(): void;
 }
@@ -42,6 +43,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
   const [mode, setMode] = useState<Mode>(() => (localStorage.getItem('xc:mode') as Mode) || 'auto');
   const [departmentId, setDepartmentId] = useState(defaultDepartmentId ?? me?.user.department_id ?? '');
   const [peerReview, setPeerReview] = useState(false);
+  const roomView = useCouncilView() === 'room';
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -110,6 +112,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
       mode: effectiveMode,
       departmentId,
       peerReview: effectiveMode !== 'quick' && peerReview,
+      // Watching in the council room: the council runs the peer review so there is an argument to watch.
+      watchRoom: effectiveMode !== 'quick' && roomView,
       attachmentIds: ready.length ? ready.map((f) => f.id!) : undefined,
     });
     setText('');
@@ -208,11 +212,16 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
         {effectiveMode !== 'quick' && (
           <label
             className="inline-flex items-center gap-1.5 text-xs text-ink-600"
-            title={tl("Advisors anonymously critique each other before the Chairman decides. Adds about a minute.")}
+            title={
+              roomView
+                ? tl('On while the Council room view is on, so you can watch the advisors review each other.')
+                : tl('Advisors anonymously critique each other before the Chairman decides. Adds about two minutes.')
+            }
           >
             <input
               type="checkbox"
-              checked={peerReview}
+              checked={peerReview || roomView}
+              disabled={roomView}
               onChange={(e) => setPeerReview(e.target.checked)}
               className="accent-accent-600"
             />

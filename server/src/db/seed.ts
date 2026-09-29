@@ -79,9 +79,13 @@ export async function seed(log = console.log) {
     );
 
     for (const r of MODEL_ROLES) {
+      // A role added in a later release (e.g. a new advisor) runs where the Chairman already runs
+      // (provider, model, context), so it lands on the same GPU and model as the rest of the council.
       await c.query(
         `INSERT INTO model_roles (role, provider_id, model, temperature, num_ctx, num_predict, keep_alive)
-         VALUES ($1, 'ollama', $2, $3, 16384, $4, '30m') ON CONFLICT (role) DO NOTHING`,
+         SELECT $1, COALESCE(t.provider_id, 'ollama'), COALESCE(t.model, $2), $3, COALESCE(t.num_ctx, 16384), $4, COALESCE(t.keep_alive, '30m')
+           FROM (SELECT 1) one LEFT JOIN (SELECT * FROM model_roles WHERE role = 'chairman') t ON true
+         ON CONFLICT (role) DO NOTHING`,
         [r.role, config.DEFAULT_CHAT_MODEL, r.temperature, r.num_predict],
       );
     }

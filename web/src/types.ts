@@ -60,6 +60,10 @@ export interface ClarifyRequest {
 export interface Verdict {
   verdict: string;
   why: string;
+  // Added with the LLM-council verdict format; older verdicts do not have them.
+  agreements?: string[];
+  blind_spots?: string[];
+  first_step?: string;
   conflicts: Array<{ between: string; position_a: string; position_b: string; decision: string; because: string }>;
   action_plan: Array<{ step: string; owner_role: string; timeline: string; start_week?: number; duration_weeks?: number }>;
   risks: Array<{ risk: string; mitigation: string; likelihood?: Level; impact?: Level }>;

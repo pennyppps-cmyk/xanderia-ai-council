@@ -17,6 +17,7 @@ import { condenseQuestion } from './condense.js';
 import { recallMemory } from '../memory/memory.js';
 import { answeredQuestions, confirmedFacts, dropAnswered, factsBlock, parseOpenAnswer, questionForOpenAnswer } from './facts.js';
 import { ATTACHMENT_BUDGET, fitAttachments, truncationNote, type Attachment } from './attachments.js';
+import { stressTestRequested } from './triggers.js';
 
 interface LoadedJob {
   message: {
@@ -27,6 +28,7 @@ interface LoadedJob {
     department_id: string;
     options: {
       peerReview?: boolean;
+      watchRoom?: boolean;
       skipClarify?: boolean;
       template?: string;
       task?: string;
@@ -299,7 +301,9 @@ export async function processMessage(messageId: string, events: Publisher) {
       routerPromise = route();
     }
 
-    let mode: 'quick' | 'council' = answeringClarify
+    // "council this" / "stress-test this": the full council, even when Auto would answer quickly.
+    const stressTest = message.requested_mode !== 'quick' && stressTestRequested(question);
+    let mode: 'quick' | 'council' = answeringClarify || stressTest
       ? 'council'
       : message.requested_mode === 'auto'
         ? router!.suggested_mode
@@ -457,7 +461,9 @@ export async function processMessage(messageId: string, events: Publisher) {
           memory: memory.block,
           language: wantsMalay ? 'ms' : (router?.language ?? 'en'),
           sensitivity,
-          peerReview: message.options.peerReview ?? (await getSetting('peer_review_default', false)),
+          // The peer review is what the council room shows; in the chat view it is skipped (unless ticked)
+          // so a council, even a "council this", answers in about half the time.
+          peerReview: Boolean(message.options.watchRoom) || (message.options.peerReview ?? (await getSetting('peer_review_default', false))),
           advisors: whatIf ? (personas as Advisor[]).filter((p) => WHAT_IF_RERUN.includes(p.key)) : (personas as Advisor[]),
           priorOpinions: whatIf?.opinions.filter((o) => !WHAT_IF_RERUN.includes(o.advisor.key)),
           chairmanNote: whatIf

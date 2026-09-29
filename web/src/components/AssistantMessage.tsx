@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import type { Citation, ClarifyRequest, Level, Message, Mode, PlanSummary, Stance, Verdict } from '../types';
 import { useMessageStream, type LivePart, type LiveState } from '../useMessageStream';
+import { CouncilRoom, setCouncilView, useCouncilView } from './CouncilRoom';
 import { Markdown } from './Markdown';
 import { RecordDecision } from '../pages/Decisions';
 import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
@@ -200,10 +201,28 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
   const name = (key: string) => (getLang() === 'ms' && personas[key]?.name_ms) || personas[key]?.name || key;
   const peerReview = Boolean(message.options?.peerReview) || reviews.length > 0;
   const running = live.status !== 'done';
+  // Cards (the default) or the pixel council room; the choice is remembered on this browser.
+  const view = useCouncilView();
+  const room = view === 'room';
+  const choose = setCouncilView;
 
   return (
     <div className="space-y-3">
-      {running && <ProgressStrip live={live} peerReview={peerReview} />}
+      <div className="no-print inline-flex rounded-lg border border-ink-200 bg-white p-0.5 text-xs" role="group" aria-label={tl('How to show the council')}>
+        {(['cards', 'room'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={view === v}
+            onClick={() => choose(v)}
+            className={cx('rounded-md px-2.5 py-1 font-medium', view === v ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100')}
+          >
+            {v === 'cards' ? tl('Cards') : tl('Council room')}
+          </button>
+        ))}
+      </div>
+      {room && <CouncilRoom live={live} />}
+      {!room && running && <ProgressStrip live={live} peerReview={peerReview} />}
 
       {live.verdict ? (
         <VerdictCard verdict={live.verdict} onFollowUp={onFollowUp} />
@@ -214,7 +233,7 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
           </p>
           <Markdown text={live.raw} />
         </div>
-      ) : running ? (
+      ) : running && !room ? (
         live.stage === 'stage3' ? (
           <div className="flex items-center gap-2 rounded-2xl border border-ink-100 bg-white px-4 py-3 text-sm text-ink-600 shadow-sm">
             <Spinner className="h-4 w-4 text-accent-600" /> {tl("The Chairman is weighing the opinions and writing the verdict")}
@@ -233,7 +252,7 @@ function CouncilView({ live, message, onFollowUp }: { live: LiveState; message: 
       ) : null}
 
       {opinions.length > 0 && (
-        <Section title={tl('Advisor opinions ({n})', { n: opinions.length })} defaultOpen={running}>
+        <Section title={tl('Advisor opinions ({n})', { n: opinions.length })} defaultOpen={running && !room}>
           <StanceSummary opinions={opinions} />
           <div className="grid items-start gap-2 lg:grid-cols-2">
             {opinions.map((p) => (
@@ -306,8 +325,28 @@ export function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFo
           <p className="leading-relaxed">{v.why}</p>
         </Block>
 
+        {v.first_step && (
+          <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
+            <p className="text-[11px] font-semibold tracking-wider text-accent-700 uppercase">{tl("The one thing to do first")}</p>
+            <p className="mt-1 font-medium text-ink-900">{v.first_step}</p>
+          </div>
+        )}
+
+        {(v.agreements?.length ?? 0) > 0 && (
+          <Block title={tl("Where the council agrees")}>
+            <ul className="space-y-1.5">
+              {v.agreements!.map((a, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                  <span>{a}</span>
+                </li>
+              ))}
+            </ul>
+          </Block>
+        )}
+
         {v.conflicts.length > 0 && (
-          <Block title={tl("Disagreements resolved")}>
+          <Block title={tl("Where the council clashes")}>
             <ul className="space-y-2">
               {v.conflicts.map((c, i) => (
                 <li key={i} className="rounded-lg bg-ink-50 p-3">
@@ -325,6 +364,19 @@ export function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFo
                     <span className="font-semibold text-ink-700">{tl("Because:")}</span>{' '}
                     <span className="text-ink-600">{c.because.replace(/^because\s+/i, '')}</span>
                   </p>
+                </li>
+              ))}
+            </ul>
+          </Block>
+        )}
+
+        {(v.blind_spots?.length ?? 0) > 0 && (
+          <Block title={tl("Blind spots the council caught")}>
+            <ul className="space-y-1.5">
+              {v.blind_spots!.map((b, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
+                  <span>{b}</span>
                 </li>
               ))}
             </ul>

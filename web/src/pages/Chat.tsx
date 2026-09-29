@@ -95,6 +95,7 @@ export default function Chat() {
     mode: Mode;
     departmentId?: string;
     peerReview?: boolean;
+    watchRoom?: boolean;
     skipClarify?: boolean;
     template?: string;
     attachmentIds?: string[];

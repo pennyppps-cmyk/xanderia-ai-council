@@ -486,7 +486,7 @@ function timeline(doc: Doc, v: Verdict) {
 
 function conflicts(doc: Doc, v: Verdict) {
   if (!v.conflicts.length) return;
-  heading(doc, 'Disagreements resolved');
+  heading(doc, 'Where the council clashes');
   for (const c of v.conflicts) {
     ensure(doc, 70);
     doc.font('semibold').fontSize(8.5).fillColor(C.teal).text(clean(doc, c.between), PAGE.m, doc.y, { width: W });
@@ -607,6 +607,11 @@ export function renderReport(d: ReportData): Promise<Buffer> {
         confidenceGauge(doc, v);
         heading(doc, 'Why');
         para(doc, v.why);
+        if (v.first_step) {
+          heading(doc, 'The one thing to do first');
+          para(doc, v.first_step);
+        }
+        listSection(doc, 'Where the council agrees', v.agreements ?? []);
 
         // Sections flow; a chart only moves to a new page when it would not fit.
         doc.moveDown(0.8);
@@ -619,6 +624,7 @@ export function renderReport(d: ReportData): Promise<Buffer> {
         riskHeatMap(doc, v);
         timeline(doc, v);
         conflicts(doc, v);
+        listSection(doc, 'Blind spots the council caught', v.blind_spots ?? []);
         listSection(doc, 'Open questions to answer before acting', v.open_questions);
         citations(doc, d);
         appendix(doc, d);

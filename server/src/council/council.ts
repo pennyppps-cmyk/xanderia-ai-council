@@ -275,6 +275,19 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
         return `- ${o.advisor.name}: average peer score ${(a.total / a.n).toFixed(1)}/5. Flaws raised: ${a.flaws.map((f) => `"${f}"`).join('; ')}`;
       })
       .join('\n');
+    // Votes for the strongest answer, and what the reviewers say every answer missed.
+    const byLabel = new Map(good.map((o) => [o.label, o]));
+    const votes = new Map<string, number>();
+    for (const r of reviews) {
+      const label = r.data?.strongest.replace(/^advisor\s*/i, '').trim().toUpperCase().slice(0, 1);
+      const o = label ? byLabel.get(label) : undefined;
+      if (o) votes.set(o.advisor.name, (votes.get(o.advisor.name) ?? 0) + 1);
+    }
+    if (votes.size) {
+      reviewsText += `\nVoted strongest answer: ${[...votes.entries()].sort((a, b) => b[1] - a[1]).map(([n, v]) => `${n} (${v})`).join(', ')}`;
+    }
+    const missed = reviews.map((r) => r.data?.all_missed?.trim() ?? '').filter((m) => m && !/^nothing\b/i.test(m));
+    if (missed.length) reviewsText += `\nWhat the reviewers say ALL answers missed (use for blind_spots):\n${missed.map((m) => `- ${m}`).join('\n')}`;
   }
 
   const cfg = await deps.getRoleConfig('chairman');

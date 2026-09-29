@@ -23,6 +23,8 @@ const SendMessage = z.object({
   mode: z.enum(['auto', 'quick', 'council']).default('auto'),
   departmentId: z.string().uuid().optional(),
   peerReview: z.boolean().optional(),
+  // The asker watches in the council room view: the council runs its peer review.
+  watchRoom: z.boolean().optional(),
   /** Answering the council's clarifying questions with "skip": proceed on its assumptions. */
   skipClarify: z.boolean().optional(),
   /** Council template key; the server looks up its mode / task / persona (never trusted from the client). */
@@ -234,7 +236,7 @@ export default async function chatRoutes(app: FastifyInstance) {
           await c.query(
             `INSERT INTO messages (conversation_id, role, reply_to, requested_mode, department_id, status, options)
              VALUES ($1, 'assistant', $2, $3, $4, 'queued', $5) RETURNING *`,
-            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, skipClarify: body.skipClarify, ...(body.lang ? { uiLang: body.lang } : {}), ...templateOpts })],
+            [conversation.id, userMsg.id, body.mode, departmentId, JSON.stringify({ peerReview: body.peerReview, ...(body.watchRoom ? { watchRoom: true } : {}), skipClarify: body.skipClarify, ...(body.lang ? { uiLang: body.lang } : {}), ...templateOpts })],
           )
         ).rows[0];
         await c.query('UPDATE conversations SET updated_at = now() WHERE id = $1', [conversation.id]);

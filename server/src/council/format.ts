@@ -59,11 +59,20 @@ const LEVEL: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'Hig
 export function verdictToMarkdown(v: Verdict): string {
   const lines: string[] = [];
   lines.push(`## Verdict\n${v.verdict}`, `\n## Why\n${v.why}`);
+  if (v.first_step) lines.push(`\n## The one thing to do first\n${v.first_step}`);
+  if (v.agreements?.length) {
+    lines.push('\n## Where the council agrees');
+    for (const a of v.agreements) lines.push(`- ${a}`);
+  }
   if (v.conflicts.length) {
-    lines.push('\n## Disagreements resolved');
+    lines.push('\n## Where the council clashes');
     for (const c of v.conflicts) {
       lines.push(`- **${c.between}:** ${c.position_a} vs ${c.position_b}. **Decision:** ${c.decision}. ${c.because}`);
     }
+  }
+  if (v.blind_spots?.length) {
+    lines.push('\n## Blind spots the council caught');
+    for (const b of v.blind_spots) lines.push(`- ${b}`);
   }
   lines.push('\n## Action plan');
   v.action_plan.forEach((s, i) => lines.push(`${i + 1}. ${s.step} — *${s.owner_role}*, ${s.timeline}`));

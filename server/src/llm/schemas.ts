@@ -29,6 +29,8 @@ export const ReviewSchema = z.object({
     )
     .min(1),
   strongest: z.string(),
+  // What every answer missed: the collective blind spot the Chairman reports.
+  all_missed: z.string().default(''),
 });
 export type ReviewOutput = z.infer<typeof ReviewSchema>;
 
@@ -36,6 +38,8 @@ export type ReviewOutput = z.infer<typeof ReviewSchema>;
 export const VerdictSchema = z.object({
   verdict: z.string(),
   why: z.string(),
+  // Points several advisors reached independently: the high-confidence signals.
+  agreements: z.array(z.string()).default([]),
   conflicts: z.array(
     z.object({
       between: z.string(),
@@ -45,6 +49,10 @@ export const VerdictSchema = z.object({
       because: z.string(),
     }),
   ),
+  // What only surfaced in peer review, or what every advisor missed.
+  blind_spots: z.array(z.string()).default([]),
+  // The single concrete step to take first (not a list).
+  first_step: z.string().default(''),
   action_plan: z
     .array(
       z.object({

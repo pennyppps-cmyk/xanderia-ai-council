@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { condenseForChairman, runCouncil, type Opinion } from '../src/council/council.js';
 import { routeMessage } from '../src/council/router.js';
+import { stressTestRequested } from '../src/council/triggers.js';
 import type { ChatRequest } from '../src/llm/types.js';
 import { FakeProvider, makeGateway, roleConfig } from './helpers.js';
 
@@ -40,6 +41,7 @@ function scriptedProvider(overrides: { chairman?: () => string } = {}) {
       return JSON.stringify({
         reviews: labels.map((l) => ({ advisor: `Advisor ${l}`, biggest_flaw: `flaw in ${l}`, score: 3 })),
         strongest: `Advisor ${labels[0]}`,
+        all_missed: 'Nobody costed the staff training.',
       });
     }
     const persona = /persona:(\w+)/.exec(s)?.[1];
@@ -86,7 +88,8 @@ describe('runCouncil', () => {
       { ...baseInput, peerReview: false },
       h,
     );
-    expect(res.verdict).toEqual(VERDICT);
+    // A verdict without the newer sections still validates; they default to empty.
+    expect(res.verdict).toEqual({ ...VERDICT, agreements: [], blind_spots: [], first_step: '' });
     expect(res.opinions.map((o) => o.content)).toEqual(ADVISORS.map((a) => `**Position:** opinion from ${a.key}`));
     expect(res.reviews).toEqual([]);
     expect(log).toContain('stage:stage1');
@@ -130,6 +133,9 @@ describe('runCouncil', () => {
     }
     const chair = provider.requests.find((r) => system(r).includes('persona:chairman'))!;
     expect(user(chair)).toContain('average peer score 3.0/5');
+    // Votes for the strongest answer and the collective blind spot reach the Chairman.
+    expect(user(chair)).toMatch(/Voted strongest answer: .+\(\d\)/);
+    expect(user(chair)).toContain('ALL answers missed (use for blind_spots):\n- Nobody costed the staff training.');
   });
 
   it('falls back to raw text when the chairman output never validates', async () => {
@@ -312,5 +318,16 @@ describe('red-flag detection', () => {
     const g2 = makeGateway({ providers: [plain], roles: { '*': 'local' } });
     const r2 = await routeMessage({ gateway: g2.gateway, assemble }, { question: 'Normal', departments, defaultDepartment: 'credit-collections' });
     expect(r2.red_flag).toBe('none');
+  });
+});
+
+describe('stress-test phrases', () => {
+  it('ask for the full council in English and Bahasa Malaysia, and ignore ordinary questions', () => {
+    for (const q of ['Council this: move collections calls to 8am?', 'Can you stress-test this plan', 'war room this', 'pressure test our pricing', 'Tolong uji tekanan cadangan ini', 'bawa ke majlis: kempen baharu']) {
+      expect(stressTestRequested(q)).toBe(true);
+    }
+    for (const q of ['What is our refund policy?', 'How do I reset my password?', 'Test the new dialler script']) {
+      expect(stressTestRequested(q)).toBe(false);
+    }
   });
 });

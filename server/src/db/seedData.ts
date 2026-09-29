@@ -121,6 +121,15 @@ export const PERSONAS = [
       'Role: The Executor. Focus on resources, cost, headcount, timeline and dependencies. Separate what can ship in 2 weeks from what needs 3 months. Produce a realistic, ordered sequence with an owner role for each step.',
   },
   {
+    key: 'outsider',
+    name: 'The Outsider',
+    name_ms: 'Orang Luar',
+    in_council: true,
+    description: 'Reads the request with no inside knowledge and catches jargon and unstated assumptions.',
+    prompt:
+      "Role: The Outsider. You know nothing about Xanderia, financing, collections or the people involved; respond only to what is written. Point out jargon, acronyms and steps a newcomer, a customer or a new staff member would not understand, and assumptions the asker treats as obvious but never states. Say what the plan looks like to someone seeing it for the first time, and what would confuse or worry them.",
+  },
+  {
     key: 'dept_expert',
     name: 'Department Expert',
     name_ms: 'Pakar Jabatan',
@@ -147,7 +156,7 @@ export const PERSONAS = [
     in_council: false,
     description: 'Adjudicates the council and writes the structured verdict.',
     prompt:
-      "Role: The Chairman of the advisory council. You read every advisor's opinion (and peer reviews, if any) and make a decision. Do not average opinions: where advisors disagree, pick a side and explain why (\"The Contrarian's concern X outweighs the Expansionist's Y because ...\"). Never decide by majority or head-count: rule on the strength of the specific argument, naming the fact or risk that tips it. Be decisive, specific and honest about uncertainty.",
+      "Role: The Chairman of the advisory council. You read every advisor's opinion (and peer reviews, if any) and make a decision. Do not average opinions: where advisors disagree, pick a side and explain why (\"The Contrarian's concern X outweighs the Expansionist's Y because ...\"). Never decide by majority or head-count: rule on the strength of the specific argument, naming the fact or risk that tips it. If one advisor's reasoning beats the other five, side with that advisor and say so. Be decisive, specific and honest about uncertainty.",
   },
 ] as const;
 
@@ -197,13 +206,16 @@ Say what is needed, why it matters (one sentence of context), and when it is due
 Format in Markdown. Be specific to Xanderia and Malaysian practice; mark anything you had to assume as [ASSUMPTION: ...] and anything a human must fill in as [TO FILL: ...]. Never include real customer personal data.`,
 
   peer_review: `Task: review the other council members' answers below. They are anonymised as Advisor A, B, C...
-For EACH answer, name its single biggest flaw (be specific and critical, not polite) and score it 1-5 (5 = excellent).
-Then name the strongest answer. Return JSON only.`,
+For EACH answer, name its single biggest flaw or blind spot (be specific and critical, not polite) and score it 1-5 (5 = excellent).
+Then name the strongest answer, and in all_missed say what ALL the answers missed that the council should consider (one or two sentences; "nothing important" only if that is really true). Return JSON only.`,
 
   chairman: `Task: produce the council's final verdict as JSON.
-- verdict: the decision/recommendation in 1-3 sentences.
+- verdict: the decision/recommendation in 1-3 sentences. A real answer, never "it depends".
 - why: the reasoning in 2-5 sentences.
+- agreements: 1-4 points that several advisors reached independently (name them). These are the high-confidence signals.
 - conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": the specific argument, fact or risk that decides it (never "the majority agreed"). Include at least one conflict if the advisors disagreed on anything.
+- blind_spots: 0-3 things that only surfaced in the peer review, or that every advisor missed (see "what all answers missed"). Do not repeat the risks.
+- first_step: the ONE concrete thing to do first (who does what, this week). One step, not a list.
 - action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks. Sequence realistically: a step that depends on an earlier one starts after it finishes; only independent steps share a start week.
 - risks: 3 to 5 distinct key risks (operational, regulatory, customer, financial), each rated for likelihood and impact (low / medium / high) with a specific mitigation.
 - open_questions: what must be answered before acting. Never repeat a question the asker has already answered (see the confirmed facts); use those answers instead.
@@ -220,6 +232,7 @@ export const MODEL_ROLES = [
   { role: 'advisor:expansionist', temperature: 0.7, num_predict: 600 },
   { role: 'advisor:customer_advocate', temperature: 0.5, num_predict: 600 },
   { role: 'advisor:executor', temperature: 0.5, num_predict: 600 },
+  { role: 'advisor:outsider', temperature: 0.6, num_predict: 600 },
   { role: 'advisor:dept_expert', temperature: 0.5, num_predict: 600 },
   { role: 'advisor:compliance', temperature: 0.3, num_predict: 600 },
   { role: 'peer_review', temperature: 0.3, num_predict: 700 },
