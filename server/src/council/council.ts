@@ -8,7 +8,7 @@ import { callStructured } from '../llm/structured.js';
 import type { ChatMessage, RoleConfig } from '../llm/types.js';
 import type { PromptSpec } from '../prompts/assembler.js';
 import type { RetrievedChunk } from '../rag/retrieve.js';
-import { advisorBlock, parseStance, userTurn } from './format.js';
+import { advisorBlock, knowledgeBlock, parseStance, userTurn } from './format.js';
 
 export interface Advisor {
   key: string;
@@ -140,6 +140,10 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
     .filter(Boolean)
     .join('\n\n');
 
+  const sharedTurn = userTurn(input.question, {
+    attachments: fitAttachments(input.attachments ?? [], ATTACHMENT_BUDGET.answer),
+    context: departmentContext,
+  });
   const opinions: Opinion[] = await Promise.all(
     input.advisors.map(async (advisor, i): Promise<Opinion> => {
       const part = `s1:${advisor.key}`;
@@ -149,21 +153,17 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
         const isExpert = advisor.key === 'dept_expert';
         // The Compliance Officer also reads the knowledge base (policies are usually company-wide).
         const readsKnowledge = isExpert || advisor.key === 'compliance';
-        const system = await deps.assemble({
-          persona: advisor.key,
-          department: isExpert ? input.department.slug : undefined,
-          task: 'council_advisor',
-        });
+        // Everything the advisors share comes first (instructions, conversation, documents, the request)
+        // and each advisor's own role last. Ollama keeps the prompt it has read per slot, so the next
+        // advisor on a slot re-uses the shared part instead of re-reading a long attachment from scratch.
+        const system = await deps.assemble({ task: 'council_advisor' });
+        const role = await deps.assemble({ base: false, persona: advisor.key, department: isExpert ? input.department.slug : undefined });
         const messages: ChatMessage[] = [
           { role: 'system', content: system },
           ...input.history,
           {
             role: 'user',
-            content: userTurn(input.question, {
-              attachments: fitAttachments(input.attachments ?? [], ATTACHMENT_BUDGET.answer),
-              context: departmentContext,
-              knowledge: readsKnowledge ? input.knowledge : [],
-            }),
+            content: `${sharedTurn}${readsKnowledge && input.knowledge.length ? `\n\n${knowledgeBlock(input.knowledge).trimEnd()}` : ''}\n\nYour role on the council (answer only from this role):\n${role}`,
           },
         ];
         const out = await deps.gateway.call(`advisor:${advisor.key}`, messages, {

@@ -31,6 +31,8 @@ const VERDICT = {
 
 const system = (req: ChatRequest) => req.messages[0].content;
 const user = (req: ChatRequest) => req.messages.at(-1)!.content;
+/** Advisors carry their role at the end of the user turn, not in the system prompt. */
+const whole = (req: ChatRequest) => req.messages.map((m) => m.content).join('\n');
 
 function scriptedProvider(overrides: { chairman?: () => string } = {}) {
   return new FakeProvider('local', false, (req) => {
@@ -44,13 +46,13 @@ function scriptedProvider(overrides: { chairman?: () => string } = {}) {
         all_missed: 'Nobody costed the staff training.',
       });
     }
-    const persona = /persona:(\w+)/.exec(s)?.[1];
+    const persona = /persona:(\w+)/.exec(whole(req))?.[1];
     return `**Position:** opinion from ${persona}`;
   });
 }
 
-const assemble = async (spec: { persona?: string; department?: string; task: string }) =>
-  [spec.persona && `persona:${spec.persona}`, spec.department && `department:${spec.department}`, `task:${spec.task}`]
+const assemble = async (spec: { persona?: string; department?: string; task?: string }) =>
+  [spec.persona && `persona:${spec.persona}`, spec.department && `department:${spec.department}`, spec.task && `task:${spec.task}`]
     .filter(Boolean)
     .join('\n');
 
@@ -163,13 +165,13 @@ describe('runCouncil', () => {
     const chair = provider.requests.find((r) => system(r).includes('persona:chairman'))!;
     expect(system(chair)).toContain('Bahasa Malaysia');
     // Advisors still reason in English
-    const advisor = provider.requests.find((r) => system(r).includes('persona:contrarian'))!;
+    const advisor = provider.requests.find((r) => whole(r).includes('persona:contrarian'))!;
     expect(system(advisor)).toContain('task:council_advisor');
   });
 
   it('survives one failed advisor but fails with fewer than two opinions', async () => {
     const flaky = new FakeProvider('local', false, (req) => {
-      if (system(req).includes('persona:contrarian')) throw new Error('timeout');
+      if (whole(req).includes('persona:contrarian')) throw new Error('timeout');
       if (system(req).includes('persona:chairman')) return JSON.stringify(VERDICT);
       return 'opinion';
     });
@@ -209,11 +211,29 @@ describe('runCouncil', () => {
       },
       hooks().hooks,
     );
-    const expert = provider.requests.find((r) => system(r).includes('persona:dept_expert'))!;
-    expect(system(expert)).toContain('department:credit-collections');
+    const expert = provider.requests.find((r) => whole(r).includes('persona:dept_expert'))!;
+    expect(user(expert)).toContain('department:credit-collections');
     expect(user(expert)).toContain('<document id="S1" title="Collections SOP" section="2. Cadence">');
-    const contrarian = provider.requests.find((r) => system(r).includes('persona:contrarian'))!;
+    const contrarian = provider.requests.find((r) => whole(r).includes('persona:contrarian'))!;
     expect(user(contrarian)).not.toContain('<document');
+  });
+
+  it('puts what advisors share first and each role last, so a long document is read once per slot', async () => {
+    const provider = scriptedProvider();
+    const { gateway } = makeGateway({ providers: [provider], roles: { '*': 'local' } });
+    await runCouncil(
+      { gateway, assemble, getRoleConfig: async (r) => roleConfig(r, 'local') },
+      { ...baseInput, attachments: [{ name: 'report.pdf', text: 'Finding 1: TLS verification disabled. '.repeat(50) }], peerReview: false },
+      hooks().hooks,
+    );
+    const advisors = provider.requests.filter((r) => whole(r).includes('task:council_advisor'));
+    expect(advisors).toHaveLength(3);
+    // Same system prompt, and the user turn is identical up to the role.
+    expect(new Set(advisors.map(system)).size).toBe(1);
+    const shared = advisors.map((r) => user(r).split('Your role on the council')[0]);
+    expect(new Set(shared).size).toBe(1);
+    expect(shared[0]).toContain('<attachment name="report.pdf">');
+    for (const r of advisors) expect(user(r)).toMatch(/Your role on the council[^]*persona:\w+$/);
   });
 });
 

@@ -48,7 +48,7 @@ describe('attached documents', () => {
         : '**Position:** ok',
     );
     const { gateway } = makeGateway({ providers: [provider], roles: { '*': 'local' } });
-    const assemble = async (spec: { persona?: string; task: string }) => [spec.persona && `persona:${spec.persona}`, `task:${spec.task}`].filter(Boolean).join('\n');
+    const assemble = async (spec: { persona?: string; task?: string }) => [spec.persona && `persona:${spec.persona}`, spec.task && `task:${spec.task}`].filter(Boolean).join('\n');
     const noop = { onStage: () => {}, onPartStart: () => {}, onToken: () => {}, onPartDone: () => {} };
     await runCouncil(
       { gateway, assemble, getRoleConfig: async (r) => roleConfig(r, 'local') },

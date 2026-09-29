@@ -7,7 +7,8 @@ export interface PromptSpec {
   base?: boolean;
   persona?: string;
   department?: string;
-  task: string;
+  /** Omitted for a role-only block (persona + department), e.g. the advisor role placed after shared context. */
+  task?: string;
 }
 
 export interface AssemblerDeps {
@@ -21,7 +22,7 @@ export interface AssemblerDeps {
 export function createAssembler(deps: AssemblerDeps) {
   return async function assemble(spec: PromptSpec): Promise<string> {
     const base = spec.base ?? true;
-    const cacheKey = `prompt:v${await deps.version()}:${base ? 1 : 0}:${spec.persona ?? '-'}:${spec.department ?? '-'}:${spec.task}`;
+    const cacheKey = `prompt:v${await deps.version()}:${base ? 1 : 0}:${spec.persona ?? '-'}:${spec.department ?? '-'}:${spec.task ?? '-'}`;
     const cached = await deps.cacheGet(cacheKey);
     if (cached) return cached;
 
