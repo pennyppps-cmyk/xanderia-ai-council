@@ -4,6 +4,7 @@ import { writeAudit } from '../audit.js';
 import { config } from '../config.js';
 import {
   applyTaskAction,
+  composeTaskEmail,
   createPlan,
   CrewError,
   crewStatus,
@@ -14,6 +15,7 @@ import {
   type TaskAction,
 } from '../crew/service.js';
 import { verifyTaskToken } from '../crew/tokens.js';
+import { mailboxStatus } from '../crew/mailbox.js';
 import { parseCsv } from '../crew/csv.js';
 import { query, tx } from '../db/pool.js';
 import { enqueueDispatch, enqueueRunner } from '../queue/crewQueue.js';
@@ -24,6 +26,12 @@ function crewErrors(reply: FastifyReply, err: unknown) {
   if (err instanceof CrewError) return reply.code(err.status).send({ error: err.message });
   throw err;
 }
+
+/**
+ * The email's buttons carry the owner's signed task links. In the requester's preview they must not
+ * work (a click would accept the task as the owner), so their targets are removed.
+ */
+export const inertLinks = (html: string) => html.replace(/\shref="[^"]*"/gi, ' href="#" onclick="return false"').replace(/https?:\/\/[^\s<"]*\/api\/t\/[^\s<"]*/g, '[link]');
 
 async function planForUser(planId: string, userId: string) {
   const { rows } = await query(`SELECT * FROM action_plans WHERE id = $1 AND requester_id = $2`, [planId, userId]);
@@ -167,6 +175,51 @@ export default async function crewRoutes(app: FastifyInstance) {
   });
 
   /** Requester reassigns a task (before or after launch). A launched task goes back to draft for re-approval. */
+  /**
+   * The task email exactly as the owner will get it (from, to, subject in the plan's thread, full letter),
+   * with the requester's unsaved edits applied, so they can check it before approving.
+   */
+  app.post('/api/tasks/:id/email-preview', auth, async (req, reply) => {
+    const { id } = Uuid.parse(req.params);
+    const body = z
+      .object({ email_body: z.string().max(3000).optional(), directory_id: z.string().uuid().nullable().optional() })
+      .parse(req.body ?? {});
+    const { rows } = await query(
+      `SELECT t.id FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id WHERE t.id = $1 AND p.requester_id = $2`,
+      [id, req.user.id],
+    );
+    if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
+    const c = await composeTaskEmail(id, 'task', { emailBody: body.email_body, directoryId: body.directory_id });
+    const mb = await mailboxStatus(req.user.id);
+    return {
+      from: mb.connected
+        ? { name: req.user.display_name, address: mb.address, via: 'mailbox' }
+        : { name: config.MAIL_FROM.replace(/\s*<.*$/, ''), address: config.MAIL_FROM.match(/<([^>]+)>/)?.[1] ?? config.MAIL_FROM, via: mb.configured ? 'waiting' : 'system' },
+      to: c.to,
+      to_name: c.t.owner_name ?? null,
+      subject: c.email.subject,
+      in_thread: c.history.length > 0,
+      html: inertLinks(c.email.html),
+    };
+  });
+
+  /** Every email sent (or queued) for a task, as it was sent. */
+  app.get('/api/tasks/:id/emails', auth, async (req, reply) => {
+    const { id } = Uuid.parse(req.params);
+    const { rows: own } = await query(
+      `SELECT t.id FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id WHERE t.id = $1 AND p.requester_id = $2`,
+      [id, req.user.id],
+    );
+    if (!own[0]) return reply.code(404).send({ error: 'Not found' });
+    const { rows } = await query(
+      `SELECT e.id, e.kind, e.to_email AS to, e.subject, e.status, e.error, e.provider, e.created_at, e.sent_at, e.send_after, e.body_html AS html_raw,
+              (e.in_reply_to IS NOT NULL) AS in_thread
+         FROM outbound_emails e WHERE e.task_id = $1 ORDER BY e.created_at`,
+      [id],
+    );
+    return rows.map(({ html_raw, ...e }) => ({ ...e, html: inertLinks(html_raw) }));
+  });
+
   app.patch('/api/tasks/:id', auth, async (req, reply) => {
     const { id } = Uuid.parse(req.params);
     const body = z.object({ directory_id: z.string().uuid() }).parse(req.body);

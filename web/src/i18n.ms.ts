@@ -1359,4 +1359,17 @@ export const ms: Record<string, string> = {
   "{n} days": "{n} hari",
   "Did we hit the targets?": "Adakah sasaran dicapai?",
   "Actual figures against the targets above (e.g. roll rate 13%, target below 15%).": "Angka sebenar berbanding sasaran di atas (cth. kadar roll 13%, sasaran bawah 15%).",
+  // ── Email preview and threads ──
+  "Email preview": "Pratonton e-mel",
+  "Your Microsoft mailbox (connect it to send)": "Peti mel Microsoft anda (sambungkan untuk menghantar)",
+  "same thread as earlier emails": "bebenang sama dengan e-mel terdahulu",
+  "No email yet.": "Belum ada e-mel.",
+  "waiting to send": "menunggu dihantar",
+  "recorded in outbox (not sent)": "direkod dalam peti keluar (tidak dihantar)",
+  "Your note (edit here)": "Nota anda (sunting di sini)",
+  "What {name} will receive": "Apa yang {name} akan terima",
+  "the owner": "pemilik",
+  "The buttons do not work in this preview. Personal data is removed before sending.": "Butang tidak berfungsi dalam pratonton ini. Data peribadi dibuang sebelum dihantar.",
+  "Hide emails": "Sembunyi e-mel",
+  "View emails ({n})": "Lihat e-mel ({n})",
 };

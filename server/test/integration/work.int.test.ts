@@ -131,7 +131,8 @@ describe.skipIf(!url || !redisUrl)('work automation (integration)', () => {
     expect(t).toEqual({ owner_type: 'human', status: 'sent', approved: true });
     const mail = (await db.query(`SELECT to_email, subject, body_text FROM outbound_emails WHERE task_id = $1`, [taskId.id])).rows[0];
     expect(mail.to_email).toBe('siti@xanderia.com.my');
-    expect(mail.subject).toContain('Task assigned to you: Write the SOP');
+    expect(mail.subject).toMatch(/^Tasks from Administrator: /);
+    expect(mail.body_text).toContain('Task: Write the SOP');
     expect(mail.body_text).toContain('Dear Siti Noor,');
     expect(mail.body_text).toContain('WHAT YOU NEED TO DO\nWrite the SOP for monthly reconciliation.');
     expect(mail.body_text).toContain('---------- DRAFT ----------');

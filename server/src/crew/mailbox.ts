@@ -2,7 +2,8 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } f
 import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { redis } from '../redis.js';
-import type { MailMessage } from './mailer.js';
+import MailComposer from 'nodemailer/lib/mail-composer';
+import { threadOptions, type MailMessage } from './mailer.js';
 
 /**
  * Each user's own Microsoft 365 mailbox. A user connects once (OAuth 2.0 authorization code + PKCE,
@@ -147,16 +148,28 @@ async function accessToken(userId: string, fetchImpl: typeof fetch) {
   }
 }
 
+/** The whole email as MIME (base64), so the thread headers reach the recipient: Graph's JSON form only allows x- headers. */
+export async function mimeFor(msg: MailMessage, from: { address: string; name?: string | null }) {
+  const mail = new MailComposer({
+    from: from.name ? { name: from.name, address: from.address } : from.address,
+    to: msg.to,
+    subject: msg.subject,
+    text: msg.text,
+    html: msg.html,
+    ...threadOptions(msg.threading),
+  });
+  const raw: Buffer = await new Promise((resolve, reject) => mail.compile().build((err, out) => (err ? reject(err) : resolve(out))));
+  return raw.toString('base64');
+}
+
 /** Send as the user through Graph. MailboxExpiredError means: hold the email until they reconnect. */
 export async function sendAsUser(userId: string, msg: MailMessage, fetchImpl: typeof fetch = fetch) {
   const token = await accessToken(userId, fetchImpl);
+  const { rows } = await query(`SELECT address, display_name FROM user_mailboxes WHERE user_id = $1`, [userId]);
   const res = await fetchImpl(`${GRAPH}/me/sendMail`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      message: { subject: msg.subject, body: { contentType: 'HTML', content: msg.html }, toRecipients: [{ emailAddress: { address: msg.to } }] },
-      saveToSentItems: true,
-    }),
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'text/plain' },
+    body: await mimeFor(msg, { address: rows[0].address, name: rows[0].display_name }),
     signal: AbortSignal.timeout(20_000),
   });
   if (res.status === 401) {

@@ -15,7 +15,14 @@ function fakeMicrosoft() {
   let refreshFails = false;
   const fetchImpl = (async (input: any, init: any = {}) => {
     const u = String(input);
-    const body = init.body instanceof URLSearchParams ? Object.fromEntries(init.body) : init.body ? JSON.parse(init.body) : null;
+    const parse = (b: string) => {
+      try {
+        return JSON.parse(b);
+      } catch {
+        return Buffer.from(b, 'base64').toString('utf8'); // sendMail in MIME form
+      }
+    };
+    const body = init.body instanceof URLSearchParams ? Object.fromEntries(init.body) : init.body ? parse(init.body) : null;
     calls.push({ url: u, body, auth: init.headers?.authorization });
     const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
     if (u.endsWith('/oauth2/v2.0/token')) {
@@ -132,8 +139,9 @@ describe.skipIf(!url || !redisUrl)('welcome email and own Microsoft mailbox (int
     await crew.sendQueuedEmails(new Date(), ms.fetchImpl);
     const send = ms.calls.find((c) => c.url.endsWith('/me/sendMail'))!;
     expect(send.auth).toMatch(/^Bearer access-/);
-    expect(send.body.message.toRecipients[0].emailAddress.address).toBe('aina.test@xanderia.com.my');
-    expect(send.body.saveToSentItems).toBe(true);
+    expect(send.body).toMatch(/^To: aina\.test@xanderia\.com\.my$/m);
+    expect(send.body).toMatch(/^From: Andrew <andrew@xanderia\.com\.my>$/m);
+    expect(send.body).toContain('Welcome to Xanderia AI Council');
     expect((await db.query(`SELECT status, provider FROM outbound_emails WHERE to_email = 'aina.test@xanderia.com.my'`)).rows[0]).toEqual({ status: 'sent', provider: 'microsoft' });
   });
 

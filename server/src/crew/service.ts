@@ -11,8 +11,9 @@ import { redis } from '../redis.js';
 import { getSetting } from '../settings.js';
 import { addWorkingDays, DEFAULT_CALENDAR, isBusinessHours, klParts, nextBusinessMoment, type WorkCalendar } from './calendar.js';
 import { allowedRecipient, buildTaskEmail, cleanEmailBody, scrubEmailText } from './email.js';
-import { getMailProvider } from './mailer.js';
+import { getMailProvider, type MailMessage } from './mailer.js';
 import { MailboxExpiredError, msConfigured, sendAsUser } from './mailbox.js';
+import { childThreadIndex, newMessageId, replySubject, rootThreadIndex, threadKey } from './thread.js';
 import { resolveOwner, suggestCollaborators, type Collaborator, type DirectoryEntry } from './resolve.js';
 import { signTaskToken } from './tokens.js';
 import { DEFAULT_TIMINGS, trackerActions, type TrackerTimings } from './tracker.js';
@@ -299,34 +300,52 @@ export interface TaskEdit {
   owner_type?: 'human' | 'agent';
 }
 
-/** Queue an email for a task. Refuses anything the requester has not approved (HANDOFF §14.6). */
-export async function queueTaskEmail(taskId: string, kind: 'task' | 'reminder' | 'escalation', opts: { to?: string } = {}) {
+type TaskEmailKind = 'task' | 'reminder' | 'escalation';
+
+/** Domain for our Message-IDs: the one in MAIL_FROM. */
+const messageIdDomain = () => config.MAIL_FROM.match(/@([a-z0-9.-]+)/i)?.[1] ?? 'xanderia-council';
+
+/** The earlier emails of a thread (plan + recipient) that were or will be sent, oldest first. */
+async function threadHistory(key: string) {
+  const { rows } = await query(
+    `SELECT subject, message_id, references_ids, thread_index FROM outbound_emails
+      WHERE thread_key = $1 AND message_id IS NOT NULL AND status NOT IN ('blocked', 'failed') ORDER BY created_at`,
+    [key],
+  );
+  return rows as Array<{ subject: string; message_id: string; references_ids: string[] | null; thread_index: string }>;
+}
+
+/**
+ * Build a task email exactly as it will be sent: recipient, subject in the plan's thread, body.
+ * Used to queue it and, with the requester's unsaved edits (note, owner), to preview it.
+ */
+export async function composeTaskEmail(
+  taskId: string,
+  kind: TaskEmailKind,
+  opts: { to?: string; emailBody?: string; directoryId?: string | null } = {},
+) {
   const { rows } = await query(
     `SELECT t.*, s.name AS owner_name, s.email AS owner_email, s.manager_email,
             p.title AS plan_title, p.requester_id, u.display_name AS requester_name
        FROM action_tasks t
        JOIN action_plans p ON p.id = t.plan_id
        JOIN users u ON u.id = p.requester_id
-       LEFT JOIN staff_directory s ON s.id = t.directory_id
+       LEFT JOIN staff_directory s ON s.id = COALESCE($2::uuid, t.directory_id)
       WHERE t.id = $1`,
-    [taskId],
+    [taskId, opts.directoryId ?? null],
   );
   const t = rows[0];
   if (!t) throw new CrewError('Task not found', 404);
-  if (!t.approved) throw new CrewError('This task has not been approved by the requester; nothing is sent without approval');
-  if (t.owner_type !== 'human' || !t.owner_email) throw new CrewError('Task has no owner from the staff directory');
-
-  const to = kind === 'escalation' ? opts.to ?? t.manager_email : t.owner_email;
-  if (!to) throw new CrewError('No recipient email');
+  const to: string | null = kind === 'escalation' ? opts.to ?? t.manager_email : t.owner_email;
   const email = buildTaskEmail({
     kind,
     // Addressed properly: "Dear Aina Rahman," (the escalation letter goes to the manager).
-    ownerName: t.owner_name,
+    ownerName: t.owner_name ?? '(choose an owner)',
     assigneeName: kind === 'escalation' ? t.owner_name : undefined,
     title: t.title,
     whatToDo: t.description,
     // The Herald's (or the requester's edited) note; reminders and escalations say only why they are sent.
-    body: kind === 'task' ? t.email_body ?? '' : '',
+    body: kind === 'task' ? opts.emailBody ?? t.email_body ?? '' : '',
     reminderNote:
       kind === 'reminder' ? (t.acknowledged_at ? 'Please let us know how it is going.' : 'We have not yet heard whether you can take it on.') : undefined,
     dueDate: t.due_date ? new Date(t.due_date).toISOString().slice(0, 10) : null,
@@ -334,14 +353,38 @@ export async function queueTaskEmail(taskId: string, kind: 'task' | 'reminder' |
     planTitle: t.plan_title,
     links: links(taskId),
   });
+  // One conversation per plan and person: the first email sets the subject, later ones reply to it.
+  const key = to ? threadKey(t.plan_id, to) : null;
+  const history = key ? await threadHistory(key) : [];
+  const plan = String(t.plan_title).replace(/\s+/g, ' ').trim();
+  const rootSubject = history[0]?.subject.replace(/^(re:\s*)+/i, '') ??
+    (kind === 'escalation' ? `Overdue task from ${t.requester_name}: ` : `Tasks from ${t.requester_name}: `) + (plan.length > 90 ? `${plan.slice(0, 88)}…` : plan);
+  email.subject = history.length ? replySubject(rootSubject) : rootSubject;
+  return { t, to, email, key, history, rootSubject };
+}
+
+/** Queue an email for a task. Refuses anything the requester has not approved (HANDOFF §14.6). */
+export async function queueTaskEmail(taskId: string, kind: TaskEmailKind, opts: { to?: string } = {}) {
+  const { t, to, email, key, history } = await composeTaskEmail(taskId, kind, opts);
+  if (!t.approved) throw new CrewError('This task has not been approved by the requester; nothing is sent without approval');
+  if (t.owner_type !== 'human' || !t.owner_email) throw new CrewError('Task has no owner from the staff directory');
+  if (!to || !key) throw new CrewError('No recipient email');
   const domains = await emailDomains();
   const blocked = !allowedRecipient(to, domains);
   const sendAfter = nextBusinessMoment(new Date(), await loadCalendar());
+  const last = history.at(-1);
+  const messageId = newMessageId(messageIdDomain());
+  const threadIndex = last ? childThreadIndex(last.thread_index, new Date()) : rootThreadIndex(key, new Date());
   await query(
-    // Sent from the mailbox of the person who planned the work.
-    `INSERT INTO outbound_emails (task_id, kind, to_email, subject, body_text, body_html, status, error, send_after, sender_user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [taskId, kind, to, email.subject, email.text, email.html, blocked ? 'blocked' : 'queued', blocked ? `Recipient domain not in allowlist (${domains.join(', ')})` : null, sendAfter, t.requester_id],
+    // Sent from the mailbox of the person who planned the work, in the plan's thread with this person.
+    `INSERT INTO outbound_emails (task_id, kind, to_email, subject, body_text, body_html, status, error, send_after, sender_user_id,
+                                  thread_key, message_id, in_reply_to, references_ids, thread_index)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+    [
+      taskId, kind, to, email.subject, email.text, email.html, blocked ? 'blocked' : 'queued',
+      blocked ? `Recipient domain not in allowlist (${domains.join(', ')})` : null, sendAfter, t.requester_id,
+      key, messageId, last?.message_id ?? null, history.map((h) => h.message_id).slice(-20), threadIndex,
+    ],
   );
   await taskEvent(taskId, blocked ? 'email_blocked' : 'email_queued', 'herald', { kind, to });
   return { blocked, sendAfter };
@@ -648,7 +691,23 @@ export async function sendQueuedEmails(now = new Date(), fetchImpl: typeof fetch
       await query(`UPDATE outbound_emails SET status = 'blocked', error = 'Recipient domain not in allowlist' WHERE id = $1`, [e.id]);
       continue;
     }
-    const msg = { to: e.to_email, subject: e.subject, text: e.body_text, html: e.body_html };
+    const msg: MailMessage = {
+      to: e.to_email,
+      subject: e.subject,
+      text: e.body_text,
+      html: e.body_html,
+      ...(e.message_id
+        ? {
+            threading: {
+              messageId: e.message_id,
+              inReplyTo: e.in_reply_to ?? undefined,
+              references: e.references_ids ?? [],
+              threadTopic: e.subject.replace(/^(re:\s*)+/i, ''),
+              threadIndex: e.thread_index,
+            },
+          }
+        : {}),
+    };
     const fromUser = viaMailboxes && e.sender_user_id;
     const providerId = fromUser ? 'microsoft' : provider.id;
     try {

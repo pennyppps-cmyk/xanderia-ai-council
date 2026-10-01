@@ -1,11 +1,25 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
+import type { Threading } from './thread.js';
 
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
   html: string;
+  /** Keeps the email in the same conversation as earlier emails from the plan to this person. */
+  threading?: Threading;
+}
+
+/** The thread headers as nodemailer options (SMTP, and the MIME we hand to Microsoft Graph). */
+export function threadOptions(t?: Threading) {
+  if (!t) return {};
+  return {
+    messageId: t.messageId,
+    ...(t.inReplyTo ? { inReplyTo: t.inReplyTo } : {}),
+    ...(t.references?.length ? { references: t.references } : {}),
+    headers: { 'Thread-Topic': t.threadTopic, 'Thread-Index': t.threadIndex },
+  };
 }
 
 /** Mail provider interface (HANDOFF §14.4). Gmail API / Microsoft Graph can be added as further providers. */
@@ -34,7 +48,8 @@ export function smtpProvider(): MailProvider {
   return {
     id: 'smtp',
     async send(msg) {
-      await transport.sendMail({ from: config.MAIL_FROM, ...msg });
+      const { threading, ...rest } = msg;
+      await transport.sendMail({ from: config.MAIL_FROM, ...rest, ...threadOptions(threading) });
       return 'sent';
     },
   };
@@ -52,7 +67,25 @@ export function n8nProvider(fetchImpl: typeof fetch = fetch): MailProvider {
           'content-type': 'application/json',
           ...(config.N8N_MAIL_SECRET ? { 'x-council-secret': config.N8N_MAIL_SECRET } : {}),
         },
-        body: JSON.stringify({ from: config.MAIL_FROM, ...msg }),
+        body: JSON.stringify({
+          from: config.MAIL_FROM,
+          to: msg.to,
+          subject: msg.subject,
+          text: msg.text,
+          html: msg.html,
+          // For the workflow to set on the outgoing email, so replies and follow-ups stay in one thread.
+          ...(msg.threading
+            ? {
+                headers: {
+                  'Message-ID': msg.threading.messageId,
+                  ...(msg.threading.inReplyTo ? { 'In-Reply-To': msg.threading.inReplyTo } : {}),
+                  ...(msg.threading.references?.length ? { References: msg.threading.references.join(' ') } : {}),
+                  'Thread-Topic': msg.threading.threadTopic,
+                  'Thread-Index': msg.threading.threadIndex,
+                },
+              }
+            : {}),
+        }),
         signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) throw new Error(`n8n webhook returned ${res.status}`);

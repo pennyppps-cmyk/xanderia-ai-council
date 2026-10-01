@@ -41,3 +41,43 @@ describe('temporary password', () => {
     expect(buildWelcomeEmail({ name: 'A', email: 'a@x.my', password: 'p', link: 'l' }).text).not.toContain('Microsoft');
   });
 });
+
+describe('email threads', () => {
+  it('builds Outlook conversation indexes: 22 bytes for the first email, +5 per reply', async () => {
+    const { childThreadIndex, replySubject, rootThreadIndex } = await import('../src/crew/thread.js');
+    const at = new Date('2026-10-01T03:00:00Z');
+    const root = rootThreadIndex('plan:1:ain@x.my', at);
+    expect(Buffer.from(root, 'base64')).toHaveLength(22);
+    expect(Buffer.from(root, 'base64')[0]).toBe(1);
+    expect(rootThreadIndex('plan:1:ain@x.my', at)).toBe(root);
+    const r1 = childThreadIndex(root, new Date(at.getTime() + 3600_000));
+    const r2 = childThreadIndex(r1, new Date(at.getTime() + 86400_000));
+    expect(Buffer.from(r1, 'base64')).toHaveLength(27);
+    expect(Buffer.from(r2, 'base64')).toHaveLength(32);
+    expect(Buffer.from(r2, 'base64').subarray(0, 27).equals(Buffer.from(r1, 'base64'))).toBe(true);
+    expect(replySubject('Re: RE: Tasks from Andrew: Policy')).toBe('Re: Tasks from Andrew: Policy');
+  });
+
+  it('puts the thread headers in the MIME sent through Microsoft Graph', async () => {
+    const { mimeFor } = await import('../src/crew/mailbox.js');
+    const mime = Buffer.from(
+      await mimeFor(
+        {
+          to: 'ain@xanderia.com.my',
+          subject: 'Re: Tasks from Andrew: Policy',
+          text: 'hello',
+          html: '<p>hello</p>',
+          threading: { messageId: '<b@xanderia.com.my>', inReplyTo: '<a@xanderia.com.my>', references: ['<a@xanderia.com.my>'], threadTopic: 'Tasks from Andrew: Policy', threadIndex: 'AQHZ' },
+        },
+        { address: 'andrew@xanderia.com.my', name: 'Andrew' },
+      ),
+      'base64',
+    ).toString('utf8');
+    expect(mime).toMatch(/^Message-ID: <b@xanderia\.com\.my>$/im);
+    expect(mime).toMatch(/^In-Reply-To: <a@xanderia\.com\.my>$/im);
+    expect(mime).toMatch(/^References: <a@xanderia\.com\.my>$/im);
+    expect(mime).toMatch(/^Thread-Index: AQHZ$/im);
+    expect(mime).toMatch(/^Thread-Topic: Tasks from Andrew: Policy$/im);
+    expect(mime).toMatch(/^From: Andrew <andrew@xanderia\.com\.my>$/m);
+  });
+});

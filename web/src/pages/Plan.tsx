@@ -7,6 +7,7 @@ import { HelpButton } from '../components/HelpButton';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { OwnerPicker } from '../components/OwnerPicker';
 import { Badge, Button, cx, Icon, Spinner } from '../components/ui';
+import { SentTaskEmails, TaskEmailPreview } from '../components/EmailPreview';
 import type { CrewTask, Person, PlanSummary } from '../types';
 import { statusLabel, tl } from '../i18n';
 
@@ -307,17 +308,17 @@ function DraftRow({ task: t, edit, load, onChange }: { task: CrewTask; edit?: Dr
           </button>
         )}
         {showEmail && !isAgent && (
-          <div className="mt-2 rounded-lg border border-ink-100 bg-ink-50 p-2">
-            <p className="mb-1 text-xs text-ink-600">
-              <span className="font-semibold">{tl("Subject:")}</span> {t.email_subject}
-            </p>
+          <div className="mt-2 space-y-2 rounded-lg border border-ink-100 bg-ink-50 p-2">
+            <p className="text-xs font-semibold text-ink-600">{tl('Your note (edit here)')}</p>
             <textarea
               value={edit.email_body}
               onChange={(e) => onChange({ email_body: e.target.value })}
-              rows={6}
+              rows={5}
               className="w-full rounded-md border border-ink-200 bg-white p-2 text-sm focus:border-accent-600 focus:outline-none"
             />
-            <p className="text-[11px] text-ink-400">{tl("Accept / Need help / Mark done / Can't do buttons and the task details are added automatically. Personal data is removed before sending.")}</p>
+            <p className="text-xs font-semibold text-ink-600">{tl('What {name} will receive', { name: edit.owner?.name.split(' ')[0] ?? tl('the owner') })}</p>
+            <TaskEmailPreview taskId={t.id} emailBody={edit.email_body} ownerId={edit.owner?.id ?? null} />
+            <p className="text-[11px] text-ink-400">{tl('The buttons do not work in this preview. Personal data is removed before sending.')}</p>
           </div>
         )}
       </div>
@@ -465,17 +466,14 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
       </div>
       {t.response_note && <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">“{t.response_note}”</p>}
 
-      {t.owner_type === 'human' && t.email_body && t.status !== 'draft' && (
+      {t.owner_type === 'human' && (t.emails?.length ?? 0) > 0 && (
         <div className="mt-1.5">
           <button className="text-xs font-medium text-accent-700 hover:underline" onClick={() => setShowEmail((s) => !s)}>
-            {showEmail ? tl('Hide email') : tl('View email')}
+            {showEmail ? tl('Hide emails') : (t.emails?.length ?? 0) > 1 ? tl('View emails ({n})', { n: t.emails!.length }) : tl('View email')}
           </button>
           {showEmail && (
-            <div className="mt-1 max-h-72 overflow-y-auto rounded border border-ink-100 bg-ink-50 p-2 text-xs">
-              {lastEmail && <p className="text-ink-500">{tl('To')}: {lastEmail.to}</p>}
-              {t.email_subject && <p className="mb-1 font-medium text-ink-800">{t.email_subject}</p>}
-              <p className="whitespace-pre-wrap text-ink-700">{t.email_body}</p>
-              <p className="mt-2 text-ink-400">{tl('The email also has buttons to accept, ask for help, mark as done or say they cannot do it.')}</p>
+            <div className="mt-1">
+              <SentTaskEmails taskId={t.id} />
             </div>
           )}
         </div>

@@ -130,6 +130,37 @@ describe.skipIf(!url || !redisUrl)('Action Crew (integration)', () => {
     expect(e).toEqual({ to_email: 'boss@xanderia.com.my', kind: 'escalation' });
   });
 
+  it('keeps every email from one plan to one person in one thread; the manager gets their own', async () => {
+    await svc.queueTaskEmail(ids.t1, 'reminder');
+    const ain = (
+      await db.query(`SELECT kind, subject, message_id, in_reply_to, references_ids, thread_index, thread_key FROM outbound_emails WHERE to_email = 'ain@xanderia.com.my' ORDER BY created_at`)
+    ).rows;
+    expect(ain.map((e) => e.kind)).toEqual(['task', 'reminder']);
+    expect(ain[0].subject).toBe('Tasks from ' + (await db.query(`SELECT display_name FROM users WHERE id = $1`, [ids.user])).rows[0].display_name + ': ' + (await db.query(`SELECT title FROM action_plans WHERE id = $1`, [ids.plan])).rows[0].title);
+    expect(ain[1].subject).toBe(`Re: ${ain[0].subject}`);
+    expect(ain[0].in_reply_to).toBeNull();
+    expect(ain[1].in_reply_to).toBe(ain[0].message_id);
+    expect(ain[1].references_ids).toEqual([ain[0].message_id]);
+    expect(ain[0].message_id).toMatch(/^<[0-9a-f-]+@[a-z0-9.-]+>$/);
+    expect(ain[1].thread_index.startsWith(ain[0].thread_index.slice(0, 20))).toBe(true);
+    expect(Buffer.from(ain[1].thread_index, 'base64').length).toBe(Buffer.from(ain[0].thread_index, 'base64').length + 5);
+    const boss = (await db.query(`SELECT subject, in_reply_to FROM outbound_emails WHERE to_email = 'boss@xanderia.com.my'`)).rows[0];
+    expect(boss.subject).toMatch(/^Overdue task from /);
+    expect(boss.in_reply_to).toBeNull();
+  });
+
+  it('previews a draft task email with unsaved edits, in the thread it will join', async () => {
+    const none = await svc.composeTaskEmail(ids.t4, 'task', { emailBody: 'Could you help?' });
+    expect(none.to).toBeNull();
+    const p = await svc.composeTaskEmail(ids.t4, 'task', { emailBody: 'Could you lead this one?', directoryId: ids.ain });
+    expect(p.to).toBe('ain@xanderia.com.my');
+    expect(p.email.subject).toMatch(/^Re: Tasks from /);
+    expect(p.email.html).toContain('Could you lead this one?');
+    expect(p.email.html).toContain('Dear Nur Ain');
+    // A preview queues nothing.
+    expect((await db.query(`SELECT count(*)::int AS n FROM outbound_emails WHERE task_id = $1`, [ids.t4])).rows[0].n).toBe(0);
+  });
+
   it('the sender delivers queued emails only in business hours, via the outbox provider by default', async () => {
     const { klInstant } = await import('../../src/crew/calendar.js');
     await db.query(`UPDATE outbound_emails SET send_after = now() - interval '1 day' WHERE status = 'queued'`);
