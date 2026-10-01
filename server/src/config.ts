@@ -51,6 +51,12 @@ const Env = z.object({
   // On-premises speech-to-text (OpenAI-compatible /v1/audio/transcriptions, e.g. the `voice` compose profile).
   WHISPER_URL: z.string().optional(),
   WHISPER_MODEL: z.string().default('Systran/faster-whisper-small'),
+  // The company Document Extractor (doc-extractor, e.g. http://host.docker.internal:8001) with a service
+  // account that has the payslip, ic, ape, ape_pc and base features. Attached payslips, bank statements,
+  // Angkasa statements, MyKad scans and photos are then read and checked by it. Off when unset.
+  EXTRACTOR_URL: z.string().optional(),
+  EXTRACTOR_USER: z.string().optional(),
+  EXTRACTOR_PASSWORD: z.string().optional(),
   LOG_LEVEL: z.string().default('info'),
 });
 

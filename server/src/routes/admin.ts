@@ -362,6 +362,12 @@ export default async function adminRoutes(app: FastifyInstance) {
         crew_email_domains: z.array(z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i)).min(1).optional(),
         crew_business_hours: z.object({ start: z.number().int().min(0).max(23), end: z.number().int().min(1).max(24) }).optional(),
         crew_weekend: z.array(z.number().int().min(0).max(6)).max(3).optional(),
+        weekly_plan_enabled: z.boolean().optional(),
+        weekly_checkin_enabled: z.boolean().optional(),
+        portfolio_alerts: z
+          .object({ enabled: z.boolean(), npl_ratio_max: z.number().min(0).max(100), par30_max: z.number().min(0).max(100), branch_npl_max: z.number().min(0).max(100) })
+          .optional(),
+        crew_overload: z.object({ open: z.number().int().min(1).max(100), overdue: z.number().int().min(1).max(100) }).optional(),
         crew_timings: z
           .object({
             ackReminderDays: z.number().int().min(1).max(20),

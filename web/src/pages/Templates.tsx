@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { Badge, Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
+import { Badge, Button, cx, Field, FilePicker, Icon, inputCls, Spinner } from '../components/ui';
 import { tl } from '../i18n';
 import { Shell } from './Plan';
 
@@ -76,7 +76,7 @@ function TemplateList() {
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <Field label={tl('Word template (.docx)')}>
-            <input type="file" accept=".docx" className="block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <FilePicker accept={['.docx']} file={file} onChange={setFile} />
           </Field>
           <Field label={tl('Name')}>
             <input className={inputCls} value={name} placeholder={tl('e.g. Payment reminder')} onChange={(e) => setName(e.target.value)} />
@@ -286,7 +286,7 @@ function DataTab({ t, draft, setDraft, meta, run, headers, busy, run$, reload }:
         <p className="mt-1 text-xs text-ink-500">{tl('The spreadsheet with one row per document (.xlsx or .csv). Next month, upload the new file here: the mapping is kept.')}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-4">
           <Field label={tl('Data file')}>
-            <input type="file" accept=".xlsx,.csv" className="block w-full text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setSheets([]); setSheet(''); }} />
+            <FilePicker accept={['.xlsx', '.csv']} file={file} onChange={(f) => { setFile(f); setSheets([]); setSheet(''); }} />
           </Field>
           <Field label={tl('Date for {{date}} tags')}>
             <input type="date" className={inputCls} value={runDate} onChange={(e) => setRunDate(e.target.value)} />
@@ -478,7 +478,7 @@ function TemplateTab({ t, busy, run$, reload }: { t: Template; busy: string | nu
           </Button>
           {t.canEdit && (
             <>
-              <input type="file" accept=".docx" className="w-48 text-xs" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <div className="w-64"><FilePicker compact accept={['.docx']} file={file} onChange={setFile} /></div>
               <Button
                 size="sm"
                 disabled={!file || busy !== null}

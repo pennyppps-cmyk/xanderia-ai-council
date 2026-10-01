@@ -78,7 +78,10 @@ describe.skipIf(!url || !redisUrl)('account invites and resets (integration)', (
   it('account emails are sent outside business hours; task emails wait', async () => {
     const svc = await import('../../src/crew/service.js');
     const { klInstant } = await import('../../src/crew/calendar.js');
-    const n = await svc.sendQueuedEmails(klInstant('2026-09-26', 23)); // Saturday night
+    // A Saturday after today, so the emails queued just now are due (a fixed date broke once it passed).
+    const d = new Date(Date.now() + 8 * 3600_000 + 86400_000);
+    while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1);
+    const n = await svc.sendQueuedEmails(klInstant(d.toISOString().slice(0, 10), 23)); // Saturday night
     expect(n).toBeGreaterThan(0);
     const statuses = (await db.query(`SELECT DISTINCT status FROM outbound_emails WHERE kind = 'account' AND to_email LIKE 'new.hire%'`)).rows.map((r) => r.status);
     expect(statuses).toEqual(['logged']);

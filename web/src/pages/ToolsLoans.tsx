@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Markdown } from '../components/Markdown';
+import { CreateTasksButton } from '../components/CreateTasksButton';
 import { Badge, Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
 import { getLang, tl } from '../i18n';
 
@@ -57,7 +58,15 @@ interface Summary {
   vintage: Array<{ cohort: string; accounts: number; balance: number; nplRatio: number; par30: number }>;
   rollRates: null | { matched: number; rates: Array<{ from: string; worse: number; same: number; better: number }> };
 }
-interface PortfolioResult { month: string; snapshotId: string | null; summary: Summary; trend: Array<{ month: string; nplRatio: number; par30: number }>; markdown: string }
+interface PortfolioResult {
+  month: string;
+  snapshotId: string | null;
+  summary: Summary;
+  trend: Array<{ month: string; nplRatio: number; par30: number }>;
+  markdown: string;
+  // Set when the saved month breaks management's limits (Admin → Settings).
+  alert?: { breaches: string[]; conversationId: string | null } | null;
+}
 
 export function PortfolioTool({ ask }: { ask(t: string): void }) {
   const { me } = useAuth();
@@ -179,6 +188,23 @@ export function PortfolioTool({ ask }: { ask(t: string): void }) {
           {commentary && (
             <div className="rounded-lg border border-ink-100 p-3">
               <Markdown text={commentary} />
+            </div>
+          )}
+          {res.alert && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <p className="font-medium">{tl('Limits broken this month')}</p>
+              <ul className="mt-1 list-disc pl-5">
+                {res.alert.breaches.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+              {res.alert.conversationId ? (
+                <a href={`/c/${res.alert.conversationId}`} className="mt-2 inline-block font-medium text-red-900 underline">
+                  {tl('The council is meeting on this now: open it')}
+                </a>
+              ) : (
+                <p className="mt-1 text-xs">{tl('The council already met on this month; see your conversations.')}</p>
+              )}
             </div>
           )}
           <div className="flex flex-wrap gap-2">
@@ -381,6 +407,12 @@ export function DeductionsTool({ ask }: { ask(t: string): void }) {
                   ))}
                 </select>
                 <Button size="sm" onClick={download}>{tl('Download exceptions (Excel CSV)')}</Button>
+                <CreateTasksButton
+                  endpoint="/api/tools/deductions/tasks"
+                  body={{ matchedOn: r.matchedOn, counts: r.counts, exceptions: r.exceptions.map((e) => ({ kind: e.kind, key: e.key, difference: e.difference })) }}
+                  label={tl('Create tasks for Finance')}
+                  hint={tl('One task per kind of exception, with counts and totals (account numbers only, never names or IC numbers). You check owners and dates before anything is sent.')}
+                />
               </div>
               <div className="max-h-96 overflow-auto">
                 <table className="w-full min-w-[620px] text-sm">

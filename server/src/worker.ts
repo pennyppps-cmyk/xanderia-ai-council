@@ -8,6 +8,11 @@ import { migrate } from './db/migrate.js';
 import { pool, query } from './db/pool.js';
 import { seed } from './db/seed.js';
 import { CREW_QUEUE, enqueueRunner, type CrewJob } from './queue/crewQueue.js';
+import { DOC_QUEUE, enqueueDocumentWrite, type DocJob } from './queue/docQueue.js';
+import { rewriteSection, writeDocument } from './documents/service.js';
+import { writeMinutes } from './work/meetings.js';
+import { routineTick } from './work/routines.js';
+import { weeklyEmails } from './work/weekly.js';
 import { createPublisher } from './queue/events.js';
 import { QUEUE_NAME, type MessageJob } from './queue/queue.js';
 import { createRedis, redis } from './redis.js';
@@ -50,6 +55,18 @@ const crewWorker = new Worker<CrewJob>(
 );
 crewWorker.on('failed', (job, err) => console.error(`[crew] job ${job?.id} failed:`, err.message));
 
+// Official documents: one section per model call, one document at a time, at background priority.
+const docWorker = new Worker<DocJob>(
+  DOC_QUEUE,
+  async (job) => {
+    if (job.data.type === 'write') await writeDocument(job.data.documentId, events);
+    else if (job.data.type === 'rewrite') await rewriteSection(job.data.documentId, job.data.key, job.data.instruction, events);
+    else await writeMinutes(job.data.meetingId);
+  },
+  { connection: createRedis(), concurrency: 1, lockDuration: 600_000 },
+);
+docWorker.on('failed', (job, err) => console.error(`[documents] job ${job?.id} failed:`, err.message));
+
 // Maintenance: nightly retention, the Tracker every 15 minutes, the email sender every minute.
 const maintenance = new Queue('maintenance', { connection: createRedis() });
 await maintenance.upsertJobScheduler('retention', { pattern: '0 3 * * *' }, { name: 'retention' });
@@ -62,6 +79,11 @@ await maintenance.upsertJobScheduler('freshness', { pattern: '15 1 * * *' }, { n
 await maintenance.upsertJobScheduler('digest', { pattern: '0 0 * * 1' }, { name: 'digest' });
 // Improvement report to admins on the 1st of each month, 09:00 KL.
 await maintenance.upsertJobScheduler('improvement', { pattern: '0 1 1 * *' }, { name: 'improvement' });
+// Routines create their cycle's tasks at 07:30 KL on their run day; weekly plan Monday 08:00 KL,
+// Friday check-in 15:00 KL (both off until switched on in Settings).
+await maintenance.upsertJobScheduler('routines', { pattern: '30 23 * * *' }, { name: 'routines' });
+await maintenance.upsertJobScheduler('weekplan', { pattern: '0 0 * * 1' }, { name: 'weekplan' });
+await maintenance.upsertJobScheduler('weekcheckin', { pattern: '0 7 * * 5' }, { name: 'weekcheckin' });
 // Company memory: decisions recorded before memory existed get embedded once.
 void backfillDecisionEmbeddings(pool, (t) => embed(t, { purpose: 'memory_index' }))
   .then((n) => n && console.log(`[memory] indexed ${n} past decision(s)`))
@@ -86,6 +108,12 @@ const maintenanceWorker = new Worker(
       if (n) console.log(`[freshness] ${n} stale document(s) flagged`);
     } else if (job.name === 'digest') {
       if (await getSetting('weekly_digest_enabled', true)) console.log(`[digest] ${await weeklyDigests()} digest(s) queued`);
+    } else if (job.name === 'routines') {
+      const n = await routineTick();
+      if (n) console.log(`[routines] ${n} cycle(s) created`);
+    } else if (job.name === 'weekplan' || job.name === 'weekcheckin') {
+      const n = await weeklyEmails(job.name === 'weekplan' ? 'plan' : 'checkin');
+      if (n) console.log(`[${job.name}] ${n} email(s) queued`);
     } else if (job.name === 'improvement') {
       console.log(`[improvement] report queued for ${await monthlyImprovementReport()} admin(s)`);
     } else if (job.name === 'mailer') {
@@ -113,10 +141,14 @@ await query(
 // the job id is per task, so this never runs one twice.
 for (const r of (await query(`SELECT id FROM action_tasks WHERE status = 'running'`)).rows) await enqueueRunner(r.id);
 
+// Documents cut off by a restart carry on from the first section that is not written yet.
+for (const r of (await query(`SELECT id FROM official_documents WHERE status IN ('queued', 'writing')`)).rows) await enqueueDocumentWrite(r.id);
+
 async function shutdown() {
   console.log('[worker] shutting down');
   await worker.close();
   await crewWorker.close();
+  await docWorker.close();
   await maintenanceWorker.close();
   await maintenance.close();
   await pool.end();

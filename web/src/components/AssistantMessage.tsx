@@ -7,6 +7,7 @@ import { useMessageStream, type LivePart, type LiveState } from '../useMessageSt
 import { CouncilRoom, setCouncilView, useCouncilView } from './CouncilRoom';
 import { Markdown } from './Markdown';
 import { RecordDecision } from '../pages/Decisions';
+import { OfficialDocForm } from '../pages/Documents';
 import { Badge, Button, cx, Icon, Spinner, Typing } from './ui';
 import { getLang, statusLabel, tl } from '../i18n';
 
@@ -542,7 +543,7 @@ function Actions({
   onWhatIf?(change: string): Promise<void>;
   onDraft?(request: string): void;
 }) {
-  const [panel, setPanel] = useState<null | 'whatif' | 'draft'>(null);
+  const [panel, setPanel] = useState<null | 'whatif' | 'draft' | 'official'>(null);
   const [rating, setRating] = useState<1 | -1 | null>(message.my_rating ?? null);
   const [commenting, setCommenting] = useState(false);
   const [comment, setComment] = useState('');
@@ -590,6 +591,12 @@ function Actions({
           <Button size="sm" variant="ghost" aria-expanded={panel === 'whatif'} onClick={() => setPanel(panel === 'whatif' ? null : 'whatif')}
             title={tl('Change one assumption and let the council update its verdict')}>
             <Icon name="search" className="h-3.5 w-3.5" /> {tl('What if…')}
+          </Button>
+        )}
+        {verdict && (
+          <Button size="sm" variant="ghost" aria-expanded={panel === 'official'} onClick={() => setPanel(panel === 'official' ? null : 'official')}
+            title={tl('An executive brief or board paper on the company letterhead')}>
+            <Icon name="file" className="h-3.5 w-3.5" /> {tl('Official document')}
           </Button>
         )}
         {onDraft && (
@@ -649,6 +656,7 @@ function Actions({
         </form>
       )}
       {panel === 'whatif' && onWhatIf && <WhatIfForm onSubmit={async (c) => { await onWhatIf(c); setPanel(null); }} />}
+      {panel === 'official' && verdict && <OfficialDocForm messageId={message.id} onClose={() => setPanel(null)} />}
       {panel === 'draft' && onDraft && verdict !== undefined && (
         <DraftPicker
           onPick={(kind) => {

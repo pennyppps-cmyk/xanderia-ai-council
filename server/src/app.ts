@@ -21,6 +21,8 @@ import memoryRoutes from './routes/memory.js';
 import onboardingRoutes from './routes/onboarding.js';
 import notisRoutes from './routes/notis.js';
 import mergeRoutes from './routes/merge.js';
+import documentRoutes from './routes/documents.js';
+import workRoutes from './routes/work.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -63,5 +65,7 @@ export async function buildApp() {
   await app.register(onboardingRoutes);
   await app.register(notisRoutes);
   await app.register(mergeRoutes);
+  await app.register(documentRoutes);
+  await app.register(workRoutes);
   return app;
 }

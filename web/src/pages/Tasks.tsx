@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { CrewPanel } from '../components/CrewPanel';
-import { Badge, Button, Spinner } from '../components/ui';
+import { Badge, Button, Icon, Spinner } from '../components/ui';
 import type { CrewTask, PlanSummary } from '../types';
-import { Shell } from './Plan';
+import { deletePlan, Shell } from './Plan';
 import { statusLabel, tl } from '../i18n';
 
 const STATUS_TONE: Record<string, 'neutral' | 'green' | 'amber' | 'red' | 'blue'> = {
@@ -106,8 +106,18 @@ export default function TasksPage() {
               {plans.map((p) => {
                 const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
                 return (
-                  <li key={p.id}>
-                    <Link to={`/plans/${p.id}`} className="block rounded-xl border border-ink-100 bg-white p-3 hover:border-accent-500">
+                  <li key={p.id} className="group relative">
+                    <button
+                      className="absolute top-2 right-2 z-10 rounded-md p-1 text-ink-300 opacity-60 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                      title={tl('Delete this plan')}
+                      aria-label={tl('Delete this plan')}
+                      onClick={async () => {
+                        if (await deletePlan(p)) void load();
+                      }}
+                    >
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
+                    <Link to={`/plans/${p.id}`} className="block rounded-xl border border-ink-100 bg-white p-3 pr-9 hover:border-accent-500">
                       <p className="line-clamp-2 text-sm font-medium">{p.title}</p>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100">
                         <div className="h-full bg-accent-500" style={{ width: `${pct}%` }} />

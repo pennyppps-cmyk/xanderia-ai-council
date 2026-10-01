@@ -112,6 +112,38 @@ describe('task emails (acceptance: no IC or account numbers)', () => {
     expect(e.html).not.toContain('<b>there</b>');
   });
 
+  it('reads as a proper letter: addressed by name, the task clearly stated, then how to respond', () => {
+    const e = buildTaskEmail({
+      ...base,
+      kind: 'task',
+      ownerName: 'Aina Rahman',
+      title: 'Draft the SMS reminder script',
+      whatToDo: 'Write a two-line SMS reminder in BM and English for 1-30 DPD customers and send it to Compliance.',
+      body: 'The pilot starts in January, so the script needs Compliance approval first.',
+      planTitle: 'SMS reminder pilot',
+    });
+    expect(e.subject).toBe('Task assigned to you: Draft the SMS reminder script (due Thursday, 1 October 2026)');
+    expect(e.text.startsWith('Dear Aina Rahman,\n\nAndrew Chong has assigned you the following task, as part of "SMS reminder pilot".')).toBe(true);
+    expect(e.text).toContain('WHAT YOU NEED TO DO\nWrite a two-line SMS reminder');
+    expect(e.text).toContain('The pilot starts in January');
+    expect(e.text).toContain('Regards,\nAndrew Chong');
+    expect(e.html).toContain('Dear Aina Rahman,');
+    expect(e.html).toContain('WHAT YOU NEED TO DO');
+  });
+
+  it('does not repeat the task when the note is the same text', () => {
+    const e = buildTaskEmail({ ...base, kind: 'task', ownerName: 'Aina', title: 'Check the file', whatToDo: 'Check the Angkasa file.', body: 'Check the Angkasa file.' });
+    expect(e.text.match(/Check the Angkasa file\./g)).toHaveLength(1);
+  });
+
+  it('reminders and escalations say why they are sent', () => {
+    const r = buildTaskEmail({ ...base, kind: 'reminder', ownerName: 'Aina', title: 'Check the file', whatToDo: 'x', body: '', reminderNote: 'We have not yet heard whether you can take it on.' });
+    expect(r.text).toContain('This is a reminder about the task below, assigned to you by Andrew Chong. We have not yet heard');
+    const x = buildTaskEmail({ ...base, kind: 'escalation', ownerName: 'Aina', assigneeName: 'Aina', title: 'Check the file', body: '' });
+    expect(x.text.startsWith('Dear Sir/Madam,')).toBe(true);
+    expect(x.text).toContain('assigned to Aina, is overdue');
+  });
+
   it('allows internal domains only', () => {
     expect(allowedRecipient('ain@xanderia.com.my', ['xanderia.com.my'])).toBe(true);
     expect(allowedRecipient('AIN@Xanderia.com.my', ['@xanderia.com.my'])).toBe(true);

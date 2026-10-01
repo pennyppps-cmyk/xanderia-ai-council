@@ -8,6 +8,7 @@ import {
   CrewError,
   crewStatus,
   decideEscalation,
+  deletePlan,
   followUp,
   launchPlan,
   type TaskAction,
@@ -128,6 +129,19 @@ export default async function crewRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /**
+   * The requester deletes a plan and its tasks. Emails still waiting in the outbox are stopped
+   * first, so nothing about a deleted plan goes out; emails already sent cannot be recalled.
+   */
+  app.delete('/api/plans/:id', auth, async (req, reply) => {
+    const { id } = Uuid.parse(req.params);
+    try {
+      return { ok: true, ...(await deletePlan(id, req.user.id)) };
+    } catch (err) {
+      return crewErrors(reply, err);
+    }
+  });
+
   // ── Tasks ──
   app.post('/api/tasks/:id/action', auth, async (req, reply) => {
     const { id } = Uuid.parse(req.params);
@@ -157,12 +171,18 @@ export default async function crewRoutes(app: FastifyInstance) {
     const { id } = Uuid.parse(req.params);
     const body = z.object({ directory_id: z.string().uuid() }).parse(req.body);
     const { rows } = await query(
-      `SELECT t.id FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id WHERE t.id = $1 AND p.requester_id = $2`,
+      `SELECT t.id, t.owner_type, t.status FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id WHERE t.id = $1 AND p.requester_id = $2`,
       [id, req.user.id],
     );
     if (!rows[0]) return reply.code(404).send({ error: 'Not found' });
     const dir = await query(`SELECT id FROM staff_directory WHERE id = $1 AND is_active`, [body.directory_id]);
     if (!dir.rows[0]) return reply.code(400).send({ error: 'Owner must be chosen from the staff directory' });
+    // While the AI is drafting (or the draft waits for review), this only chooses who gets the task afterwards.
+    if (rows[0].owner_type === 'agent' && ['draft', 'running', 'review'].includes(rows[0].status)) {
+      await query(`UPDATE action_tasks SET directory_id = $2, updated_at = now() WHERE id = $1`, [id, body.directory_id]);
+      await query(`INSERT INTO task_events (task_id, kind, actor) VALUES ($1, 'handover_owner_set', $2)`, [id, `user:${req.user.id}`]);
+      return { ok: true };
+    }
     await query(
       `UPDATE action_tasks SET directory_id = $2, resolution = 'resolved', owner_type = 'human', status = 'draft', approved = false,
               sent_at = NULL, acknowledged_at = NULL, ack_reminded_at = NULL, due_reminded_at = NULL, nudged_at = NULL,
@@ -246,6 +266,7 @@ export default async function crewRoutes(app: FastifyInstance) {
   const ACTIONS: Record<string, { label: string; action: TaskAction; askNote: boolean }> = {
     accept: { label: 'Accept this task', action: 'accept', askNote: false },
     done: { label: 'Mark this task as done', action: 'done', askNote: false },
+    start: { label: 'Tell the requester it is on track', action: 'start', askNote: false },
     help: { label: 'Ask for help', action: 'help', askNote: true },
     cant: { label: "Tell the requester you can't do it", action: 'cant', askNote: true },
   };

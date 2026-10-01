@@ -15,6 +15,7 @@ import { getMailProvider } from './mailer.js';
 import { resolveOwner, suggestCollaborators, type Collaborator, type DirectoryEntry } from './resolve.js';
 import { signTaskToken } from './tokens.js';
 import { DEFAULT_TIMINGS, trackerActions, type TrackerTimings } from './tracker.js';
+import { readyToRelease } from '../work/plans.js';
 
 const events = createPublisher(redis);
 
@@ -254,7 +255,8 @@ async function draftEmailBody(i: {
   userId: string;
 }) {
   const people = i.collaborators ?? [];
-  const fallback = `You have been asked to take on this task: ${i.title}.\n\n${i.description}\n\nIt is part of a plan agreed through the Xanderia AI Council. Please confirm with the buttons below whether you can take it on.`;
+  // The email template already states the task and due date; the note only gives the background.
+  const fallback = `This task is part of the following decision: ${i.why}`;
   try {
     // No base layer: its delimiter wording made the model wrap emails in <document> tags.
     const system = await assemblePrompt({ base: false, task: 'crew_herald' });
@@ -317,15 +319,15 @@ export async function queueTaskEmail(taskId: string, kind: 'task' | 'reminder' |
   if (!to) throw new CrewError('No recipient email');
   const email = buildTaskEmail({
     kind,
-    ownerName: kind === 'escalation' ? 'there' : t.owner_name.split(' ')[0],
+    // Addressed properly: "Dear Aina Rahman," (the escalation letter goes to the manager).
+    ownerName: t.owner_name,
     assigneeName: kind === 'escalation' ? t.owner_name : undefined,
     title: t.title,
-    body:
-      kind === 'task'
-        ? t.email_body ?? t.description
-        : kind === 'reminder'
-          ? `A friendly reminder about this task${t.acknowledged_at ? '' : ', which has not been acknowledged yet'}. ${t.description}`
-          : `This task assigned to ${t.owner_name} is overdue and has not been completed. ${t.requester_name} asked the Council to raise it with you as their manager.`,
+    whatToDo: t.description,
+    // The Herald's (or the requester's edited) note; reminders and escalations say only why they are sent.
+    body: kind === 'task' ? t.email_body ?? '' : '',
+    reminderNote:
+      kind === 'reminder' ? (t.acknowledged_at ? 'Please let us know how it is going.' : 'We have not yet heard whether you can take it on.') : undefined,
     dueDate: t.due_date ? new Date(t.due_date).toISOString().slice(0, 10) : null,
     requesterName: t.requester_name,
     planTitle: t.plan_title,
@@ -362,7 +364,7 @@ export async function launchPlan(planId: string, userId: string, edits: TaskEdit
       const ownerType = e.owner_type ?? t.owner_type;
       let directoryId = e.directory_id === undefined ? t.directory_id : e.directory_id;
       if (directoryId && !directory.has(directoryId)) throw new CrewError('Owner must be chosen from the staff directory');
-      if (ownerType === 'agent') directoryId = null;
+      // An AI-drafted task keeps its person: the draft goes to them once the requester approves it.
       if (e.approved && ownerType === 'human' && !directoryId) {
         throw new CrewError(`Task ${t.seq} "${t.title}" needs an owner before it can be approved`);
       }
@@ -376,6 +378,14 @@ export async function launchPlan(planId: string, userId: string, edits: TaskEdit
       if (e.approved) (ownerType === 'agent' ? toRun : toEmail).push(t.id);
     }
   });
+
+  // Routine steps wait for the steps they depend on; approved but waiting tasks stay drafts
+  // until releaseWaiting() sends them.
+  if (plan.source === 'routine') {
+    const { rows: now } = await query(`SELECT id, seq, status, approved, depends_on FROM action_tasks WHERE plan_id = $1`, [planId]);
+    const ready = new Set(readyToRelease(now));
+    for (const list of [toEmail, toRun]) list.splice(0, list.length, ...list.filter((id) => ready.has(id)));
+  }
 
   let queued = 0;
   let blocked = 0;
@@ -391,7 +401,7 @@ export async function launchPlan(planId: string, userId: string, edits: TaskEdit
     await query(`UPDATE action_tasks SET status = 'running' WHERE id = $1`, [id]);
     await taskEvent(id, 'runner_queued', 'runner');
   }
-  if (toEmail.length || toRun.length) {
+  if (toEmail.length || toRun.length || edits.some((e) => e.approved)) {
     await query(`UPDATE action_plans SET status = 'launched', launched_at = COALESCE(launched_at, now()) WHERE id = $1`, [planId]);
   }
   await writeAudit({
@@ -432,6 +442,8 @@ export async function applyTaskAction(taskId: string, action: TaskAction, actor:
   );
   const t = rows[0];
   if (!t) throw new CrewError('Task not found', 404);
+  // An approved AI draft with a person to hand it to becomes their task, draft included.
+  if (action === 'approve_draft' && t.status === 'review' && t.directory_id) return handDraftToOwner(t, actor);
   const to = nextStatus(t.status, action);
   if (!to) return { changed: false, status: t.status as string };
 
@@ -455,8 +467,77 @@ export async function applyTaskAction(taskId: string, action: TaskAction, actor:
   if (messages[action] && !actor.startsWith('user:' + t.requester_id)) {
     await notify(t.requester_id, { kind: `task_${action}`, title: messages[action]!, body: note, link: `/plans/${t.plan_id}`, taskId });
   }
+  if (to === 'done' || to === 'cancelled') await releaseWaiting(t.plan_id);
   await maybeCompletePlan(t.plan_id);
   return { changed: true, status: to };
+}
+
+/**
+ * The requester deletes their plan and its tasks. Emails still waiting in the outbox are stopped
+ * first (they keep no task link after the delete, so the sender would otherwise still send them).
+ */
+export async function deletePlan(planId: string, userId: string) {
+  const { rows: plans } = await query(`SELECT title, status FROM action_plans WHERE id = $1 AND requester_id = $2`, [planId, userId]);
+  if (!plans[0]) throw new CrewError('Not found', 404);
+  const counts = await tx(async (c) => {
+    const stopped = await c.query(
+      `UPDATE outbound_emails SET status = 'blocked', error = 'Plan deleted'
+        WHERE status = 'queued' AND task_id IN (SELECT id FROM action_tasks WHERE plan_id = $1)`,
+      [planId],
+    );
+    const { rows } = await c.query(`SELECT count(*)::int AS n FROM action_tasks WHERE plan_id = $1`, [planId]);
+    await c.query(`UPDATE meetings SET plan_id = NULL WHERE plan_id = $1`, [planId]);
+    await c.query(`DELETE FROM action_plans WHERE id = $1`, [planId]);
+    return { tasks: rows[0].n as number, emailsStopped: stopped.rowCount ?? 0 };
+  });
+  await writeAudit({ actorUserId: userId, action: 'action_plan_deleted', targetType: 'action_plan', targetId: planId, detail: { title: plans[0].title, status: plans[0].status, ...counts } });
+  return counts;
+}
+
+/** Longest AI draft copied into a task email; the full draft stays on the task in the app. */
+const DRAFT_IN_EMAIL = 8000;
+
+export function draftHandoverBody(intro: string, draft: string, requesterName: string) {
+  const text = draft.trim();
+  const cut = text.length > DRAFT_IN_EMAIL ? `${text.slice(0, DRAFT_IN_EMAIL).replace(/\s+\S*$/, '')}\n\n[… the full draft is in the task in the Xanderia AI Council app]` : text;
+  const head = intro.trim() ? `${intro.trim()}\n\n` : '';
+  return `${head}To help you get started, a first draft has been prepared and reviewed by ${requesterName}. Please check it, complete anything marked [TO FILL] and mark the task as done when it is finished.\n\n---------- DRAFT ----------\n${cut}\n---------- END OF DRAFT ----------`;
+}
+
+async function handDraftToOwner(t: { id: string; plan_id: string; requester_id: string; email_body: string | null; description: string; agent_output: string | null }, actor: string) {
+  const { rows } = await query(`SELECT display_name FROM users WHERE id = $1`, [t.requester_id]);
+  await query(
+    `UPDATE action_tasks SET owner_type = 'human', approved = true, resolution = 'resolved', email_body = $2, updated_at = now() WHERE id = $1`,
+    [t.id, draftHandoverBody(t.email_body ?? '', t.agent_output ?? '', rows[0]?.display_name ?? 'the requester')],
+  );
+  const r = await queueTaskEmail(t.id, 'task');
+  const to = r.blocked ? 'blocked' : 'sent';
+  await query(`UPDATE action_tasks SET status = $2, sent_at = CASE WHEN $2 = 'sent' THEN now() ELSE sent_at END WHERE id = $1`, [t.id, to]);
+  await taskEvent(t.id, 'draft_handed_over', actor);
+  await writeAudit({ action: 'task_status_changed', targetType: 'action_task', targetId: t.id, detail: { from: 'review', to, actor, draft_handed_over: true } });
+  return { changed: true, status: to };
+}
+
+/** A routine step finished: send the approved steps that were waiting for it. */
+export async function releaseWaiting(planId: string) {
+  const { rows: plan } = await query(`SELECT source, status FROM action_plans WHERE id = $1`, [planId]);
+  if (plan[0]?.source !== 'routine' || plan[0].status !== 'launched') return [];
+  const { rows: tasks } = await query(`SELECT id, seq, status, approved, depends_on, owner_type FROM action_tasks WHERE plan_id = $1`, [planId]);
+  const released = readyToRelease(tasks);
+  for (const id of released) {
+    const t = tasks.find((x) => x.id === id)!;
+    if (t.owner_type === 'agent') {
+      await query(`UPDATE action_tasks SET status = 'running' WHERE id = $1`, [id]);
+      await taskEvent(id, 'runner_queued', 'runner');
+      const { enqueueRunner } = await import('../queue/crewQueue.js');
+      await enqueueRunner(id);
+    } else {
+      const r = await queueTaskEmail(id, 'task');
+      await query(`UPDATE action_tasks SET status = $2, sent_at = CASE WHEN $2 = 'sent' THEN now() ELSE sent_at END WHERE id = $1`, [id, r.blocked ? 'blocked' : 'sent']);
+      await taskEvent(id, 'released', 'tracker', { reason: 'the steps it depends on are done' });
+    }
+  }
+  return released;
 }
 
 // ── 4. Tracker ───────────────────────────────────────────────────────────────
@@ -575,8 +656,8 @@ export async function sendQueuedEmails(now = new Date()) {
 
 export async function runAgentTask(taskId: string) {
   const { rows } = await query(
-    `SELECT t.*, p.requester_id, p.id AS plan_id, m.verdict
-       FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id JOIN messages m ON m.id = p.message_id
+    `SELECT t.*, p.requester_id, p.id AS plan_id, m.verdict, p.context, p.title AS plan_title
+       FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id LEFT JOIN messages m ON m.id = p.message_id
       WHERE t.id = $1`,
     [taskId],
   );
@@ -590,7 +671,8 @@ export async function runAgentTask(taskId: string) {
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `Deliverable: ${t.title}\nWhat done looks like: ${t.description}\n\nContext, the council's decision: ${(t.verdict as Verdict).verdict}`,
+          content: `Deliverable: ${t.title}\nWhat done looks like: ${t.description}\n\n` +
+            (t.verdict ? `Context, the council's decision: ${(t.verdict as Verdict).verdict}` : `Context: ${t.plan_title}. ${t.context ?? ''}`.trim()),
         },
       ],
       { userId: t.requester_id, sensitivity: 'high', priority: PRIORITY.background, purpose: 'crew:runner' },

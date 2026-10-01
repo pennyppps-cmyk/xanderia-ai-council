@@ -12,6 +12,7 @@ interface AttachedFile {
   name: string;
   id?: string;
   chars?: number;
+  checkedAs?: string | null; // read and checked by the Document Extractor (payslip, bank statement...)
   status: 'uploading' | 'ready';
 }
 
@@ -61,8 +62,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
       try {
         const form = new FormData();
         form.append('file', file);
-        const r = await api<{ id: string; filename: string; chars: number }>('/api/attachments', { form });
-        setFiles((all) => all.map((f) => (f.key === key ? { ...f, id: r.id, chars: r.chars, status: 'ready' } : f)));
+        const r = await api<{ id: string; filename: string; chars: number; checkedAs?: string | null }>('/api/attachments', { form });
+        setFiles((all) => all.map((f) => (f.key === key ? { ...f, id: r.id, chars: r.chars, checkedAs: r.checkedAs, status: 'ready' } : f)));
       } catch (err) {
         setFiles((all) => all.filter((f) => f.key !== key));
         setFileError(`${file.name}: ${(err as Error).message}`);
@@ -143,7 +144,13 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
             <span key={f.key} className="inline-flex max-w-64 items-center gap-1 rounded-lg border border-ink-200 bg-ink-50 px-2 py-1 text-xs text-ink-700">
               {f.status === 'uploading' ? <Spinner /> : <Icon name="file" className="h-3.5 w-3.5 shrink-0" />}
               <span className="truncate" title={f.name}>{f.name}</span>
-              {f.chars != null && <span className="shrink-0 text-ink-400">· {tl('{n} words', { n: Math.round(f.chars / 6).toLocaleString() })}</span>}
+              {f.checkedAs ? (
+                <span className="shrink-0 text-emerald-700" title={tl('Read and checked by the Document Extractor')}>
+                  · {tl('Checked: {kind}', { kind: f.checkedAs })}
+                </span>
+              ) : (
+                f.chars != null && <span className="shrink-0 text-ink-400">· {tl('{n} words', { n: Math.round(f.chars / 6).toLocaleString() })}</span>
+              )}
               {f.status === 'ready' && (
                 <button
                   type="button"
@@ -234,7 +241,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ bu
           ref={fileInput}
           type="file"
           multiple
-          accept=".pdf,.docx,.xlsx,.txt,.md,.csv"
+          accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.jpg,.jpeg,.png,.tif,.tiff,.webp"
           className="sr-only"
           onChange={(e) => void attach(e.target.files)}
         />

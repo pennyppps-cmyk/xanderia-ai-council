@@ -109,6 +109,8 @@ export interface DigestData {
   decisions: Array<{ title: string; status: string }>;
   outcomes: Array<{ title: string; rating: string }>;
   overdue: Array<{ title: string; due_date: string; owner: string | null }>;
+  // Tasks whose owner asked for help or said they can't do them: what a lead should unblock.
+  stuck?: Array<{ title: string; owner: string | null; status: string; note: string | null }>;
   stale: Array<{ title: string }>;
 }
 
@@ -118,7 +120,7 @@ export interface DigestData {
  */
 export async function digestFor(departmentId: string): Promise<DigestData> {
   const one = async (sql: string) => (await query(sql, [departmentId])).rows;
-  const [[dept], [counts], areas, decisions, outcomes, overdue, stale] = await Promise.all([
+  const [[dept], [counts], areas, decisions, outcomes, overdue, stale, stuck] = await Promise.all([
     one(`SELECT name FROM departments WHERE id = $1`),
     one(`SELECT count(*) FILTER (WHERE m.created_at > now() - interval '7 days')::int AS questions,
                 count(*) FILTER (WHERE m.created_at <= now() - interval '7 days')::int AS previous,
@@ -142,8 +144,12 @@ export async function digestFor(departmentId: string): Promise<DigestData> {
           WHERE p.department_id = $1 AND p.status = 'launched' AND t.due_date < current_date
             AND t.status NOT IN ('done', 'cancelled', 'draft') ORDER BY t.due_date LIMIT 10`),
     one(`SELECT d.title FROM documents d WHERE d.department_id = $1 AND ${STALE_SQL} ORDER BY d.created_at LIMIT 10`),
+    one(`SELECT t.title, s.name AS owner, t.status, t.response_note AS note FROM action_tasks t JOIN action_plans p ON p.id = t.plan_id
+           LEFT JOIN staff_directory s ON s.id = t.directory_id
+          WHERE (p.department_id = $1 OR s.department_id = $1) AND p.status = 'launched' AND t.status IN ('blocked', 'cant_do')
+          ORDER BY t.updated_at DESC LIMIT 10`),
   ]);
-  return { department: dept?.name ?? '-', ...counts, areas, decisions, outcomes, overdue, stale } as DigestData;
+  return { department: dept?.name ?? '-', ...counts, areas, decisions, outcomes, overdue, stale, stuck } as DigestData;
 }
 
 const RATING_LABEL: Record<string, string> = { worked: 'worked', partly: 'partly worked', did_not_work: 'did not work', too_early: 'too early to tell' };
@@ -163,6 +169,13 @@ export function digestParagraphs(name: string, d: DigestData): string[] {
       ? `OVERDUE ACTION TASKS (${d.overdue.length}):\n${d.overdue.map((x) => `• ${x.title}, due ${x.due_date}${x.owner ? `, ${x.owner}` : ''}`).join('\n')}`
       : 'OVERDUE ACTION TASKS: none.',
   );
+  if (d.stuck?.length) {
+    p.push(
+      `STUCK, NEEDS YOU (${d.stuck.length}):\n${d.stuck
+        .map((x) => `• ${x.title}${x.owner ? `, ${x.owner}` : ''}: ${x.status === 'cant_do' ? "can't do it" : 'asked for help'}${x.note ? ` ("${x.note.slice(0, 160)}")` : ''}`)
+        .join('\n')}`,
+    );
+  }
   if (d.stale.length) p.push(`KNOWLEDGE DUE FOR REVIEW (${d.stale.length}):\n${d.stale.map((x) => `• ${x.title}`).join('\n')}`);
   p.push('Ringkasan mingguan jabatan anda: soalan, keputusan, tugasan tertunggak dan dokumen yang perlu disemak.');
   return p;

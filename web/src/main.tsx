@@ -17,6 +17,11 @@ import NotisPage from './pages/Notis';
 import TemplatesPage from './pages/Templates';
 import GuidePage from './pages/Guide';
 import TasksPage from './pages/Tasks';
+import DocumentsPage from './pages/Documents';
+import RoutinesPage from './pages/Routines';
+import MeetingsPage from './pages/Meetings';
+import TeamPage from './pages/Team';
+import GoalsPage from './pages/Goals';
 import { Toaster } from './toast';
 
 function Root() {
@@ -48,6 +53,14 @@ function Root() {
         <Route path="/templates/:id" element={<TemplatesPage />} />
         <Route path="/notis" element={<NotisPage />} />
         <Route path="/notis/:id" element={<NotisPage />} />
+        <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/documents/:id" element={<DocumentsPage />} />
+        <Route path="/routines" element={<RoutinesPage />} />
+        <Route path="/routines/:id" element={<RoutinesPage />} />
+        <Route path="/meetings" element={<MeetingsPage />} />
+        <Route path="/meetings/:id" element={<MeetingsPage />} />
+        <Route path="/team" element={<TeamPage />} />
+        <Route path="/goals" element={<GoalsPage />} />
         <Route path="/admin/*" element={me.user.role === 'employee' ? <Navigate to="/" /> : <Admin />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

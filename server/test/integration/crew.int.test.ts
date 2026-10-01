@@ -133,8 +133,12 @@ describe.skipIf(!url || !redisUrl)('Action Crew (integration)', () => {
   it('the sender delivers queued emails only in business hours, via the outbox provider by default', async () => {
     const { klInstant } = await import('../../src/crew/calendar.js');
     await db.query(`UPDATE outbound_emails SET send_after = now() - interval '1 day' WHERE status = 'queued'`);
-    expect(await svc.sendQueuedEmails(klInstant('2026-09-26', 10))).toBe(0); // Saturday
-    const monday = klInstant('2026-09-28', 10);
+    // A weekend after today: fixed dates stopped working once they were in the past.
+    const sat = new Date(Date.now() + 8 * 3600_000 + 86400_000);
+    while (sat.getUTCDay() !== 6) sat.setUTCDate(sat.getUTCDate() + 1);
+    const day = (offset: number) => new Date(sat.getTime() + offset * 86400_000).toISOString().slice(0, 10);
+    expect(await svc.sendQueuedEmails(klInstant(day(0), 10))).toBe(0); // Saturday
+    const monday = klInstant(day(2), 10);
     const n = await svc.sendQueuedEmails(monday);
     expect(n).toBeGreaterThan(0);
     const statuses = (await db.query(`SELECT DISTINCT status FROM outbound_emails WHERE status <> 'blocked'`)).rows.map((r) => r.status);

@@ -14,6 +14,8 @@ import { analyseArrears, arrearsMarkdown, readTable } from '../tools/arrears.js'
 import { reconcileDeductions } from '../tools/deductions.js';
 import { affordabilityMarkdown, assessAffordability, parsePayslipReport } from '../tools/payslip.js';
 import { analysePortfolio, portfolioMarkdown, type PortfolioSummary } from '../tools/portfolio.js';
+import { startCouncil } from '../council/start.js';
+import { breachQuestion, DEFAULT_LIMITS, portfolioBreaches, type PortfolioLimits } from '../work/data.js';
 
 /**
  * Working tools next to the chat. Uploaded files are read in memory and never stored; only the
@@ -87,7 +89,30 @@ export default async function toolRoutes(app: FastifyInstance) {
       }
       await writeAudit({ actorUserId: req.user.id, action: 'portfolio_analysed', detail: { file: files.file.filename, rows: summary.rows, month, saved: Boolean(snapshotId), columns: summary.columns } });
       const trend = await trendUpTo(month, summary);
-      return { month, snapshotId, summary, trend, markdown: portfolioMarkdown(summary, month, trend) };
+      const markdown = portfolioMarkdown(summary, month, trend);
+      // A saved month that breaks management's limits gets one automatic council run.
+      let alert: { breaches: string[]; conversationId: string | null } | null = null;
+      if (snapshotId) {
+        const limits = { ...DEFAULT_LIMITS, ...(await getSetting<Partial<PortfolioLimits>>('portfolio_alerts', DEFAULT_LIMITS)) };
+        const breaches = limits.enabled ? portfolioBreaches(summary, limits) : [];
+        if (breaches.length) {
+          const { rows: prev } = await query(`SELECT alert_message_id FROM portfolio_snapshots WHERE id = $1`, [snapshotId]);
+          let conversationId: string | null = null;
+          if (!prev[0]?.alert_message_id) {
+            const run = await startCouncil({
+              userId: req.user.id,
+              departmentId: req.user.department_id,
+              title: `Portfolio limits broken: ${month}`,
+              question: breachQuestion(month, breaches, markdown.slice(0, 6000)),
+              purpose: 'portfolio_alert',
+            });
+            await query(`UPDATE portfolio_snapshots SET alert_message_id = $2 WHERE id = $1`, [snapshotId, run.messageId]);
+            conversationId = run.conversationId;
+          }
+          alert = { breaches, conversationId };
+        }
+      }
+      return { month, snapshotId, summary, trend, markdown, alert };
     } catch (err) {
       return fail(reply, err);
     }

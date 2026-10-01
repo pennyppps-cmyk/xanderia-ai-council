@@ -143,8 +143,11 @@ export type TaskStatus = 'draft' | 'sent' | 'accepted' | 'in_progress' | 'runnin
 
 export interface PlanSummary {
   id: string;
-  message_id: string;
-  conversation_id: string;
+  // Null for plans that come from a routine, a data file or a meeting rather than a council verdict.
+  message_id: string | null;
+  conversation_id: string | null;
+  source?: 'council' | 'routine' | 'data' | 'meeting';
+  source_id?: string | null;
   title: string;
   status: 'planning' | 'ready' | 'launched' | 'done' | 'cancelled' | 'error';
   error: string | null;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { CrewPanel } from '../components/CrewPanel';
 import { Markdown } from '../components/Markdown';
@@ -35,6 +35,7 @@ const today = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 1
 
 export default function PlanPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<PlanData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, DraftEdit>>({});
@@ -75,7 +76,17 @@ export default function PlanPage() {
     return () => clearInterval(t);
   }, [data?.plan.status]);
 
-  const drafts = useMemo(() => data?.tasks.filter((t) => t.status === 'draft') ?? [], [data]);
+  // Routine steps that are approved but wait for earlier steps stay drafts until those are done.
+  const waiting = useMemo(() => (data && data.plan.status !== 'ready' ? data.tasks.filter((t) => t.status === 'draft' && t.approved) : []), [data]);
+  const drafts = useMemo(() => data?.tasks.filter((t) => t.status === 'draft' && !waiting.includes(t)) ?? [], [data, waiting]);
+  const ownerIds = useMemo(() => [...new Set(Object.values(edits).map((e) => e.owner?.id).filter(Boolean))].sort().join(','), [edits]);
+  const [loads, setLoads] = useState<Record<string, OwnerLoad>>({});
+  useEffect(() => {
+    if (!ownerIds) return;
+    api<OwnerLoad[]>(`/api/crew/workload?ids=${ownerIds}`)
+      .then((list) => setLoads(Object.fromEntries(list.map((l) => [l.id, l]))))
+      .catch(() => {});
+  }, [ownerIds]);
   const board = useMemo(() => data?.tasks.filter((t) => t.status !== 'draft' && t.status !== 'cancelled') ?? [], [data]);
 
   if (error) return <Shell title={tl("Action plan")}><p className="text-sm text-red-700">{error}</p></Shell>;
@@ -92,7 +103,8 @@ export default function PlanPage() {
         return {
           id: t.id,
           approved: onlyApproved ? e.approved : e.owner_type === 'agent' || Boolean(e.owner),
-          directory_id: e.owner_type === 'agent' ? null : e.owner?.id ?? null,
+          // An AI-drafted task keeps its person: the approved draft is sent to them.
+          directory_id: e.owner?.id ?? null,
           owner_type: e.owner_type,
           due_date: e.due_date,
           email_body: e.email_body,
@@ -118,11 +130,31 @@ export default function PlanPage() {
   return (
     <Shell
       title={plan.title}
-      back={`/c/${plan.conversation_id}`}
+      back={
+        plan.conversation_id
+          ? `/c/${plan.conversation_id}`
+          : plan.source === 'routine' && plan.source_id
+            ? `/routines/${plan.source_id}`
+            : plan.source === 'meeting' && plan.source_id
+              ? `/meetings/${plan.source_id}`
+              : '/tasks'
+      }
       right={
-        <Badge tone={plan.status === 'done' ? 'green' : plan.status === 'error' ? 'red' : plan.status === 'launched' ? 'blue' : 'neutral'}>
-          {statusLabel(plan.status)}
-        </Badge>
+        <span className="flex items-center gap-2">
+          <Badge tone={plan.status === 'done' ? 'green' : plan.status === 'error' ? 'red' : plan.status === 'launched' ? 'blue' : 'neutral'}>
+            {statusLabel(plan.status)}
+          </Badge>
+          <Button
+            size="sm"
+            variant="ghost"
+            title={tl('Delete this plan')}
+            onClick={async () => {
+              if (await deletePlan(plan)) navigate('/tasks');
+            }}
+          >
+            <Icon name="trash" className="h-3.5 w-3.5" /> {tl('Delete plan')}
+          </Button>
+        </span>
       }
     >
       <div className="space-y-4">
@@ -152,7 +184,7 @@ export default function PlanPage() {
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             <p className="font-medium">{tl("Planning failed.")}</p>
             <p className="mt-1">{plan.error}</p>
-            <Button
+            {plan.message_id && <Button
               size="sm"
               variant="danger"
               className="mt-3"
@@ -162,7 +194,7 @@ export default function PlanPage() {
               }}
             >
               <Icon name="retry" /> {tl("Try again")}
-            </Button>
+            </Button>}
           </div>
         )}
 
@@ -188,7 +220,23 @@ export default function PlanPage() {
             </div>
             <ul className="divide-y divide-ink-100">
               {drafts.map((t) => (
-                <DraftRow key={t.id} task={t} edit={edits[t.id]} onChange={(p) => set(t.id, p)} />
+                <DraftRow key={t.id} task={t} edit={edits[t.id]} load={edits[t.id]?.owner ? loads[edits[t.id].owner!.id] : undefined} onChange={(p) => set(t.id, p)} />
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {waiting.length > 0 && (
+          <section className="rounded-xl border border-ink-100 bg-white p-3">
+            <h2 className="mb-1 text-sm font-semibold">{tl('Waiting for earlier steps')}</h2>
+            <p className="mb-2 text-xs text-ink-500">{tl('Approved. Each is sent by itself as soon as the steps it depends on are done.')}</p>
+            <ul className="space-y-1 text-sm">
+              {waiting.map((t) => (
+                <li key={t.id} className="flex flex-wrap gap-2">
+                  <span className="text-ink-400">{t.seq}.</span>
+                  <span className="flex-1">{t.title}</span>
+                  <span className="text-xs text-ink-500">{t.owner_name ?? tl('AI Runner')} · {tl('after step {n}', { n: t.depends_on.join(', ') })}</span>
+                </li>
               ))}
             </ul>
           </section>
@@ -227,7 +275,17 @@ export default function PlanPage() {
   );
 }
 
-function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdit; onChange(p: Partial<DraftEdit>): void }) {
+interface OwnerLoad {
+  id: string;
+  open: number;
+  overdue: number;
+  overloaded: boolean;
+  away: boolean;
+  away_until: string | null;
+  suggestion: { id: string; name: string; position: string; open: number } | null;
+}
+
+function DraftRow({ task: t, edit, load, onChange }: { task: CrewTask; edit?: DraftEdit; load?: OwnerLoad; onChange(p: Partial<DraftEdit>): void }) {
   const [showEmail, setShowEmail] = useState(false);
   if (!edit) return null;
   const isAgent = edit.owner_type === 'agent';
@@ -276,9 +334,32 @@ function DraftRow({ task: t, edit, onChange }: { task: CrewTask; edit?: DraftEdi
           ))}
         </div>
         {isAgent ? (
-          <p className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">{tl("The Runner writes a draft for you to review. Nothing is sent.")}</p>
+          <div className="space-y-1">
+            <p className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">
+              {edit.owner
+                ? tl('The Runner writes a draft; after you approve it, it is sent to {name} to complete.', { name: edit.owner.name })
+                : tl('The Runner writes a draft for you to review. Choose who completes it:')}
+            </p>
+            <OwnerPicker value={edit.owner} candidates={t.candidates} onChange={(p) => onChange({ owner: p })} />
+          </div>
         ) : (
           <OwnerPicker value={edit.owner} candidates={t.candidates} onChange={(p) => onChange({ owner: p, approved: true })} />
+        )}
+        {!isAgent && load && (
+          <div className={cx('mt-1 rounded-md px-2 py-1 text-[11px]', load.overloaded || load.away ? 'bg-amber-50 text-amber-900' : 'text-ink-500')}>
+            {load.away
+              ? tl('Away until {d}.', { d: load.away_until ?? '' })
+              : tl('{open} open, {overdue} overdue.', { open: load.open, overdue: load.overdue })}
+            {load.overloaded && !load.away && ` ${tl('Overloaded.')}`}
+            {load.suggestion && (load.overloaded || load.away) && (
+              <button
+                className="ml-1 font-medium text-accent-700 hover:underline"
+                onClick={() => onChange({ owner: { id: load.suggestion!.id, name: load.suggestion!.name, position: load.suggestion!.position, email: '' }, approved: true })}
+              >
+                {tl('Give it to {name} ({n} open)', { name: load.suggestion.name, n: load.suggestion.open })}
+              </button>
+            )}
+          </div>
         )}
       </div>
       <label className="text-xs text-ink-600">
@@ -323,6 +404,7 @@ function WorksWith({ task: t }: { task: CrewTask }) {
 function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void }) {
   const [reassign, setReassign] = useState(false);
   const [showDraft, setShowDraft] = useState(false);
+  const [showEmail, setShowEmail] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const overdue = t.due_date && t.due_date < today() && !['done', 'cant_do'].includes(t.status);
   const lastEmail = t.emails?.[t.emails.length - 1];
@@ -341,9 +423,34 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
     <div className={cx('rounded-lg border bg-white p-2.5 text-sm shadow-sm', overdue ? 'border-red-200' : 'border-ink-100')}>
       <p className="font-medium text-ink-900">{t.title}</p>
       <p className="mt-0.5 text-xs text-ink-600">
-        {t.owner_type === 'agent' ? tl('AI Runner') : t.owner_name ?? tl('Unassigned')}
+        {t.owner_type === 'agent'
+          ? t.owner_name
+            ? tl('AI Runner drafts it, then {name}', { name: t.owner_name })
+            : tl('AI Runner')
+          : t.owner_name ?? tl('Unassigned')}
         {t.owner_position ? ` · ${t.owner_position}` : ''}
       </p>
+      {t.owner_type === 'agent' && ['running', 'review'].includes(t.status) && (
+        <div className="mt-1.5">
+          {!t.owner_name && <p className="mb-1 text-[11px] font-medium text-amber-800">{tl('Who completes it after your review?')}</p>}
+          {(!t.owner_name || reassign) && (
+            <OwnerPicker
+              value={null}
+              candidates={t.candidates}
+              onChange={async (p) => {
+                setErr(null);
+                try {
+                  await api(`/api/tasks/${t.id}`, { method: 'PATCH', body: { directory_id: p.id } });
+                  setReassign(false);
+                  onChanged();
+                } catch (e) {
+                  setErr((e as Error).message);
+                }
+              }}
+            />
+          )}
+        </div>
+      )}
       <WorksWith task={t} />
       <div className="mt-1 flex flex-wrap gap-1">
         {t.due_date && <Badge tone={overdue ? 'red' : 'neutral'}>{tl("due")} {t.due_date}</Badge>}
@@ -357,6 +464,22 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
         )}
       </div>
       {t.response_note && <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">“{t.response_note}”</p>}
+
+      {t.owner_type === 'human' && t.email_body && t.status !== 'draft' && (
+        <div className="mt-1.5">
+          <button className="text-xs font-medium text-accent-700 hover:underline" onClick={() => setShowEmail((s) => !s)}>
+            {showEmail ? tl('Hide email') : tl('View email')}
+          </button>
+          {showEmail && (
+            <div className="mt-1 max-h-72 overflow-y-auto rounded border border-ink-100 bg-ink-50 p-2 text-xs">
+              {lastEmail && <p className="text-ink-500">{tl('To')}: {lastEmail.to}</p>}
+              {t.email_subject && <p className="mb-1 font-medium text-ink-800">{t.email_subject}</p>}
+              <p className="whitespace-pre-wrap text-ink-700">{t.email_body}</p>
+              <p className="mt-2 text-ink-400">{tl('The email also has buttons to accept, ask for help, mark as done or say they cannot do it.')}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {t.escalation_state === 'pending' && (
         <div className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-800">
@@ -388,9 +511,19 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
       <div className="mt-2 flex flex-wrap gap-1">
         {t.status === 'review' && (
           <>
-            <Button size="sm" variant="primary" onClick={() => act(`/api/tasks/${t.id}/action`, { action: 'approve_draft' })}>
-              {tl("Approve draft")}
+            <Button
+              size="sm"
+              variant="primary"
+              title={t.owner_name ? tl('Sends the task to {name} by email, with this draft for them to complete', { name: t.owner_name }) : tl('Marks the task done; nobody else is emailed')}
+              onClick={() => act(`/api/tasks/${t.id}/action`, { action: 'approve_draft' })}
+            >
+              {t.owner_name ? tl('Approve & send to {name}', { name: t.owner_name.split(' ')[0] }) : tl('Approve draft')}
             </Button>
+            {t.owner_name && (
+              <Button size="sm" variant="ghost" onClick={() => setReassign((r) => !r)}>
+                {tl('Change person')}
+              </Button>
+            )}
             <Button size="sm" onClick={() => navigator.clipboard.writeText(t.agent_output ?? '')}>
               <Icon name="copy" className="h-3 w-3" /> {tl("Copy")}
             </Button>
@@ -419,7 +552,7 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
           </Button>
         )}
       </div>
-      {reassign && (
+      {reassign && t.owner_type === 'human' && (
         <div className="mt-2">
           <OwnerPicker
             value={null}
@@ -441,6 +574,20 @@ function TaskCard({ task: t, onChanged }: { task: CrewTask; onChanged(): void })
       {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
     </div>
   );
+}
+
+/**
+ * Confirms and deletes one of my plans. Emails still in the outbox are stopped; emails already
+ * sent cannot be recalled, so the warning says so when the plan was launched.
+ */
+export async function deletePlan(p: Pick<PlanSummary, 'id' | 'title' | 'status'>) {
+  const launched = p.status === 'launched' || p.status === 'done';
+  const msg = launched
+    ? tl('Delete "{title}" and all its tasks? Emails not yet sent are stopped, but people who already received a task are not told; cancel their tasks first if they should know.', { title: p.title.slice(0, 80) })
+    : tl('Delete "{title}" and all its tasks?', { title: p.title.slice(0, 80) });
+  if (!confirm(msg)) return false;
+  await api(`/api/plans/${p.id}`, { method: 'DELETE' });
+  return true;
 }
 
 export function Shell({ title, back = '/', right, children }: { title: string; back?: string; right?: React.ReactNode; children: React.ReactNode }) {

@@ -9,6 +9,7 @@ import { HelpButton } from '../components/HelpButton';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { tl } from '../i18n';
 import CompanyMemory from './AdminMemory';
+import DocumentsAdmin from './AdminDocuments';
 
 
 const TABS = [
@@ -21,6 +22,7 @@ const TABS = [
   { path: 'directory', label: 'Staff directory', admin: true },
   { path: 'crew', label: 'Action Crew & email', admin: true },
   { path: 'memory', label: 'Company memory', admin: false },
+  { path: 'documents', label: 'Documents', admin: true },
   { path: 'audit', label: 'Audit log', admin: true },
   { path: 'settings', label: 'Settings', admin: true },
 ];
@@ -72,6 +74,7 @@ export default function Admin() {
                   <Route path="settings" element={<Settings />} />
                   <Route path="directory" element={<DirectoryAdmin />} />
                   <Route path="crew" element={<CrewAdmin />} />
+                  <Route path="documents" element={<DocumentsAdmin />} />
                 </>
               )}
               <Route path="knowledge" element={<Knowledge />} />
@@ -1282,6 +1285,60 @@ function Settings() {
         <Field label={tl('Notis blast: remove customer details after (days)')} hint={tl('IC, address and amounts are deleted from old batches; the send log is kept.')}>
           <input className={inputCls} type="number" min={7} max={3650} value={f.notis_retention_days ?? 90} onChange={(e) => set('notis_retention_days', Number(e.target.value))} />
         </Field>
+      </div>
+      <h3 className="mt-6 mb-2 text-sm font-semibold">{tl('Work automation')}</h3>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="inline-flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 accent-accent-600" checked={f.weekly_plan_enabled ?? false} onChange={(e) => set('weekly_plan_enabled', e.target.checked)} />
+          <span>
+            {tl('Monday email: each person gets their week of tasks, most urgent first')}
+            <span className="block text-xs text-ink-400">{tl('Monday 8:00, only to people with open tasks.')}</span>
+          </span>
+        </label>
+        <label className="inline-flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 accent-accent-600" checked={f.weekly_checkin_enabled ?? false} onChange={(e) => set('weekly_checkin_enabled', e.target.checked)} />
+          <span>
+            {tl('Friday check-in: one click per task (done / on track / stuck)')}
+            <span className="block text-xs text-ink-400">{tl('Friday 3:00 pm, only about tasks due soon or late.')}</span>
+          </span>
+        </label>
+        <Field label={tl('Overloaded at (open tasks)')} hint={tl('Plans warn and suggest a colleague when an owner has this many open tasks...')}>
+          <input className={inputCls} type="number" min={1} max={100} value={f.crew_overload?.open ?? 8} onChange={(e) => set('crew_overload', { ...(f.crew_overload ?? { overdue: 3 }), open: Number(e.target.value) })} />
+        </Field>
+        <Field label={tl('...or this many overdue tasks')}>
+          <input className={inputCls} type="number" min={1} max={100} value={f.crew_overload?.overdue ?? 3} onChange={(e) => set('crew_overload', { ...(f.crew_overload ?? { open: 8 }), overdue: Number(e.target.value) })} />
+        </Field>
+      </div>
+      <h3 className="mt-6 mb-2 text-sm font-semibold">{tl('Portfolio limits')}</h3>
+      <label className="mb-3 inline-flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="accent-accent-600"
+          checked={f.portfolio_alerts?.enabled ?? false}
+          onChange={(e) => set('portfolio_alerts', { npl_ratio_max: 5, par30_max: 15, branch_npl_max: 8, ...f.portfolio_alerts, enabled: e.target.checked })}
+        />
+        {tl('When a saved month breaks a limit, the council meets on it automatically and proposes a plan')}
+      </label>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {(
+          [
+            ['npl_ratio_max', 'NPL ratio above (%)', 5],
+            ['par30_max', 'PAR30 above (%)', 15],
+            ['branch_npl_max', "A branch's NPL ratio above (%)", 8],
+          ] as const
+        ).map(([k, label, dflt]) => (
+          <Field key={k} label={tl(label)}>
+            <input
+              className={inputCls}
+              type="number"
+              min={0}
+              max={100}
+              step="0.1"
+              value={f.portfolio_alerts?.[k] ?? dflt}
+              onChange={(e) => set('portfolio_alerts', { enabled: false, npl_ratio_max: 5, par30_max: 15, branch_npl_max: 8, ...f.portfolio_alerts, [k]: Number(e.target.value) })}
+            />
+          </Field>
+        ))}
       </div>
       <div className="mt-4">
         <Button

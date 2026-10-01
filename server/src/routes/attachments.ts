@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '../audit.js';
 import { query } from '../db/pool.js';
+import { composeAttachmentText, detectKind, extractorEnabled, IMAGE_EXT, KIND_LABEL, runExtraction } from '../rag/docextract.js';
 import { extractDocumentText, SUPPORTED } from '../rag/extract.js';
 
 /**
@@ -17,15 +18,37 @@ export default async function attachmentRoutes(app: FastifyInstance) {
     if (!file) return reply.code(400).send({ error: 'No file uploaded' });
     const data = await file.toBuffer();
     if (file.file.truncated) return reply.code(413).send({ error: 'The file is larger than 10 MB' });
-    if (!SUPPORTED.test(file.filename)) {
-      return reply.code(415).send({ error: 'Attach a PDF, Word (.docx), Excel (.xlsx), .txt, .md or .csv file.' });
+    const image = IMAGE_EXT.test(file.filename);
+    if (!SUPPORTED.test(file.filename) && !(image && extractorEnabled())) {
+      return reply.code(415).send({
+        error: extractorEnabled()
+          ? 'Attach a PDF, Word (.docx), Excel (.xlsx), .txt, .md, .csv or a photo (.jpg, .png).'
+          : 'Attach a PDF, Word (.docx), Excel (.xlsx), .txt, .md or .csv file.',
+      });
     }
-    let text: string;
-    try {
-      text = (await extractDocumentText(file.filename, data)).trim();
-    } catch (err) {
-      return reply.code(422).send({ error: (err as Error).message });
+    let text = '';
+    let readError: string | null = null;
+    if (!image) {
+      try {
+        text = (await extractDocumentText(file.filename, data)).trim();
+      } catch (err) {
+        readError = (err as Error).message; // e.g. a scanned PDF: the extractor may still read it
+      }
     }
+    // Payslips, bank statements, Angkasa statements, MyKad and scans go to the Document Extractor.
+    const kind = extractorEnabled() ? detectKind(file.filename, text) : null;
+    let checkedAs: string | null = null;
+    if (kind) {
+      try {
+        const result = await runExtraction(kind, file.filename, data);
+        text = composeAttachmentText(kind, result, text).trim();
+        checkedAs = KIND_LABEL[kind];
+      } catch (err) {
+        req.log.warn({ err, kind }, 'document extractor unavailable; using the file text only');
+        if (!text) readError = `${readError ?? 'No readable text was found in this file'} (the Document Extractor could not read it either: ${(err as Error).message})`;
+      }
+    }
+    if (!text && readError) return reply.code(422).send({ error: readError });
     if (text.length < 20) return reply.code(422).send({ error: 'No readable text was found in this file.' });
     const sha256 = createHash('sha256').update(data).digest('hex');
     const { rows } = await query(
@@ -38,9 +61,9 @@ export default async function attachmentRoutes(app: FastifyInstance) {
       action: 'attachment_uploaded',
       targetType: 'attachment',
       targetId: rows[0].id,
-      detail: { filename: file.filename, bytes: data.length, chars: text.length, sha256 },
+      detail: { filename: file.filename, bytes: data.length, chars: text.length, sha256, ...(checkedAs ? { checked_as: checkedAs } : {}) },
     });
-    return rows[0];
+    return { ...rows[0], checkedAs };
   });
 
   /** Remove an attachment before the question is sent. */

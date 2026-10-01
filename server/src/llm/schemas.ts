@@ -108,3 +108,43 @@ export const DispatchSchema = z.object({
     .min(1),
 });
 export type DispatchOutput = z.infer<typeof DispatchSchema>;
+
+/** A written SOP → a recurring routine the owner checks before saving. */
+export const RoutineDraftSchema = z.object({
+  name: z.string(),
+  frequency: z.enum(['weekly', 'monthly', 'quarterly']),
+  run_day: z.number().int().min(1).max(20),
+  steps: z
+    .array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        owner_role: z.string(),
+        owner_type: z.enum(['human', 'agent']),
+        due_day: z.number().int().min(1).max(60),
+        depends_on: z.array(z.number().int().min(1)),
+      }),
+    )
+    .min(1),
+});
+export type RoutineDraft = z.infer<typeof RoutineDraftSchema>;
+
+/** Meeting notes or a transcript → minutes with owned action items. */
+export const MinutesSchema = z.object({
+  summary: z.string(),
+  decisions: z.array(z.string()),
+  actions: z.array(
+    z.object({
+      task: z.string(),
+      // The person or role named in the notes ("Aina", "Head of IT"); '' when nobody was named.
+      owner: z.string(),
+      // YYYY-MM-DD when the notes give a date or a deadline that can be worked out; otherwise ''.
+      due_date: z.string(),
+      // The deadline exactly as said ("next Friday", "12 Oct", "end of month"); '' if none. Weekdays are
+      // worked out in code: the model gets them wrong.
+      due_said: z.string().default(''),
+    }),
+  ),
+  open_points: z.array(z.string()),
+});
+export type Minutes = z.infer<typeof MinutesSchema>;

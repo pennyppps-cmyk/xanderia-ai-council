@@ -93,6 +93,43 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
             <Icon name="pin" className="h-3.5 w-3.5" /> {tl('Decisions')}
           </Link>
           <Link
+            to="/documents"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="file" className="h-3.5 w-3.5" /> {tl('Documents')}
+          </Link>
+          <Link
+            to="/routines"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="retry" className="h-3.5 w-3.5" /> {tl('Routines')}
+          </Link>
+          <Link
+            to="/meetings"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="mic" className="h-3.5 w-3.5" /> {tl('Meetings')}
+          </Link>
+          <Link
+            to="/goals"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="up" className="h-3.5 w-3.5" /> {tl('Goals')}
+          </Link>
+          {me && me.user.role !== 'employee' && (
+            <Link
+            to="/team"
+            onClick={onNavigate}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+          >
+            <Icon name="search" className="h-3.5 w-3.5" /> {tl('Team')}
+          </Link>
+          )}
+          <Link
             to="/tools"
             onClick={onNavigate}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"

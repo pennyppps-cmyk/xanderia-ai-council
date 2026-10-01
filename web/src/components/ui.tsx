@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { tl } from '../i18n';
 
 export function cx(...c: Array<string | false | null | undefined>) {
   return c.filter(Boolean).join(' ');
@@ -120,5 +121,81 @@ export function Icon({ name, className }: { name: string; className?: string }) 
     >
       {paths[name]}
     </svg>
+  );
+}
+
+/**
+ * A file chooser that looks like one: a dashed box to click or drop a file on, showing the chosen
+ * file. Files of another type are listed in the picker too, so a .doc or .pdf is not silently
+ * hidden; choosing one explains what is needed instead.
+ */
+export function FilePicker({
+  accept,
+  file,
+  onChange,
+  hint,
+  compact,
+}: {
+  accept: string[];
+  file: File | null;
+  onChange(file: File | null): void;
+  hint?: string;
+  compact?: boolean;
+}) {
+  const [over, setOver] = useState(false);
+  const [wrong, setWrong] = useState<string | null>(null);
+  const pick = (f: File | undefined | null) => {
+    if (!f) return;
+    const ext = f.name.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] ?? '';
+    if (!accept.includes(ext)) {
+      setWrong(tl('"{name}" is not a {types} file. Open it in Word or Excel and use Save As {types} first.', { name: f.name, types: accept.join(' / ') }));
+      onChange(null);
+      return;
+    }
+    setWrong(null);
+    onChange(f);
+  };
+  return (
+    <div>
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          pick(e.dataTransfer.files?.[0]);
+        }}
+        className={cx(
+          'flex cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed text-sm transition-colors',
+          compact ? 'px-2 py-1.5' : 'px-3 py-3',
+          over ? 'border-accent-500 bg-accent-50' : file ? 'border-emerald-300 bg-emerald-50' : 'border-ink-200 bg-white hover:border-accent-400 hover:bg-ink-50',
+        )}
+      >
+        <Icon name="file" className={cx('h-4 w-4 shrink-0', file ? 'text-emerald-600' : 'text-ink-400')} />
+        <span className="min-w-0 flex-1 truncate">
+          {file ? (
+            <span className="font-medium text-ink-900">{file.name}</span>
+          ) : (
+            <>
+              <span className="font-medium text-accent-700">{tl('Choose a file')}</span>{' '}
+              <span className="text-ink-500">{compact ? accept.join(' / ') : tl('or drag it here ({types})', { types: accept.join(' / ') })}</span>
+            </>
+          )}
+        </span>
+        {file && <span className="shrink-0 text-xs text-ink-500">{tl('Change')}</span>}
+        <input
+          type="file"
+          className="sr-only"
+          onChange={(e) => {
+            pick(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+      </label>
+      {wrong ? <p className="mt-1 text-xs text-red-700">{wrong}</p> : hint ? <p className="mt-1 text-xs text-ink-400">{hint}</p> : null}
+    </div>
   );
 }

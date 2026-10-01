@@ -5,6 +5,7 @@ import { Button, cx, Field, Icon, inputCls, Spinner } from '../components/ui';
 import { tl } from '../i18n';
 import { Shell } from './Plan';
 import { AffordabilityTool, DeductionsTool, PortfolioTool } from './ToolsLoans';
+import { CreateTasksButton } from '../components/CreateTasksButton';
 
 /**
  * Working tools: loan / collections calculators (computed in the browser) and arrears file
@@ -410,9 +411,17 @@ function Arrears({ ask }: { ask(t: string): void }) {
           </div>
           <GroupTable title={tl('By branch')} column={tl('Branch')} rows={res.byBranch} by={by} fmt={fmt} />
           <GroupTable title={tl('By product')} column={tl('Product')} rows={res.byProduct} by={by} fmt={fmt} />
-          <Button onClick={() => ask(`${res.markdown}\n\nQuestion: `)}>
-            <Icon name="reply" className="h-4 w-4" /> {tl('Ask the council about this file')}
-          </Button>
+          <div className="flex flex-wrap items-start gap-2">
+            <Button onClick={() => ask(`${res.markdown}\n\nQuestion: `)}>
+              <Icon name="reply" className="h-4 w-4" /> {tl('Ask the council about this file')}
+            </Button>
+            <CreateTasksButton
+              endpoint="/api/tools/arrears/tasks"
+              body={{ byBranch: res.byBranch }}
+              label={tl('Create a follow-up task per branch')}
+              hint={tl('One task per branch with accounts in arrears, for its branch manager. You check owners and dates before anything is sent.')}
+            />
+          </div>
         </div>
       )}
     </Card>
