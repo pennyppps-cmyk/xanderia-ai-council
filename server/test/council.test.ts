@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { condenseForChairman, runCouncil, type Opinion } from '../src/council/council.js';
+import { ADVISOR_REMINDER, CHAIRMAN_REMINDER, condenseForChairman, runCouncil, type Opinion } from '../src/council/council.js';
 import { routeMessage } from '../src/council/router.js';
 import { stressTestRequested } from '../src/council/triggers.js';
 import type { ChatRequest } from '../src/llm/types.js';
@@ -91,7 +91,7 @@ describe('runCouncil', () => {
       h,
     );
     // A verdict without the newer sections still validates; they default to empty.
-    expect(res.verdict).toEqual({ ...VERDICT, agreements: [], blind_spots: [], first_step: '' });
+    expect(res.verdict).toEqual({ ...VERDICT, agreements: [], blind_spots: [], first_step: '', success_measures: [] });
     expect(res.opinions.map((o) => o.content)).toEqual(ADVISORS.map((a) => `**Position:** opinion from ${a.key}`));
     expect(res.reviews).toEqual([]);
     expect(log).toContain('stage:stage1');
@@ -233,7 +233,11 @@ describe('runCouncil', () => {
     const shared = advisors.map((r) => user(r).split('Your role on the council')[0]);
     expect(new Set(shared).size).toBe(1);
     expect(shared[0]).toContain('<attachment name="report.pdf">');
-    for (const r of advisors) expect(user(r)).toMatch(/Your role on the council[^]*persona:\w+$/);
+    for (const r of advisors) expect(user(r)).toMatch(/Your role on the council[^]*persona:\w+\n\n/);
+    // The specificity rules are repeated last, where Qwen follows them best.
+    for (const r of advisors) expect(user(r).endsWith(ADVISOR_REMINDER)).toBe(true);
+    const chair = provider.requests.find((r) => whole(r).includes('task:chairman'))!;
+    expect(user(chair).endsWith(CHAIRMAN_REMINDER)).toBe(true);
   });
 });
 

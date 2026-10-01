@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '../audit.js';
-import { verdictToMarkdown } from '../council/format.js';
+import { checkInDays, verdictToMarkdown } from '../council/format.js';
 import { pool, query } from '../db/pool.js';
 import { PRIORITY } from '../llm/gate.js';
 import { gateway } from '../llm/registry.js';
@@ -64,12 +64,13 @@ export default async function decisionRoutes(app: FastifyInstance) {
     const m = rows[0];
     if (!m) return reply.code(404).send({ error: 'Only your own finished council verdicts can be recorded' });
     const v = m.verdict as Verdict;
+    const checkIns = checkInDays(v);
     const { rows: ins } = await query(
-      `INSERT INTO decisions (message_id, recorded_by, department_id, title, summary, visibility, next_check_in)
-       VALUES ($1, $2, $3, $4, $5, $6, current_date + 30)
+      `INSERT INTO decisions (message_id, recorded_by, department_id, title, summary, visibility, check_in_days, next_check_in)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, current_date + $8::int)
        ON CONFLICT (message_id) DO UPDATE SET title = EXCLUDED.title, visibility = EXCLUDED.visibility
        RETURNING id`,
-      [id, req.user.id, m.department_id, body.title ?? v.verdict.slice(0, 200), v.verdict, body.visibility],
+      [id, req.user.id, m.department_id, body.title ?? v.verdict.slice(0, 200), v.verdict, body.visibility, checkIns, checkIns[0]],
     );
     await writeAudit({ actorUserId: req.user.id, action: 'decision_recorded', targetType: 'decision', targetId: ins[0].id, detail: { message_id: id, visibility: body.visibility } });
     // Company memory: later questions on similar topics will be shown this decision and its outcome.

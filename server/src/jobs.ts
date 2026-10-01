@@ -1,5 +1,6 @@
 import { writeAudit } from './audit.js';
 import { config } from './config.js';
+import { measureLine } from './council/format.js';
 import { notify } from './crew/service.js';
 import { pool, query } from './db/pool.js';
 import { improvementReport, improvementReportText } from './memory/report.js';
@@ -29,16 +30,20 @@ const appUrl = (path: string) => `${config.APP_BASE_URL.replace(/\/+$/, '')}${pa
 export async function decisionCheckIns() {
   const { rows } = await query(
     `SELECT d.id, d.title, d.decided_at, d.check_in_days, u.id AS user_id, u.email, u.display_name,
-            (current_date - d.decided_at::date) AS age
-       FROM decisions d JOIN users u ON u.id = d.recorded_by
+            (current_date - d.decided_at::date) AS age, m.verdict->'success_measures' AS measures
+       FROM decisions d JOIN users u ON u.id = d.recorded_by LEFT JOIN messages m ON m.id = d.message_id
       WHERE d.next_check_in <= current_date AND d.status NOT IN ('done', 'dropped') AND u.is_active`,
   );
   for (const d of rows) {
     const link = `/decisions/${d.id}`;
+    // The verdict's targets that are due by now (all of them if none has its own date).
+    const measures: Array<{ measure: string; baseline?: string; target: string; check_after_days?: number }> = Array.isArray(d.measures) ? d.measures : [];
+    const due = measures.filter((m) => !m.check_after_days || m.check_after_days <= d.age);
+    const targets = due.map((m) => `- ${measureLine(m)}`).join('\n');
     await notify(d.user_id, {
       kind: 'decision_checkin',
       title: `${d.age} days since you decided "${d.title.slice(0, 80)}". Did it work?`,
-      body: 'Record the outcome so the council learns what works.',
+      body: targets ? `Did you hit the targets?\n${targets}` : 'Record the outcome so the council learns what works.',
       link,
     });
     await queueNoticeEmail(
@@ -48,6 +53,7 @@ export async function decisionCheckIns() {
       [
         `Hi ${d.display_name},`,
         `${d.age} days ago you recorded this decision in the Xanderia AI Council: "${d.title}".`,
+        ...(targets ? [`The council set these targets. Where are the numbers now?\n${targets}`] : []),
         'How did it go? Record the outcome (worked / partly / did not work / too early to tell) so the register shows what works.',
         `${d.age} hari lalu anda merekodkan keputusan ini: "${d.title}". Sila rekodkan hasilnya.`,
       ],

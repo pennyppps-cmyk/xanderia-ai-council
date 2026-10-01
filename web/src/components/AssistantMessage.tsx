@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import type { Citation, ClarifyRequest, Level, Message, Mode, PlanSummary, Stance, Verdict } from '../types';
+import type { Citation, ClarifyRequest, Level, Message, Mode, PlanSummary, Stance, SuccessMeasure, Verdict } from '../types';
 import { useMessageStream, type LivePart, type LiveState } from '../useMessageStream';
 import { CouncilRoom, setCouncilView, useCouncilView } from './CouncilRoom';
 import { Markdown } from './Markdown';
@@ -311,6 +311,34 @@ function ReviewBody({ part, name }: { part: LivePart; name: (k: string) => strin
 
 const CONFIDENCE_TONE = { low: 'red', medium: 'amber', high: 'green' } as const;
 
+/** The verdict's numeric targets: measure, today → target, when to check. Also on the decision page. */
+export function SuccessMeasures({ measures }: { measures: SuccessMeasure[] }) {
+  return (
+    <div className="-mx-1 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-ink-400">
+            <th className="px-1 pb-1 font-medium">{tl('Measure')}</th>
+            <th className="px-1 pb-1 font-medium">{tl('Now')}</th>
+            <th className="px-1 pb-1 font-medium">{tl('Target')}</th>
+            <th className="px-1 pb-1 font-medium">{tl('Check after')}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {measures.map((m, i) => (
+            <tr key={i}>
+              <td className="px-1 py-1.5">{m.measure}</td>
+              <td className={cx('px-1 py-1.5', /need/i.test(m.baseline ?? '') ? 'text-amber-700' : 'text-ink-600')}>{m.baseline || '—'}</td>
+              <td className="px-1 py-1.5 font-semibold text-ink-900">{m.target}</td>
+              <td className="px-1 py-1.5 text-ink-600">{m.check_after_days ? tl('{n} days', { n: m.check_after_days }) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFollowUp(text: string, mode?: Mode): void }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm">
@@ -423,6 +451,12 @@ export function VerdictCard({ verdict: v, onFollowUp }: { verdict: Verdict; onFo
                 </li>
               ))}
             </ul>
+          </Block>
+        )}
+
+        {(v.success_measures?.length ?? 0) > 0 && (
+          <Block title={tl('How we will know it worked')}>
+            <SuccessMeasures measures={v.success_measures!} />
           </Block>
         )}
 

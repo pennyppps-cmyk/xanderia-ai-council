@@ -97,7 +97,13 @@ function defaultShuffle<T>(items: T[]): T[] {
 }
 
 /** Rough token estimate for Hermes/Llama tokenisers on mixed English/Malay text. */
-export const estimateTokens = (text: string) => Math.ceil(text.length / 3.5);
+// Repeated at the very end of the user turn: Qwen follows rules there far more reliably than in the system prompt.
+export const ADVISOR_REMINDER =
+  'Be specific: each recommendation says what exactly, who (job role), by when, and the number that applies. Use the figures given; write [need: ...] for a missing one instead of guessing. No "consider", "explore" or "enhance" without the concrete action.';
+export const CHAIRMAN_REMINDER =
+  'Now adjudicate and return the verdict JSON. Verdict, first_step and every action step: what exactly, who (job role), by when, with numbers. success_measures: 1-3 numeric targets with a baseline from the figures given (or "[need: current value]") and when to check. Never invent a figure.';
+
+export const estimateTokens =(text: string) => Math.ceil(text.length / 3.5);
 
 /**
  * Keep the Chairman's input inside its context window: if all opinions + reviews
@@ -163,7 +169,7 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
           ...input.history,
           {
             role: 'user',
-            content: `${sharedTurn}${readsKnowledge && input.knowledge.length ? `\n\n${knowledgeBlock(input.knowledge).trimEnd()}` : ''}\n\nYour role on the council (answer only from this role):\n${role}`,
+            content: `${sharedTurn}${readsKnowledge && input.knowledge.length ? `\n\n${knowledgeBlock(input.knowledge).trimEnd()}` : ''}\n\nYour role on the council (answer only from this role):\n${role}\n\n${ADVISOR_REMINDER}`,
           },
         ];
         const out = await deps.gateway.call(`advisor:${advisor.key}`, messages, {
@@ -311,7 +317,7 @@ export async function runCouncil(deps: CouncilDeps, input: CouncilInput, hooks: 
       role: 'user',
       content: `${recent ? `Conversation so far (context only):\n<conversation>\n${recent}\n</conversation>\n\n` : ''}${userTurn(input.question, { context: departmentContext, attachments: chairDocs })}\n\nCouncil opinions:\n${good
         .map((o, i) => advisorBlock(o.advisor.name, texts[i]))
-        .join('\n')}${reviewsText ? `\n\nPeer review summary:\n${reviewsText}` : ''}\n\nNow adjudicate and return the verdict JSON.`,
+        .join('\n')}${reviewsText ? `\n\nPeer review summary:\n${reviewsText}` : ''}\n\n${CHAIRMAN_REMINDER}`,
     },
   ];
 

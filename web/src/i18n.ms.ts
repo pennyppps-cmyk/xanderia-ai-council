@@ -1352,4 +1352,11 @@ export const ms: Record<string, string> = {
   "Email a new welcome with a new temporary password": "E-melkan alu-aluan baharu dengan kata laluan sementara baharu",
   "Send {name} a new temporary password? The old one stops working.": "Hantar kata laluan sementara baharu kepada {name}? Yang lama tidak lagi berfungsi.",
   "Resend welcome": "Hantar semula alu-aluan",
+  // ── Success measures ──
+  "How we will know it worked": "Bagaimana kita tahu ia berjaya",
+  "Now": "Kini",
+  "Check after": "Semak selepas",
+  "{n} days": "{n} hari",
+  "Did we hit the targets?": "Adakah sasaran dicapai?",
+  "Actual figures against the targets above (e.g. roll rate 13%, target below 15%).": "Angka sebenar berbanding sasaran di atas (cth. kadar roll 13%, sasaran bawah 15%).",
 };

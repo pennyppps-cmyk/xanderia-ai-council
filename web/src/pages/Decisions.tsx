@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { VerdictCard } from '../components/AssistantMessage';
+import { SuccessMeasures, VerdictCard } from '../components/AssistantMessage';
 import { Markdown } from '../components/Markdown';
 import { Badge, Button, cx, Field, inputCls, Spinner } from '../components/ui';
 import { tl } from '../i18n';
@@ -215,6 +215,12 @@ function DecisionDetail({ id }: { id: string }) {
 
         <section className="rounded-xl border border-ink-100 bg-white p-4">
           <h2 className="mb-2 text-sm font-semibold">{tl('Outcome')}</h2>
+          {(d.verdict?.success_measures?.length ?? 0) > 0 && (
+            <div className="mb-3 rounded-lg bg-ink-50 p-3">
+              <p className="mb-1 text-xs font-semibold text-ink-600">{tl('Did we hit the targets?')}</p>
+              <SuccessMeasures measures={d.verdict!.success_measures!} />
+            </div>
+          )}
           {d.outcomes.length === 0 && <p className="text-sm text-ink-400">{tl('No outcome recorded yet.')}</p>}
           <ul className="space-y-2">
             {d.outcomes.map((o, i) => (
@@ -236,7 +242,7 @@ function DecisionDetail({ id }: { id: string }) {
                   </option>
                 ))}
               </select>
-              <input className={cx(inputCls, 'min-w-0 flex-1')} placeholder={tl('What happened? Numbers help (e.g. roll rate fell from 8% to 6%).')} value={note} onChange={(e) => setNote(e.target.value)} />
+              <input className={cx(inputCls, 'min-w-0 flex-1')} placeholder={d.verdict?.success_measures?.length ? tl('Actual figures against the targets above (e.g. roll rate 13%, target below 15%).') : tl('What happened? Numbers help (e.g. roll rate fell from 8% to 6%).')} value={note} onChange={(e) => setNote(e.target.value)} />
               <Button
                 variant="primary"
                 onClick={async () => {

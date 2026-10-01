@@ -31,6 +31,7 @@ const verdict: Verdict = {
     { risk: 'Slower branch service during training', likelihood: 'medium', impact: 'low', mitigation: 'Train outside peak hours.' },
   ],
   open_questions: ['What is the current default rate on top-up loans?', 'Which two branches have the most top-up requests?'],
+  success_measures: [{ measure: 'Top-up approval rate', baseline: '18%', target: 'at least 25%', check_after_days: 60 }],
   confidence: { level: 'medium', what_would_change: 'Pilot default rates above the head-office baseline.' },
 };
 
@@ -111,5 +112,18 @@ describe('renderReport', () => {
     const old = { ...verdict, risks: verdict.risks.map(({ risk, mitigation }) => ({ risk, mitigation })) } as unknown as Verdict;
     const pdf = await renderReport({ ...data, verdict: old });
     expect(pdf.length).toBeGreaterThan(5000);
+  });
+});
+
+describe('success measures', () => {
+  it('words a target with or without a known baseline, and adds its check date to the check-ins', async () => {
+    const { checkInDays, measureLine, verdictToMarkdown } = await import('../src/council/format.js');
+    expect(measureLine({ measure: 'Roll rate', baseline: '22%', target: 'below 15%', check_after_days: 60 })).toBe('Roll rate: from 22% to below 15% (check after 60 days)');
+    expect(measureLine({ measure: 'Default rate', baseline: '[need: current value]', target: 'below 3%', check_after_days: 90 })).toBe(
+      'Default rate: to below 3% (check after 90 days) [need: current value]',
+    );
+    expect(checkInDays({ success_measures: [] })).toEqual([30, 60]);
+    expect(checkInDays({ success_measures: [{ measure: 'a', baseline: '', target: 'b', check_after_days: 90 }, { measure: 'c', baseline: '', target: 'd', check_after_days: 30 }] })).toEqual([30, 60, 90]);
+    expect(verdictToMarkdown(verdict)).toContain('## How we will know it worked\n- Top-up approval rate: from 18% to at least 25% (check after 60 days)');
   });
 });

@@ -47,6 +47,7 @@ const verdict: Verdict = {
   action_plan: [{ step: 'Pick branches | pilot', owner_role: 'Head of Collections', timeline: 'Week 1', start_week: 1, duration_weeks: 1 }],
   risks: [{ risk: 'Complaints', likelihood: 'medium', impact: 'high', mitigation: 'Script review' }],
   open_questions: [],
+  success_measures: [],
   confidence: { level: 'medium', what_would_change: 'n/a' },
 };
 

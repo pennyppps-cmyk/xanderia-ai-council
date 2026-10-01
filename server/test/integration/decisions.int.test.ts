@@ -41,6 +41,14 @@ describe.skipIf(!url || !redisUrl)('decision check-ins (integration)', () => {
       ).rows[0].id;
     };
     ids.due = await mk('Pilot branch approvals', 'decided', 31);
+    // Two targets: one due at 30 days, one only at 90.
+    await db.query(
+      `UPDATE messages SET verdict = $2 WHERE id = (SELECT message_id FROM decisions WHERE id = $1)`,
+      [ids.due, JSON.stringify({ verdict: 'x', success_measures: [
+        { measure: 'Approval turnaround', baseline: '5 days', target: 'under 2 days', check_after_days: 30 },
+        { measure: 'Top-up default rate', baseline: '[need: current value]', target: 'below 3%', check_after_days: 90 },
+      ] })],
+    );
     ids.done = await mk('Already finished', 'done', 31);
   });
 
@@ -56,8 +64,12 @@ describe.skipIf(!url || !redisUrl)('decision check-ins (integration)', () => {
     expect(n.rows).toHaveLength(1);
     expect(n.rows[0].title).toContain('Pilot branch approvals');
     expect(n.rows[0].link).toBe(`/decisions/${ids.due}`);
-    const e = await db.query(`SELECT kind, subject FROM outbound_emails WHERE kind = 'checkin'`);
+    const e = await db.query(`SELECT kind, subject, body_text FROM outbound_emails WHERE kind = 'checkin'`);
     expect(e.rows).toHaveLength(1);
+    // Only the targets due by now are asked about.
+    expect(e.rows[0].body_text).toContain('Approval turnaround: from 5 days to under 2 days (check after 30 days)');
+    expect(e.rows[0].body_text).not.toContain('Top-up default rate');
+    expect((await db.query(`SELECT body FROM notifications WHERE kind = 'decision_checkin'`)).rows[0].body).toContain('Approval turnaround');
     const d = await db.query(`SELECT (next_check_in - decided_at::date) AS offset FROM decisions WHERE id = $1`, [ids.due]);
     expect(d.rows[0].offset).toBe(60);
     // Nothing more is due today.

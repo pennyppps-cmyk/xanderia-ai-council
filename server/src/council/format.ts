@@ -55,6 +55,22 @@ export function advisorBlock(label: string, text: string) {
 
 const LEVEL: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' };
 
+/** Outcome check-ins for a recorded decision: the usual 30 and 60 days, plus each target's own check date. */
+export function checkInDays(v: Pick<Verdict, 'success_measures'>): number[] {
+  const days = new Set([30, 60]);
+  for (const m of v.success_measures ?? []) {
+    if (m.check_after_days >= 7 && m.check_after_days <= 365) days.add(Math.round(m.check_after_days));
+  }
+  return [...days].sort((a, b) => a - b).slice(0, 5);
+}
+
+/** "1-30 days roll-forward rate: from 22% to below 15% (check after 60 days)". */
+export function measureLine(m: { measure: string; baseline?: string; target: string; check_after_days?: number }) {
+  const from = m.baseline && !/^\[?need/i.test(m.baseline) ? `from ${m.baseline} ` : '';
+  const need = m.baseline && /^\[?need/i.test(m.baseline) ? ` ${m.baseline}` : '';
+  return `${m.measure}: ${from}to ${m.target}${m.check_after_days ? ` (check after ${m.check_after_days} days)` : ''}${need}`;
+}
+
 /** Markdown rendering of a verdict — stored as message content (search, copy, history context). */
 export function verdictToMarkdown(v: Verdict): string {
   const lines: string[] = [];
@@ -82,6 +98,10 @@ export function verdictToMarkdown(v: Verdict): string {
       const rating = r.likelihood ? ` _(likelihood ${r.likelihood}, impact ${r.impact})_` : '';
       lines.push(`- **${r.risk}**${rating} → ${r.mitigation}`);
     }
+  }
+  if (v.success_measures?.length) {
+    lines.push('\n## How we will know it worked');
+    for (const m of v.success_measures) lines.push(`- ${measureLine(m)}`);
   }
   if (v.open_questions.length) {
     lines.push('\n## Open questions');

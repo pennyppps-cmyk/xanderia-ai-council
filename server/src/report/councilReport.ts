@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
-import type { Stance } from '../council/format.js';
+import { measureLine, type Stance } from '../council/format.js';
 import type { Verdict } from '../llm/schemas.js';
 
 /** Everything the report needs, already loaded and access-checked by the caller. */
@@ -612,6 +612,7 @@ export function renderReport(d: ReportData): Promise<Buffer> {
           para(doc, v.first_step);
         }
         listSection(doc, 'Where the council agrees', v.agreements ?? []);
+        listSection(doc, 'How we will know it worked', (v.success_measures ?? []).map(measureLine));
 
         // Sections flow; a chart only moves to a new page when it would not fit.
         doc.moveDown(0.8);

@@ -186,7 +186,22 @@ Format in Markdown, never HTML (max 250 words):
 **Position:** one sentence.
 **Key points:** 3-5 bullets, each concrete.
 **Recommendation:** what you would do, in 1-3 sentences.
-**Stance:** For, Conditional or Against, then your conviction as n/5 (e.g. "Conditional, 4/5").`,
+**Stance:** For, Conditional or Against, then your conviction as n/5 (e.g. "Conditional, 4/5").
+
+Rules for defined advice:
+- Every recommendation names WHAT exactly, WHO does it (a job role) and BY WHEN (days or a date), and a number wherever one applies (RM, %, days, accounts, staff).
+- Use the user's own figures and the documents' figures. Do not invent figures: when a number you need is missing, write [need: what number] instead of guessing.
+- Never write "consider", "explore", "look into", "enhance", "leverage", "optimise", "ensure" or "review" unless the same sentence says exactly what to do and the threshold that decides it.
+- A key point that would fit any company is too general: tie it to this request.
+
+Example of the level of detail expected (a different question, for style only; never reuse its content):
+**Position:** Do not cut the collections team; move 2 of the 6 collectors to the 1-30 days bucket for 60 days first.
+**Key points:**
+- 1-30 days accounts cure at about 3x the rate of 90+ days ones in the attached report (41% vs 13%), so effort there pays back fastest.
+- Each collector handles about 350 accounts; above 400 the call rate in the report drops below 2 calls per account per month.
+- [need: monthly cost of one collector] to compare against the expected recovery.
+**Recommendation:** Head of Collections moves 2 collectors to 1-30 days from 1 November; Credit Risk reports the cure rate weekly; decide on 31 December: keep the change if 1-30 days roll-forward drops below 15%.
+**Stance:** Conditional, 4/5`,
 
   clarifier: `Task: before the advisory council meets, decide whether the request is missing information the council genuinely needs to give a useful recommendation (e.g. the goal, budget or amount, scale, time frame, which product or customer segment, current process).
 Only ask if the answer would change the recommendation; do not ask about details the council can reasonably assume. Most well-described requests need no questions.
@@ -208,6 +223,7 @@ Format in Markdown. Be specific to Xanderia and Malaysian practice; mark anythin
 
   peer_review: `Task: review the other council members' answers below. They are anonymised as Advisor A, B, C...
 For EACH answer, name its single biggest flaw or blind spot (be specific and critical, not polite) and score it 1-5 (5 = excellent).
+Advice with no number, no owner role or no deadline, or advice that would fit any company, is a flaw: call it out.
 Then name the strongest answer, and in all_missed say what ALL the answers missed that the council should consider (one or two sentences; "nothing important" only if that is really true). Return JSON only.`,
 
   chairman: `Task: produce the council's final verdict as JSON.
@@ -217,10 +233,19 @@ Then name the strongest answer, and in all_missed say what ALL the answers misse
 - conflicts: every real disagreement between advisors. "between": which advisors; "position_a"/"position_b": what each argued; "decision": which way you ruled; "because": the specific argument, fact or risk that decides it (never "the majority agreed"). Include at least one conflict if the advisors disagreed on anything.
 - blind_spots: 0-3 things that only surfaced in the peer review, or that every advisor missed (see "what all answers missed"). Do not repeat the risks.
 - first_step: the ONE concrete thing to do first (who does what, this week). One step, not a list.
-- action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks. Sequence realistically: a step that depends on an earlier one starts after it finishes; only independent steps share a start week.
+- action_plan: ordered concrete steps, each with an owner_role (a job role, not a person's name), a timeline in words (e.g. "Week 1", "Within 30 days"), start_week (week number the step starts, week 1 = now) and duration_weeks. Sequence realistically: a step that depends on an earlier one starts after it finishes; only independent steps share a start week. Each step is a specific action with its number or threshold (e.g. "Move 2 collectors to the 1-30 days bucket", not "Strengthen early collections").
+- success_measures: 1-3 measurable targets that show whether the decision worked. measure: the number to track (e.g. "1-30 days roll-forward rate"); baseline: today's value from the user's figures, or "[need: current value]"; target: the value to reach (e.g. "below 15%"); check_after_days: when to check it (30, 60 or 90).
 - risks: 3 to 5 distinct key risks (operational, regulatory, customer, financial), each rated for likelihood and impact (low / medium / high) with a specific mitigation.
 - open_questions: what must be answered before acting. Never repeat a question the asker has already answered (see the confirmed facts); use those answers instead.
-- confidence.level: low / medium / high; confidence.what_would_change: what new information would change this recommendation.`,
+- confidence.level: low / medium / high; confidence.what_would_change: what new information would change this recommendation.
+
+Rules for defined advice: the verdict, first_step and every action step name what exactly, who (job role) and by when, with numbers wherever they apply (RM, %, days, accounts, staff). Use the user's and the advisors' figures; never invent one: write [need: what number] instead. Never write "consider", "explore", "look into", "enhance", "leverage", "optimise" or "ensure" without the specific action and threshold in the same sentence.
+
+Example of the level of detail expected (a different question, for style only; never reuse its content):
+verdict: "Keep all 6 collectors, but move 2 of them to the 1-30 days bucket from 1 November for 60 days, and decide on 31 December whether to keep the change."
+first_step: "Head of Collections reassigns 2 collectors' accounts to the 1-30 days queue by Friday."
+action_plan step: "Credit Risk sends a weekly roll-forward report by bucket and branch" (owner_role: "Credit Risk Analyst", timeline: "Weekly from week 1")
+success_measures: [{"measure": "1-30 days roll-forward rate", "baseline": "22%", "target": "below 15%", "check_after_days": 60}]`,
 };
 
 // Starting values from HANDOFF §5.2 / §5.3. num_ctx is identical for every Hermes

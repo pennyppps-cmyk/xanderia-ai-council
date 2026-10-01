@@ -61,6 +61,13 @@ export interface ClarifyRequest {
   assumptions: string[];
 }
 
+export interface SuccessMeasure {
+  measure: string;
+  baseline?: string;
+  target: string;
+  check_after_days?: number;
+}
+
 export interface Verdict {
   verdict: string;
   why: string;
@@ -72,6 +79,8 @@ export interface Verdict {
   action_plan: Array<{ step: string; owner_role: string; timeline: string; start_week?: number; duration_weeks?: number }>;
   risks: Array<{ risk: string; mitigation: string; likelihood?: Level; impact?: Level }>;
   open_questions: string[];
+  /** Numeric targets that show whether the decision worked (newer verdicts only). */
+  success_measures?: SuccessMeasure[];
   confidence: { level: 'low' | 'medium' | 'high'; what_would_change: string };
 }
 

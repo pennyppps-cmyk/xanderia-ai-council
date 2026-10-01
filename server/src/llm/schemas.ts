@@ -74,6 +74,18 @@ export const VerdictSchema = z.object({
     }),
   ),
   open_questions: z.array(z.string()),
+  // Numeric targets that show whether the decision worked; the decision check-ins ask about them.
+  success_measures: z
+    .array(
+      z.object({
+        measure: z.string(),
+        baseline: z.string().default(''),
+        target: z.string(),
+        check_after_days: z.number().int().min(7).max(365).default(60),
+      }),
+    )
+    .max(5)
+    .default([]),
   confidence: z.object({
     level: z.enum(['low', 'medium', 'high']),
     what_would_change: z.string(),
