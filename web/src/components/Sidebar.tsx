@@ -9,6 +9,7 @@ import { TelegramButton } from './Channels';
 import { NotificationBell } from './Notifications';
 import { cx, Icon, Spinner } from './ui';
 import { tl } from '../i18n';
+import { startMicrosoftConnect } from '../pages/AccountSetup';
 
 
 interface Props {
@@ -153,6 +154,18 @@ export function Sidebar({ conversations, query, onQuery, onChanged, onNavigate, 
             </Link>
           )}
           <TelegramButton />
+          {me?.mailbox.configured && (
+            <button
+              title={tl('Emails from your plans are sent from {address}', { address: me.mailbox.address ?? '' })}
+              onClick={async () => {
+                if (!confirm(tl('Your emails are sent from {address}. Connect a different Microsoft account?', { address: me.mailbox.address ?? '' }))) return;
+                await startMicrosoftConnect().catch((e) => alert((e as Error).message));
+              }}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-200 hover:bg-ink-900 hover:text-white"
+            >
+              <Icon name="send" className="h-3.5 w-3.5" /> {tl('My email')}
+            </button>
+          )}
           {me && me.user.role !== 'employee' && (
             <Link
               to="/admin"

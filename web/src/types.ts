@@ -15,6 +15,10 @@ export interface Me {
   user: User;
   department: { slug: string; name: string };
   canUseCouncil: boolean;
+  /** Signed in with a temporary password: must choose their own before using anything. */
+  mustChangePassword: boolean;
+  /** Their own Microsoft mailbox, which emails they cause are sent from. */
+  mailbox: { configured: boolean; connected: boolean; address: string | null; status: 'ok' | 'expired' | null; held: number };
 }
 
 export interface Department {

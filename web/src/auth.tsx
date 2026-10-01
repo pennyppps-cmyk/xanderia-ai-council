@@ -25,6 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const m = await api<Me>('/api/auth/me');
       if (m.user.locale === 'en' || m.user.locale === 'ms') setLang(m.user.locale);
       setMe(m);
+      // Everything outside /api/auth is closed until a temporary password is changed.
+      if (m.mustChangePassword) return;
       const [d, p] = await Promise.all([api<Department[]>('/api/departments'), api<Persona[]>('/api/personas')]);
       setDepartments(d);
       setPersonas(Object.fromEntries(p.map((x) => [x.key, x])));

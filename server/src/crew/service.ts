@@ -12,6 +12,7 @@ import { getSetting } from '../settings.js';
 import { addWorkingDays, DEFAULT_CALENDAR, isBusinessHours, klParts, nextBusinessMoment, type WorkCalendar } from './calendar.js';
 import { allowedRecipient, buildTaskEmail, cleanEmailBody, scrubEmailText } from './email.js';
 import { getMailProvider } from './mailer.js';
+import { MailboxExpiredError, msConfigured, sendAsUser } from './mailbox.js';
 import { resolveOwner, suggestCollaborators, type Collaborator, type DirectoryEntry } from './resolve.js';
 import { signTaskToken } from './tokens.js';
 import { DEFAULT_TIMINGS, trackerActions, type TrackerTimings } from './tracker.js';
@@ -302,7 +303,7 @@ export interface TaskEdit {
 export async function queueTaskEmail(taskId: string, kind: 'task' | 'reminder' | 'escalation', opts: { to?: string } = {}) {
   const { rows } = await query(
     `SELECT t.*, s.name AS owner_name, s.email AS owner_email, s.manager_email,
-            p.title AS plan_title, u.display_name AS requester_name
+            p.title AS plan_title, p.requester_id, u.display_name AS requester_name
        FROM action_tasks t
        JOIN action_plans p ON p.id = t.plan_id
        JOIN users u ON u.id = p.requester_id
@@ -337,9 +338,10 @@ export async function queueTaskEmail(taskId: string, kind: 'task' | 'reminder' |
   const blocked = !allowedRecipient(to, domains);
   const sendAfter = nextBusinessMoment(new Date(), await loadCalendar());
   await query(
-    `INSERT INTO outbound_emails (task_id, kind, to_email, subject, body_text, body_html, status, error, send_after)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [taskId, kind, to, email.subject, email.text, email.html, blocked ? 'blocked' : 'queued', blocked ? `Recipient domain not in allowlist (${domains.join(', ')})` : null, sendAfter],
+    // Sent from the mailbox of the person who planned the work.
+    `INSERT INTO outbound_emails (task_id, kind, to_email, subject, body_text, body_html, status, error, send_after, sender_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [taskId, kind, to, email.subject, email.text, email.html, blocked ? 'blocked' : 'queued', blocked ? `Recipient domain not in allowlist (${domains.join(', ')})` : null, sendAfter, t.requester_id],
   );
   await taskEvent(taskId, blocked ? 'email_blocked' : 'email_queued', 'herald', { kind, to });
   return { blocked, sendAfter };
@@ -624,29 +626,46 @@ export async function followUp(taskId: string, userId: string, kind: 'remind' | 
 
 // ── 5. Sending (outbox → provider) ───────────────────────────────────────────
 
-export async function sendQueuedEmails(now = new Date()) {
+export async function sendQueuedEmails(now = new Date(), fetchImpl: typeof fetch = fetch) {
   const cal = await loadCalendar();
   // No task emails outside business hours; account emails (invites, resets) go straight away.
   const inHours = isBusinessHours(now, cal);
   const provider = getMailProvider();
   const domains = await emailDomains();
+  const viaMailboxes = msConfigured();
   const { rows } = await query(
-    `SELECT * FROM outbound_emails
-      WHERE status = 'queued' AND send_after <= $1 AND ($2 OR kind = 'account')
-      ORDER BY created_at LIMIT 25`,
-    [now, inHours],
+    `SELECT e.* FROM outbound_emails e
+      WHERE e.status = 'queued' AND e.send_after <= $1 AND ($2 OR e.kind = 'account')
+        -- With Microsoft set up, an email from a user waits until their own mailbox is connected.
+        AND (e.sender_user_id IS NULL OR NOT $3
+             OR EXISTS (SELECT 1 FROM user_mailboxes m WHERE m.user_id = e.sender_user_id AND m.status = 'ok'))
+      ORDER BY e.created_at LIMIT 25`,
+    [now, inHours, viaMailboxes],
   );
+  const toldToReconnect = new Set<string>();
   for (const e of rows) {
     if (!allowedRecipient(e.to_email, domains)) {
       await query(`UPDATE outbound_emails SET status = 'blocked', error = 'Recipient domain not in allowlist' WHERE id = $1`, [e.id]);
       continue;
     }
+    const msg = { to: e.to_email, subject: e.subject, text: e.body_text, html: e.body_html };
+    const fromUser = viaMailboxes && e.sender_user_id;
+    const providerId = fromUser ? 'microsoft' : provider.id;
     try {
-      const result = await provider.send({ to: e.to_email, subject: e.subject, text: e.body_text, html: e.body_html });
-      await query(`UPDATE outbound_emails SET status = $2, provider = $3, sent_at = now(), error = NULL WHERE id = $1`, [e.id, result, provider.id]);
-      await writeAudit({ action: 'email_sent', targetType: 'outbound_email', targetId: e.id, detail: { kind: e.kind, to: e.to_email, provider: provider.id, result } });
+      const result = fromUser ? await sendAsUser(e.sender_user_id, msg, fetchImpl) : await provider.send(msg);
+      await query(`UPDATE outbound_emails SET status = $2, provider = $3, sent_at = now(), error = NULL WHERE id = $1`, [e.id, result, providerId]);
+      await writeAudit({ action: 'email_sent', targetType: 'outbound_email', targetId: e.id, detail: { kind: e.kind, to: e.to_email, provider: providerId, result, sender: e.sender_user_id ?? null } });
     } catch (err) {
-      await query(`UPDATE outbound_emails SET status = 'failed', provider = $3, error = $2 WHERE id = $1`, [e.id, (err as Error).message, provider.id]);
+      if (err instanceof MailboxExpiredError) {
+        // Stays queued and goes out once they reconnect. Tell them once.
+        await query(`UPDATE outbound_emails SET error = 'Waiting for the sender to reconnect their Microsoft email' WHERE id = $1`, [e.id]);
+        if (!toldToReconnect.has(e.sender_user_id)) {
+          toldToReconnect.add(e.sender_user_id);
+          await notify(e.sender_user_id, { kind: 'mailbox_expired', title: 'Reconnect your Microsoft email: your emails are waiting to be sent', link: '/' });
+        }
+        continue;
+      }
+      await query(`UPDATE outbound_emails SET status = 'failed', provider = $3, error = $2 WHERE id = $1`, [e.id, (err as Error).message, providerId]);
     }
   }
   return rows.length;

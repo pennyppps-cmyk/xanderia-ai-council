@@ -137,3 +137,11 @@ Defaults chosen for the open decisions in §12:
 - **The heatmap uses the router's department as the "area".** No topic model is added, which keeps it cheap and explainable.
 - **Telegram uses long polling from the worker**, not a webhook, so the server needs no public URL or open port. A Redis lock ensures one poller when several workers run. Telegram is a third-party cloud: the bot's help text and the link dialog both warn against sending customer data. The normal PII guard and audit still apply. Group chats are ignored.
 - **Voice uses an OpenAI-compatible Whisper server inside the stack** (speaches, CPU image, `faster-whisper-small` by default). It handles BM and English with language auto-detection, because staff mix the two. Audio is not stored. A GPU image and a larger model (`medium`) improve BM accuracy if the RDP GPU box is used.
+
+## Welcome email and own mailboxes (2026-10-01)
+
+- **New users get a temporary password by email, not a set-password link.** The email has the system link, their login and a password like `Hk7m-Pq4r-Tz9w` (no look-alike characters). It works for 7 days, and the API refuses everything except /api/auth/* until they choose their own. The admin sees it once on screen to hand over if email fails. Resending gives a new temporary password only to someone who has not chosen their own yet; anyone else gets a reset link.
+- **Emails come from the person behind them, through Microsoft Graph with delegated Mail.Send.** Each user signs in once on Microsoft's page (authorization code + PKCE). The app can send as them but not read their mail. Refresh tokens are AES-256-GCM encrypted (`MS_TOKEN_KEY`, or a key derived from JWT_SECRET; changing JWT_SECRET then means everyone reconnects).
+- **No fallback to a shared mailbox.** An email from a user who is not connected, or whose connection Microsoft revoked, waits in the outbox and goes out when they reconnect. Connecting is a required step in the web app once Microsoft is set up.
+- **The OAuth callback identifies the user by a single-use state in Redis**, not the session cookie: Microsoft's redirect is a cross-site navigation, so the SameSite=strict cookie is not sent.
+- System emails (digest, weekly plan/check-in, forgot password) have no sender and still use MAIL_PROVIDER.

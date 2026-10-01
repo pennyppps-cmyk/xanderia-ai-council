@@ -351,6 +351,9 @@ function HealthItem({ label, ok, detail }: { label: string; ok: boolean; detail?
 
 // ── Users ────────────────────────────────────────────────────────────────────
 
+/** Signed in and chose their own password (so a reset link, not a new temporary password). */
+const ownPassword = (u: { has_password: boolean; must_change_password: boolean }) => u.has_password && !u.must_change_password;
+
 function Users() {
   const { departments } = useAuth();
   const users = useLoad<any[]>('/api/admin/users');
@@ -374,6 +377,7 @@ function Users() {
                 <th className={th}>{tl("Department")}</th>
                 <th className={th}>{tl("Role")}</th>
                 <th className={th}>{tl("Last login")}</th>
+                <th className={th}>{tl("Microsoft email")}</th>
                 <th className={th} />
               </tr>
             </thead>
@@ -395,7 +399,22 @@ function Users() {
                     {!u.is_active && <Badge tone="red">{tl("inactive")}</Badge>}
                   </td>
                   <td className={cx(td, 'text-xs text-ink-400')}>
-                    {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : u.has_password ? tl('never') : <Badge tone="amber">{tl('invited')}</Badge>}
+                    {u.last_login_at && !u.must_change_password ? (
+                      new Date(u.last_login_at).toLocaleString()
+                    ) : u.must_change_password || !u.has_password ? (
+                      <Badge tone="amber">{tl('invited')}</Badge>
+                    ) : (
+                      tl('never')
+                    )}
+                  </td>
+                  <td className={cx(td, 'text-xs')}>
+                    {u.mailbox_status === 'ok' ? (
+                      <span className="text-emerald-700" title={u.mailbox_address}>{tl('connected')}</span>
+                    ) : u.mailbox_status === 'expired' ? (
+                      <Badge tone="red">{tl('reconnect needed')}</Badge>
+                    ) : (
+                      <span className="text-ink-400">{tl('not connected')}</span>
+                    )}
                   </td>
                   <td className={td}>
                     <div className="flex gap-1">
@@ -404,13 +423,14 @@ function Users() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          title={u.has_password ? tl('Email a password reset link') : tl('Email an invite link to set a password')}
+                          title={ownPassword(u) ? tl('Email a password reset link') : tl('Email a new welcome with a new temporary password')}
                           onClick={async () => {
-                            const r = await api<Omit<InviteResult, 'email'>>(`/api/admin/users/${u.id}/invite`, { method: 'POST' });
+                            if (!ownPassword(u) && !confirm(tl('Send {name} a new temporary password? The old one stops working.', { name: u.display_name }))) return;
+                            const r = await api<any>(`/api/admin/users/${u.id}/invite`, { method: 'POST' });
                             setInvite({ ...r, email: u.email });
                           }}
                         >
-                          {u.has_password ? tl('Send reset link') : tl('Send invite')}
+                          {ownPassword(u) ? tl('Send reset link') : tl('Resend welcome')}
                         </Button>
                       )}
                     </div>
@@ -458,7 +478,7 @@ function UserForm({ user, onDone }: { user?: any; onDone(invite?: InviteResult |
           },
         });
       } else {
-        const r = await api<{ id: string; invite: Omit<InviteResult, 'email'> | null }>('/api/admin/users', {
+        const r = await api<{ id: string; invite: any }>('/api/admin/users', {
           body: {
             email: f.email,
             display_name: f.display_name,
@@ -495,12 +515,12 @@ function UserForm({ user, onDone }: { user?: any; onDone(invite?: InviteResult |
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1 accent-accent-600" checked={f.send_invite} onChange={(e) => set('send_invite', e.target.checked)} />
               <span>
-                <span className="font-medium">{tl('Email them an invite link')}</span>
-                <span className="block text-xs text-ink-400">{tl('They choose their own password from the link (valid 7 days).')}</span>
+                <span className="font-medium">{tl('Email them a welcome with a temporary password')}</span>
+                <span className="block text-xs text-ink-400">{tl('The email has the system link and a temporary password (valid 7 days); they choose their own at first sign-in.')}</span>
               </span>
             </label>
             {!f.send_invite && (
-              <Field label={tl('Initial password')} hint={tl("At least 10 characters")}>
+              <Field label={tl('Initial password')} hint={tl('At least 10 characters; they must change it at first sign-in')}>
                 <input className={inputCls} type="password" value={f.password} onChange={(e) => set('password', e.target.value)} />
               </Field>
             )}
@@ -1436,36 +1456,53 @@ function PromptSandbox({ layer, promptKey, content }: { layer: string; promptKey
 
 // ── Invite / reset link result ───────────────────────────────────────────────
 
-interface InviteResult {
+type InviteResult = {
   email: string;
   link: string;
   emailed: boolean;
   blocked: boolean;
-}
+} & ({ kind: 'reset' } | { kind: 'welcome'; tempPassword: string; held: boolean });
 
 function InviteNotice({ result, onClose }: { result: InviteResult; onClose(): void }) {
   const [copied, setCopied] = useState(false);
+  const welcome = result.kind === 'welcome';
+  const handOver = welcome
+    ? tl('Sign in at {link} with {email} and the temporary password {password}. You will choose your own password at first sign-in.', {
+        link: result.link,
+        email: result.email,
+        password: result.tempPassword,
+      })
+    : result.link;
+  const headline = result.emailed
+    ? welcome
+      ? tl('Welcome email with a temporary password sent to {email}.', { email: result.email })
+      : tl('Link emailed to {email}.', { email: result.email })
+    : result.blocked
+      ? tl('{email} is outside the allowed email domains, so nothing was emailed. Give them this yourself:', { email: result.email })
+      : welcome && result.held
+        ? tl('The welcome email waits until you connect your own Microsoft email (it is sent from your mailbox). Or give {email} this yourself:', { email: result.email })
+        : tl("Email isn't connected yet (record-only outbox), so nothing was sent. Give {email} this yourself:", { email: result.email });
   return (
     <div className={cx('mb-4 rounded-lg border p-3 text-sm', result.emailed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50')}>
       <div className="flex items-start justify-between gap-2">
-        <p className="font-medium">
-          {result.emailed
-            ? tl('Link emailed to {email}.', { email: result.email })
-            : result.blocked
-              ? tl("{email} is outside the allowed email domains, so nothing was emailed. Send them this link yourself:", { email: result.email })
-              : tl("Email isn't connected yet (record-only outbox), so nothing was sent. Send {email} this link yourself:", { email: result.email })}
-        </p>
+        <p className="font-medium">{headline}</p>
         <button onClick={onClose} className="text-xs text-ink-400 hover:text-ink-900">
           {tl('Dismiss')}
         </button>
       </div>
+      {welcome && (
+        <p className="mt-2 text-sm">
+          {tl('Temporary password:')} <code className="rounded bg-white px-2 py-0.5 font-mono text-base font-semibold tracking-wide">{result.tempPassword}</code>
+          <span className="ml-2 text-xs text-ink-500">{tl('Shown only now.')}</span>
+        </p>
+      )}
       {!result.emailed && (
         <div className="mt-2 flex gap-2">
-          <input readOnly value={result.link} className={cx(inputCls, 'font-mono text-xs')} onFocus={(e) => e.target.select()} />
+          <input readOnly value={handOver} className={cx(inputCls, 'font-mono text-xs')} onFocus={(e) => e.target.select()} />
           <Button
             size="sm"
             onClick={async () => {
-              await navigator.clipboard.writeText(result.link);
+              await navigator.clipboard.writeText(handOver);
               setCopied(true);
             }}
           >
@@ -1473,7 +1510,11 @@ function InviteNotice({ result, onClose }: { result: InviteResult; onClose(): vo
           </Button>
         </div>
       )}
-      <p className="mt-1 text-xs text-ink-600">{tl('The link works once. Invites expire after 7 days, reset links after 1 hour.')}</p>
+      <p className="mt-1 text-xs text-ink-600">
+        {welcome
+          ? tl('The temporary password works for 7 days and must be changed at first sign-in.')
+          : tl('The link works once and expires after 1 hour.')}
+      </p>
     </div>
   );
 }

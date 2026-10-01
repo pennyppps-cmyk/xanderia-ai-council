@@ -6,7 +6,7 @@ import { query, tx } from '../db/pool.js';
 import { clearRegistryCache } from '../llm/registry.js';
 import { invalidatePrompts } from '../prompts/assembler.js';
 import { runPromptSandbox } from '../prompts/sandbox.js';
-import { sendAccountLink } from '../account.js';
+import { sendAccountLink, sendWelcome } from '../account.js';
 import { allSettings, setSetting } from '../settings.js';
 import { digestFor, digestParagraphs, weeklyDigests } from '../jobs.js';
 
@@ -24,10 +24,12 @@ export default async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/users', admin, async () => {
     const { rows } = await query(
       `SELECT u.id, u.email, u.display_name, u.role, u.department_id, u.is_active, u.last_login_at, u.created_at, u.weekly_digest,
-              (u.password_hash IS NOT NULL) AS has_password,
+              (u.password_hash IS NOT NULL) AS has_password, u.must_change_password,
+              mb.address AS mailbox_address, mb.status AS mailbox_status,
               COALESCE(array_agg(a.department_id) FILTER (WHERE a.department_id IS NOT NULL), '{}') AS extra_departments
          FROM users u LEFT JOIN user_department_access a ON a.user_id = u.id
-        GROUP BY u.id ORDER BY u.display_name`,
+         LEFT JOIN user_mailboxes mb ON mb.user_id = u.id
+        GROUP BY u.id, mb.user_id ORDER BY u.display_name`,
     );
     return rows;
   });
@@ -37,7 +39,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       .object({
         email: z.string().email(),
         display_name: z.string().trim().min(1),
-        // Optional: without one, the new user sets their own password from the invite email.
+        // Only used without the welcome email; with it, a temporary password is generated and emailed.
         password: z.string().min(10).optional().or(z.literal('')),
         send_invite: z.boolean().default(true),
         role: Role.default('employee'),
@@ -45,18 +47,16 @@ export default async function adminRoutes(app: FastifyInstance) {
       })
       .parse(req.body);
     if (!body.password && !body.send_invite) {
-      return reply.code(400).send({ error: 'Set an initial password or send an invite email' });
+      return reply.code(400).send({ error: 'Set an initial password or send the welcome email' });
     }
     try {
       const { rows } = await query(
-        `INSERT INTO users (email, password_hash, display_name, role, department_id)
-         VALUES (lower($1), $2, $3, $4, $5) RETURNING id`,
-        [body.email, body.password ? await bcrypt.hash(body.password, 12) : null, body.display_name, body.role, body.department_id],
+        `INSERT INTO users (email, password_hash, display_name, role, department_id, must_change_password)
+         VALUES (lower($1), $2, $3, $4, $5, true) RETURNING id`,
+        [body.email, !body.send_invite && body.password ? await bcrypt.hash(body.password, 12) : null, body.display_name, body.role, body.department_id],
       );
       await adminAudit(req, 'user_created', { email: body.email, role: body.role, invited: body.send_invite }, rows[0].id);
-      const invite = body.send_invite
-        ? await sendAccountLink(rows[0].id, body.password ? 'reset' : 'invite', { id: req.user.id, name: req.user.display_name })
-        : null;
+      const invite = body.send_invite ? { kind: 'welcome' as const, ...(await sendWelcome(rows[0].id, { id: req.user.id, name: req.user.display_name })) } : null;
       return { id: rows[0].id, invite };
     } catch (err: any) {
       if (err.code === '23505') return reply.code(409).send({ error: 'Email already exists' });
@@ -64,12 +64,21 @@ export default async function adminRoutes(app: FastifyInstance) {
     }
   });
 
-  /** (Re)send an invite, or a reset link for someone who already has a password. */
+  /**
+   * Someone who has not signed in with their own password yet gets a new welcome email (new temporary
+   * password); someone who has gets a reset link, so their password keeps working until they use it.
+   */
   app.post('/api/admin/users/:id/invite', admin, async (req, reply) => {
     const { id } = Uuid.parse(req.params);
-    const { rows } = await query(`SELECT password_hash IS NOT NULL AS has_password FROM users WHERE id = $1 AND is_active`, [id]);
+    const { rows } = await query(
+      `SELECT password_hash IS NOT NULL AND NOT must_change_password AS own_password FROM users WHERE id = $1 AND is_active`,
+      [id],
+    );
     if (!rows[0]) return reply.code(404).send({ error: 'User not found or inactive' });
-    return sendAccountLink(id, rows[0].has_password ? 'reset' : 'invite', { id: req.user.id, name: req.user.display_name });
+    const actor = { id: req.user.id, name: req.user.display_name };
+    return rows[0].own_password
+      ? { kind: 'reset' as const, ...(await sendAccountLink(id, 'reset', actor)) }
+      : { kind: 'welcome' as const, ...(await sendWelcome(id, actor)) };
   });
 
   app.patch('/api/admin/users/:id', admin, async (req, reply) => {
@@ -92,7 +101,9 @@ export default async function adminRoutes(app: FastifyInstance) {
       await c.query(
         `UPDATE users SET display_name = COALESCE($2, display_name), role = COALESCE($3, role),
                 department_id = COALESCE($4, department_id), is_active = COALESCE($5, is_active),
-                password_hash = COALESCE($6, password_hash), weekly_digest = COALESCE($7, weekly_digest)
+                password_hash = COALESCE($6, password_hash), weekly_digest = COALESCE($7, weekly_digest),
+                must_change_password = must_change_password OR $6 IS NOT NULL,
+                temp_password_expires_at = CASE WHEN $6 IS NOT NULL THEN NULL ELSE temp_password_expires_at END
           WHERE id = $1`,
         [
           id,

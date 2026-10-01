@@ -44,6 +44,14 @@ const Env = z.object({
   NOTIS_SMTP_PASS: z.string().optional(),
   NOTIS_SMTP_SECURE: bool,
   NOTIS_MAIL_FROM: z.string().default('Xanderia Collections <collections@xanderia.com>'),
+  // Each user's own Microsoft 365 mailbox (Entra ID app registration, delegated Mail.Send). Off when MS_CLIENT_ID is unset.
+  MS_TENANT_ID: z.string().optional(),
+  MS_CLIENT_ID: z.string().optional(),
+  MS_CLIENT_SECRET: z.string().optional(),
+  // Defaults to APP_BASE_URL + /api/auth/microsoft/callback; must match the app registration exactly.
+  MS_REDIRECT_URI: z.string().optional(),
+  // Key for encrypting mailbox tokens at rest; derived from JWT_SECRET when unset.
+  MS_TOKEN_KEY: z.string().optional(),
   // Word → PDF for the Templates workspace (a Gotenberg service, e.g. http://pdf:3000). Word output only when unset.
   PDF_CONVERTER_URL: z.string().optional(),
   // Telegram bot (optional). Long polling from the worker: no inbound port or public URL needed.

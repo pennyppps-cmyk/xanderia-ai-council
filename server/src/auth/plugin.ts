@@ -15,6 +15,8 @@ export interface SessionUser {
   role: UserRole;
   department_id: string;
   locale: string;
+  /** Signed in with a temporary password: only /api/auth/* works until they choose their own. */
+  must_change_password: boolean;
 }
 
 declare module '@fastify/jwt' {
@@ -48,12 +50,15 @@ export default fp(async (app) => {
     }
     // Re-read the user every request so deactivation and role changes apply immediately.
     const { rows } = await query<SessionUser>(
-      `SELECT id, email, display_name, role, department_id, locale
+      `SELECT id, email, display_name, role, department_id, locale, must_change_password
          FROM users WHERE id = $1 AND is_active`,
       [sub],
     );
     if (!rows[0]) return reply.code(401).send({ error: 'Not signed in' });
     req.user = rows[0];
+    if (rows[0].must_change_password && !req.url.startsWith('/api/auth/')) {
+      return reply.code(403).send({ error: 'Choose your own password first', code: 'must_change_password' });
+    }
   });
 
   app.decorate('requireRole', (min: UserRole) => async (req: FastifyRequest, reply: FastifyReply) => {

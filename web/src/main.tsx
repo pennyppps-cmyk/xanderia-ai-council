@@ -1,8 +1,8 @@
-import { Fragment, StrictMode } from 'react';
+import { Fragment, StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
-import { useLang } from './i18n';
+import { tl, useLang } from './i18n';
 import { Spinner } from './components/ui';
 import './index.css';
 import Admin from './pages/Admin';
@@ -22,11 +22,23 @@ import RoutinesPage from './pages/Routines';
 import MeetingsPage from './pages/Meetings';
 import TeamPage from './pages/Team';
 import GoalsPage from './pages/Goals';
-import { Toaster } from './toast';
+import { ChangeTempPassword, ConnectMailbox, takeMailboxResult } from './pages/AccountSetup';
+import { toast, Toaster } from './toast';
+
+// Back from the Microsoft sign-in page (read before the router sees the URL).
+const mailboxResult = takeMailboxResult();
 
 function Root() {
   const { me, loading } = useAuth();
   const lang = useLang();
+  const ready = Boolean(me && !me.mustChangePassword && me.mailbox.connected);
+  useEffect(() => {
+    if (ready && mailboxResult.connected) {
+      mailboxResult.connected = false;
+      // After the Toaster below has mounted.
+      setTimeout(() => toast({ title: tl('Microsoft email connected. Emails from your plans are now sent from your mailbox.') }), 300);
+    }
+  }, [ready]);
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-ink-400">
@@ -37,6 +49,9 @@ function Root() {
   // Invite / reset links work whether or not someone is signed in on this browser.
   if (window.location.pathname === '/set-password') return <SetPassword key={lang} />;
   if (!me) return <Login key={lang} />;
+  // First sign-in: own password first, then (when Microsoft is set up) connect their own mailbox.
+  if (me.mustChangePassword) return <ChangeTempPassword key={lang} />;
+  if (me.mailbox.configured && !me.mailbox.connected) return <ConnectMailbox key={lang} error={mailboxResult.error} />;
   return (
     <Fragment key={lang}>
       <Routes>

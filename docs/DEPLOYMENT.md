@@ -103,6 +103,15 @@ If you do want to keep the laptop's data: `docker compose exec postgres pg_dump 
 - **Monitoring:** Admin → Overview (health, usage, latency). Container logs: `docker compose logs -f api worker`.
 - **Security:** reachable only on the LAN or VPN; no port forwarding from the internet; the audit log records every model call; conversations are deleted after the retention period (default 12 months).
 
+### Each user's own Microsoft mailbox
+Task, reminder and escalation emails are sent from the mailbox of the person who planned the work, and welcome emails from the admin who created the account. To switch this on, a Microsoft 365 admin registers an app once:
+1. Entra admin center → App registrations → New registration. Name it "Xanderia AI Council", choose single tenant, and set the redirect URI (type Web) to `<APP_BASE_URL>/api/auth/microsoft/callback`, for example `https://192.168.88.179/api/auth/microsoft/callback`. If Entra rejects an IP address, give the server a hostname and use that in both APP_BASE_URL and the redirect URI.
+2. API permissions → Microsoft Graph → Delegated: `Mail.Send`, `User.Read`, `offline_access`. Then click **Grant admin consent**, so staff are not asked one by one.
+3. Certificates & secrets → New client secret. Note the expiry date: when it expires, sending stops until a new one is added.
+4. Put the values in `.env` on the server: `MS_TENANT_ID` (Directory ID), `MS_CLIENT_ID` (Application ID) and `MS_CLIENT_SECRET`. Then run `update.sh`.
+
+Once it is on, every user is asked to connect their mailbox (after choosing their own password, for new users). Until they connect, emails they cause wait in the outbox. Admin → Users shows who is connected. While the MS_ variables are unset, emails go through MAIL_PROVIDER as before. "Forgot password" emails have no sender and always go through MAIL_PROVIDER.
+
 ## 4. Timeline and owners
 
 | Step | Owner | Effort |
