@@ -60,6 +60,7 @@ describe('OllamaProvider', () => {
       ],
       stream: true,
       keep_alive: -1,
+      think: false,
       options: { temperature: 0.7, num_ctx: 16384, num_predict: 600 },
       format: { type: 'object' },
     });

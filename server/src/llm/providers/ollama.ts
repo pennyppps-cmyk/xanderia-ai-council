@@ -46,6 +46,9 @@ export class OllamaProvider implements ChatProvider {
       messages: req.messages,
       stream: true,
       keep_alive: parseKeepAlive(req.keepAlive),
+      // Thinking models (qwen3.5) otherwise spend the whole num_predict budget thinking and return no answer.
+      // Models without a thinking mode (qwen2.5) ignore it.
+      think: false,
       options: {
         temperature: req.temperature,
         num_ctx: req.numCtx,
